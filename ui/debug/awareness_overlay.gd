@@ -6,8 +6,16 @@ extends Node2D
 ##   thin line           enemy -> its current target (where it is heading this frame)
 ##   cyan polyline       remaining A* path while investigating
 ##   yellow X            the enemy's last known player position (while not chasing)
+##   letter above enemy  utility AI action: C chase, F flank, I investigate, . idle
+##   magenta +           flank point of enemies that are flanking
 
 const NOISE_SHOW_TIME: float = 1.0
+const ACTION_LABELS: Dictionary = {
+	UtilityAction.Type.IDLE: ".",
+	UtilityAction.Type.CHASE: "C",
+	UtilityAction.Type.FLANK: "F",
+	UtilityAction.Type.INVESTIGATE: "I",
+}
 const STATE_COLORS: Dictionary = {
 	Awareness.State.IDLE: Color(0.6, 0.6, 0.6),
 	Awareness.State.INVESTIGATE: Color(1, 0.9, 0.2),
@@ -55,6 +63,13 @@ func _draw() -> void:
 		var color: Color = STATE_COLORS[state]
 		var pos: Vector2 = enemy.global_position
 		draw_circle(pos + Vector2(0, -9), 1.5, color)
+		var action: UtilityAction.Type = enemy.brain.current
+		draw_string(ThemeDB.fallback_font, pos + Vector2(-3, -12), ACTION_LABELS[action],
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color.WHITE)
+		if action == UtilityAction.Type.FLANK and enemy.flank_point != Vector2.INF:
+			var fp: Vector2 = enemy.flank_point
+			draw_line(fp + Vector2(-3, 0), fp + Vector2(3, 0), Color.MAGENTA)
+			draw_line(fp + Vector2(0, -3), fp + Vector2(0, 3), Color.MAGENTA)
 		var path: Array[Vector2i] = enemy.get_debug_path()
 		if not path.is_empty():
 			var points: PackedVector2Array = PackedVector2Array([pos])

@@ -9,6 +9,12 @@ extends Resource
 @export var move_speed: float = 70.0
 ## How fast velocity changes towards the desired velocity, in px/s². Lower = smoother, wider turns.
 @export var acceleration: float = 500.0
+
+@export_group("Decisions")
+## Behaviour genes (aggression, flanking, patience) that weight the utility AI.
+@export var behaviour: BehaviourWeights
+## Shared utility AI tuning (decision rate, momentum, consideration ranges).
+@export var utility_settings: UtilitySettings
 ## Fastest the heading may rotate while moving, in degrees per second (0 = no limit).
 @export var max_turn_rate_degrees: float = 360.0
 ## The turn limit only applies above this speed (px/s). 0 = always.
@@ -25,6 +31,8 @@ extends Resource
 @export_group("Investigation")
 ## Counts as "arrived" at the last known position within this distance (px).
 @export var investigate_arrive_distance: float = 12.0
+## ...or within this distance (px) with a clear view of it (it is visibly empty).
+@export var investigate_view_distance: float = 48.0
 ## Seconds spent looking around a last known position before giving up (IDLE).
 @export var search_time: float = 2.0
 ## A* waypoint counts as reached within this distance (px) of the tile centre.

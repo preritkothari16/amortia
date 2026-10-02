@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="UtilitySettings" format=3]
+
+[ext_resource type="Script" path="res://ai/decision/utility_settings.gd" id="1_utility"]
+
+[resource]
+script = ExtResource("1_utility")
+decision_interval = 0.2
+momentum_bonus = 0.1
+idle_score = 0.1
+chase_range = 160.0
+chase_base = 0.5
+flank_allies_needed = 2
+ally_radius = 128.0
+flank_min_distance = 32.0
+flank_distance_ramp = 48.0
+flank_facing_base = 0.4
+flank_point_distance = 40.0
+flank_angle_degrees = 120.0
+flank_max_tile_cost = 2.0
+flank_max_path_cost = 5.0
+memory_time = 8.0
+investigate_base = 0.4

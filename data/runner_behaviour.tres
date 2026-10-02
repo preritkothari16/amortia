@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="BehaviourWeights" format=3]
+
+[ext_resource type="Script" path="res://ai/decision/behaviour_weights.gd" id="1_genes"]
+
+[resource]
+script = ExtResource("1_genes")
+aggression = 0.6
+flanking = 0.6
+patience = 0.6

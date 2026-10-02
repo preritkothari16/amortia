@@ -3,6 +3,8 @@ extends CharacterBody2D
 ## Thin enemy shell: physics, collision, health and greybox visuals.
 ## What it knows comes from Awareness (res://ai/decision/): it sees the player (grid line of
 ## sight) or hears noises (EventBus.noise_emitted) - never tracks the player through walls.
+## What it does comes from a UtilityAI (res://ai/decision/): Chase / Flank / Investigate / Idle,
+## decided at 5 Hz. This Node only gathers the inputs and executes the chosen action.
 ## Where to go comes from the FlowField (while it can see the player) or A* via the PathQueue
 ## (investigating a last known position). How to move comes from ContextSteering.
 ## Archetype numbers come from an EnemyStats resource (e.g. data/runner.tres).
@@ -16,12 +18,16 @@ var health: float = 0.0
 var is_climbing: bool = false
 ## What this enemy knows about the player.
 var awareness: Awareness = Awareness.new()
+## Chooses the action (scores live in the AI layer; this Node executes them).
+var brain: UtilityAI
+## Flank point used by the Flank action (Vector2.INF = none). For execution and debug display.
+var flank_point: Vector2 = Vector2.INF
 ## Point the enemy is heading for this frame (Vector2.INF = none). For debug display.
 var current_target: Vector2 = Vector2.INF
 ## How the enemy chose its heading this frame: &"sight" (straight at the player), &"flow"
 ## (arrows, while it can see the player), &"ring" (attack-ring slot / attack / waiting point),
 ## &"close" (no ring), &"investigate" (straight to last known), &"astar" (A* path to it),
-## &"wait_path" (A* result not ready yet), &"climb", &"idle".
+## &"wait_path" (A* result not ready yet), &"flank" (heading for a flank point), &"climb", &"idle".
 var nav_mode: StringName = &"idle"
 
 var _ctx: EnemyContext
@@ -50,6 +56,11 @@ var _path_version: int = -1
 var _waiting_for_path: bool = false
 ## Remaining tile centres of the current fence climb (last entry = first tile past the fence).
 var _climb_cells: Array[Vector2i] = []
+## Inputs object reused for every decision, and what perception looked like at the last frame
+## (a change triggers an immediate decision instead of waiting for the next 5 Hz tick).
+var _inputs: DecisionInputs = DecisionInputs.new()
+var _last_awareness_state: int = -1
+var _last_target_version: int = -1
 
 @onready var _body: Polygon2D = $Body
 
@@ -66,6 +77,8 @@ func _ready() -> void:
 	if shape != null:
 		_body_radius = shape.radius
 	EventBus.noise_emitted.connect(_on_noise_emitted)
+	# Golden-ratio phase from the id spreads decisions of many enemies across the 0.2 s window.
+	brain = UtilityAI.new(stats.utility_settings, stats.behaviour, fposmod(get_instance_id() * 0.618034, 1.0))
 
 
 ## Called by the spawner before the enemy starts moving.
@@ -93,18 +106,23 @@ func _physics_process(delta: float) -> void:
 		return
 	var cell: Vector2i = _grid.coords.world_to_cell(global_position)
 	_update_awareness(delta)
+	_update_decision(delta)
 	var cost: float = _flow_field.get_cost(cell)
 	var role: AttackRing.Role = _update_ring_membership(cost)
 	if is_climbing:
 		_climb_step(cell, delta)
 		return
 
-	# Decide where to head, depending on what we know.
+	# Execute the chosen action. Chase / Flank need the player in view; the brain re-decides
+	# the moment sight is lost, so the fallbacks below only cover that same frame.
+	var visible: bool = awareness.state == Awareness.State.CHASE
 	var seek_velocity: Vector2 = Vector2.ZERO
-	match awareness.state:
-		Awareness.State.CHASE:
+	match brain.current:
+		UtilityAction.Type.CHASE when visible:
 			seek_velocity = _chase_seek(cell, cost, role)
-		Awareness.State.INVESTIGATE:
+		UtilityAction.Type.FLANK when visible:
+			seek_velocity = _flank_seek(cell, cost, role)
+		UtilityAction.Type.INVESTIGATE when awareness.has_lead():
 			seek_velocity = _investigate_seek(cell)
 		_:
 			nav_mode = &"idle"
@@ -115,9 +133,11 @@ func _physics_process(delta: float) -> void:
 
 	# Steering: queuing, separation, wall feelers, smoothing.
 	_gather_neighbours()
-	if cost <= stats.crowd_cost and (role == AttackRing.Role.NONE or role == AttackRing.Role.WAITING):
+	var queues: bool = (role == AttackRing.Role.NONE or role == AttackRing.Role.WAITING) 			and brain.current != UtilityAction.Type.FLANK
+	if cost <= stats.crowd_cost and queues:
 		# Near the player a crowd forms: wait behind slower allies instead of shoving them.
-		# Slot holders and attackers skip this so waiting enemies can't block them for good.
+		# Slot holders, attackers and flankers skip this so waiting enemies can't block them
+		# for good (flankers go round the crowd, they must not queue behind it).
 		seek_velocity *= ContextSteering.queue_factor(global_position, seek_velocity, _near_positions, _near_velocities,
 				stats.separation_radius, stats.queue_lane_width)
 	var separation_push: Vector2 = ContextSteering.separation(global_position, _near_positions, stats.separation_radius)
@@ -150,6 +170,73 @@ func _can_perceive_player() -> bool:
 	if dist_sq > stats.sight_range * stats.sight_range:
 		return false
 	return _grid.has_line_of_sight(global_position, player_pos)
+
+
+# --- Decisions ----------------------------------------------------------------------
+
+## Runs the utility AI at its fixed rate, or straight away when perception changed
+## (player came into / went out of view, new noise, search finished).
+func _update_decision(delta: float) -> void:
+	if awareness.state != _last_awareness_state or awareness.target_version != _last_target_version:
+		brain.request_decision()
+	_last_awareness_state = awareness.state
+	_last_target_version = awareness.target_version
+	if brain.tick(delta):
+		brain.decide(_gather_inputs())
+
+
+## Fills the DecisionInputs from our senses. Player details are only read while visible.
+func _gather_inputs() -> DecisionInputs:
+	var visible: bool = awareness.state == Awareness.State.CHASE
+	_inputs.player_visible = visible
+	_inputs.has_lead = awareness.has_lead()
+	_inputs.lead_age = awareness.lead_age
+	_inputs.allies_chasing = 0
+	_inputs.flank_point_available = false
+	if visible:
+		var player_pos: Vector2 = _target.global_position
+		_inputs.distance_to_player = global_position.distance_to(player_pos)
+		var facing: Vector2 = _player_facing()
+		_inputs.player_facing_dot = facing.dot((global_position - player_pos).normalized()) \
+				if facing != Vector2.ZERO else 1.0
+		flank_point = FlankPlanner.choose(player_pos, facing, global_position, _flow_field, stats.utility_settings)
+		_inputs.flank_point_available = flank_point != Vector2.INF
+		var radius_sq: float = stats.utility_settings.ally_radius * stats.utility_settings.ally_radius
+		for other: Enemy in _allies:
+			if other != self and other.brain.current == UtilityAction.Type.CHASE \
+					and global_position.distance_squared_to(other.global_position) <= radius_sq:
+				_inputs.allies_chasing += 1
+	else:
+		_inputs.distance_to_player = INF
+		_inputs.player_facing_dot = 1.0
+	return _inputs
+
+
+## Direction the player is looking (aim), or ZERO if the target has no aim.
+func _player_facing() -> Vector2:
+	var aim: Variant = _target.get("aim_direction")
+	return aim if aim is Vector2 else Vector2.ZERO
+
+
+# --- FLANK: circle to the player's blind side ----------------------------------------
+
+func _flank_seek(cell: Vector2i, cost: float, role: AttackRing.Role) -> Vector2:
+	flank_point = FlankPlanner.choose(_target.global_position, _player_facing(), global_position,
+			_flow_field, stats.utility_settings)
+	if flank_point == Vector2.INF:
+		return _chase_seek(cell, cost, role)  # no usable side this frame: just chase
+	current_target = flank_point
+	if _clear_path_to(flank_point):
+		nav_mode = &"flank"
+		return ContextSteering.arrive(flank_point - global_position, stats.move_speed, stats.arrive_radius)
+	# Way to the flank point blocked: the flow field gets us round the obstacle towards the
+	# player (fair, the player is in view), and the straight line opens up on the way.
+	var next: Vector2i = _flow_field.get_next_cell(cell)
+	if _is_climbable(next):
+		_start_climb(_flow_climb_cells(next))
+		return Vector2.ZERO
+	nav_mode = &"flank"
+	return ContextSteering.seek(ContextSteering.sample_flow(_flow_field, global_position), stats.move_speed)
 
 
 # --- CHASE: player perceived right now -----------------------------------------------
@@ -197,7 +284,7 @@ func _update_ring_membership(cost: float) -> AttackRing.Role:
 	if _ring == null:
 		return AttackRing.Role.NONE
 	var id: int = get_instance_id()
-	var chasing: bool = awareness.state == Awareness.State.CHASE
+	var chasing: bool = awareness.state == Awareness.State.CHASE and brain.current == UtilityAction.Type.CHASE
 	if chasing and (cost <= _ring.settings.engage_cost or (_ring.is_member(id) and cost <= _ring.settings.release_cost)):
 		_ring.engage(id, global_position)
 	else:
@@ -226,7 +313,10 @@ func _ring_seek(role: AttackRing.Role) -> Vector2:
 func _investigate_seek(cell: Vector2i) -> Vector2:
 	var goal: Vector2 = awareness.last_known
 	current_target = goal
-	if global_position.distance_to(goal) <= stats.investigate_arrive_distance:
+	var dist: float = global_position.distance_to(goal)
+	# Checked once we stand on the spot - or can see it close up (a crowd may block the spot
+	# itself; seeing that it is empty is enough to know the player isn't there).
+	if dist <= stats.investigate_arrive_distance 			or (dist <= stats.investigate_view_distance and _grid.has_line_of_sight(global_position, goal)):
 		awareness.arrive(stats.search_time)  # nothing here: look around, then give up
 		_drop_path()
 		return Vector2.ZERO

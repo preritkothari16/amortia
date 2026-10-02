@@ -16,6 +16,8 @@ var state: State = State.IDLE
 var last_known: Vector2 = Vector2.INF
 ## Goes up every time last_known changes outside CHASE, so the enemy knows to plan a new path.
 var target_version: int = 0
+## Seconds since last_known was last updated (by seeing or hearing). Old leads are worth less.
+var lead_age: float = 0.0
 
 var _search_left: float = 0.0
 
@@ -24,6 +26,7 @@ var _search_left: float = 0.0
 func see(player_position: Vector2) -> void:
 	state = State.CHASE
 	last_known = player_position
+	lead_age = 0.0
 
 
 ## Called every frame the player is NOT visible. A chase turns into an investigation of the
@@ -42,6 +45,7 @@ func hear(noise_position: Vector2) -> void:
 	last_known = noise_position
 	state = State.INVESTIGATE
 	target_version += 1
+	lead_age = 0.0
 
 
 ## Reached last_known (or found it unreachable): look around for a while.
@@ -51,8 +55,14 @@ func arrive(search_time: float) -> void:
 		_search_left = search_time
 
 
-## Counts down the search; afterwards the enemy gives up and goes idle.
+## True if there is a last known position nobody has checked yet (worth investigating).
+func has_lead() -> bool:
+	return state == State.INVESTIGATE
+
+
+## Ages the information and counts down the search; afterwards the enemy goes idle.
 func tick(delta: float) -> void:
+	lead_age += delta
 	if state == State.SEARCH:
 		_search_left -= delta
 		if _search_left <= 0.0:

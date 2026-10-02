@@ -87,3 +87,18 @@ func test_arrive_only_from_investigate() -> void:
 	a.see(Vector2.ONE)
 	a.arrive(2.0)
 	assert_eq(a.state, Awareness.State.CHASE)
+
+
+func test_lead_age_and_has_lead() -> void:
+	var a: Awareness = Awareness.new()
+	assert_false(a.has_lead())
+	a.hear(Vector2(5, 5))
+	assert_true(a.has_lead())
+	a.tick(1.5)
+	assert_almost_eq(a.lead_age, 1.5, 0.0001)
+	a.hear(Vector2(6, 6))
+	assert_eq(a.lead_age, 0.0, "new information is fresh")
+	a.arrive(2.0)
+	assert_false(a.has_lead(), "checked leads are not leads any more")
+	a.see(Vector2.ONE)
+	assert_false(a.has_lead(), "seeing is better than a lead")

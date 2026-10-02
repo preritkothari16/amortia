@@ -24,14 +24,28 @@ prompt; the user says when to move on. Never start the next step automatically.
 | 12 | Line-of-sight shortcut + pursuit: within `sight_range` (160 px) the Enemy checks a **fat** line of sight (3 parallel rays one body-radius apart, world layer) to the predicted player position `pos + vel × prediction_time` (0.3 s), then to the actual position; if clear, seek goes straight there (`nav_mode` &"sight"), else flow arrows (&"flow"). A clear line also overrides a fence climb. Close-in (&"close") and climbing (&"climb") unchanged; all other steering (separation, queuing, feelers, smoothing) still applies. Pure parts in `ContextSteering` (`predict_position`, `lane_offsets`, `choose_heading`); rays in `enemy.gd` (`_sight_target`, `_clear_path_to`). 100 GUT tests | `ai/steering/context_steering.gd`, `entities/enemies/enemy.gd`, `enemy_stats.gd`, `data/runner.tres`, `tests/test_context_steering.gd` |
 | 13 | Attack ring (GDD 6.4): `AttackRing` (pure, ids + positions) owned by `main.gd`, updated each physics frame before enemies. 8 slots at 45° (slot 0 east) at `slot_radius` 28; roles NONE / WAITING / HOLDING / ATTACKING; max 3 attack tokens, rotated every `token_duration` 2.5 s to the holder who waited longest. Enemies engage at flow cost ≤ 7, release at > 9 (hysteresis) or on death. Slots unusable if tile cost > 2 or path cost > 3.5 (walls, fences, behind fences). Holders arrive at their slot, attackers step in to `attack_distance` 12 on their own side, waiters hold on `wait_radius` 60 (stand still if boxed in). Ring roles use the clear-path check, else flow. Queuing only for NONE/WAITING. F4 overlay. Settings in `data/attack_ring.tres`. 113 GUT tests | `ai/steering/attack_ring.gd`, `attack_ring_settings.gd`, `data/attack_ring.tres`, `tests/test_attack_ring.gd`, `ui/debug/attack_ring_overlay.gd`, `entities/enemies/enemy.gd`, `world/main.gd/.tscn`, `world/wave_manager.gd` |
 | 14 | Noise + awareness + A* investigation. **No live tracking any more**: each enemy has an `Awareness` (ai/decision, pure): IDLE / INVESTIGATE / SEARCH / CHASE. CHASE only while it perceives the player (within `sense_radius` 32 px always, else grid line of sight within `sight_range` 160); losing sight → INVESTIGATE the last *seen* spot; shots emit `EventBus.noise_emitted(pos, weapon.noise_radius)` (pistol 192 px) → enemies in range INVESTIGATE the shot spot; arrive → SEARCH `search_time` 2 s → IDLE. Flow field + ring only used in CHASE. Investigation goes straight if the fat ray is clear, else A* via `PathQueue` (ai/nav: per-frame budget 2 ms / max 4, exact (start,goal) cache, tail reuse when start lies on a cached path to the same goal). Paths can include fence climbs (climb code now takes a cell list). Vision = `TerrainGrid.has_line_of_sight` (Amanatides–Woo DDA) with `TerrainCosts.blocks_vision` = wall, house (fences don't block; tall grass later with stealth). WaveManager `alert_on_spawn` (default on): new enemies get the player's spawn-time position. `EnemyContext` bundles flow field / ring / path queue / target; `Enemy.setup(context, allies)`, `WaveManager.setup(spawns, context)`. F6 debug overlay. 136 GUT tests | `ai/decision/awareness.gd`, `ai/nav/path_queue.gd`, `ai/grid/terrain_grid.gd`, `terrain_costs.gd`, `entities/enemies/enemy.gd`, `enemy_context.gd`, `enemy_stats.gd`, `entities/player/player.gd`, `entities/projectiles/weapon_stats.gd`, `ui/debug/awareness_overlay.gd`, `world/main.gd/.tscn`, `world/wave_manager.gd`, `tests/test_awareness.gd`, `tests/test_path_queue.gd` |
+| 15 | Utility AI (learning mode, explained + pseudocode first): `UtilityAI` scores `ChaseAction` (aggression × (0.5 + 0.5 closeness), needs sight), `FlankAction` (flanking × allies × facing-away × far-enough, needs sight + allies chasing + a FlankPlanner point), `InvestigateAction` (patience × (0.4 + 0.6 freshness), needs an unchecked lead, no sight); idle baseline 0.1; +0.1 momentum for the current action (idle included); an action only competes if its RAW score > idle. Decides at 5 Hz (staggered by golden-ratio phase from instance id) + immediately when awareness state / target_version changes. Inputs in `DecisionInputs` (gathered by `Enemy._gather_inputs`). Genes in `BehaviourWeights` (`data/runner_behaviour.tres`: 0.6/0.6/0.6), shared tuning in `UtilitySettings` (`data/utility_ai.tres`). Enemy executes: CHASE = old chase + ring; FLANK = arrive at flank point (flow field if blocked), no ring, no queuing; INVESTIGATE = A*/straight to lead; IDLE = stand. Investigation also counts as checked when the spot is in view within `investigate_view_distance` 48 px (fixes crowds stuck around a shared last-seen spot). `Awareness.lead_age`, `has_lead()`. F6 overlay shows action letters + flank points. 168 GUT tests | `ai/decision/utility_ai.gd`, `utility_action.gd`, `actions/chase_action.gd`, `actions/flank_action.gd`, `actions/investigate_action.gd`, `decision_inputs.gd`, `behaviour_weights.gd`, `utility_settings.gd`, `flank_planner.gd`, `awareness.gd`, `data/utility_ai.tres`, `data/runner_behaviour.tres`, `entities/enemies/enemy.gd`, `enemy_stats.gd`, `data/runner.tres`, `ui/debug/awareness_overlay.gd`, tests `test_utility_ai.gd`, `test_utility_actions.gd`, `test_flank_planner.gd` |
 
 ### Next recommended step
 **Runner attack + player HP** (GDD §7.1): player health (100) + simple HP readout, Runners with
 ring role ATTACKING deal contact damage on a cooldown when within reach, respect
 `Player.is_invulnerable` (then remove `debug_dodge`), player death → restart level. Then
-utility AI (`ai/decision/`, learning mode: chase / flank / investigate weights — Awareness
-already provides the "investigate" input), genome + GA (`ai/evolution/`, learning mode).
-Later: footstep/running noise, tall grass blocking vision (stealth), idle wandering.
+**genome + fitness tracking + GA between waves** (`ai/evolution/`, learning mode): genome =
+stats + terrain genes + `BehaviourWeights` + path mode (GDD §5.3–5.4); the GA writes per-enemy
+`BehaviourWeights` instead of the shared runner_behaviour.tres. Later: footstep noise, tall
+grass blocking vision, idle wandering, Caution/Cohesion actions.
+
+Utility AI measurements (step 15, scratch `utility_game.gd`, 20 Runners, seed 7):
+- Player aiming east: 18 CHASE + 2 FLANK; flankers spent 73 % of their frames on the player's
+  back side. Player turns west: all 20 CHASE. Player vanishes: INVESTIGATE last-seen spot →
+  SEARCH → IDLE within ~2 s; a shot from hiding 28 tiles away is out of earshot → stay IDLE.
+- One Runner's timeline: IDLE → INVESTIGATE (spawn alert) → FLANK 5.6 s → CHASE 6.8 s →
+  INVESTIGATE 14.0 s (lost sight) → IDLE 14.25 s. 4–6 action switches per enemy in 25 s
+  (125 decisions each) — no flicker.
+- 40-Runner steering metric: 0 sharp turns, 0 overlaps, longest stuck (moving roles) ≤ 39
+  frames. 50 Runners: frame max ~10 ms, 0 frames > 16.7 ms.
+- Bugs found and fixed: flankers queued behind ring waiters (227-frame stall) → flankers skip
+  queuing; 8 investigators circled a shared last-seen spot forever → "seen it empty" arrival.
 
 Noise / A* measurements (step 14, scratch `noise_test.gd`, `no_tracking.gd`, `frame_perf.gd`):
 - Idle Runner 10.3 tiles away behind a house (no LOS) hears a shot → INVESTIGATE, 12-cell A*
@@ -81,7 +95,7 @@ many enemies use A*. Flow rebuilds could move to `WorkerThreadPool` later if the
 `TerrainGrid.get_neighbors` allocates per call; hot loops should use `build_cost_array` + indices.
 
 ## Current controls
-WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay · F2 flow-field arrows · F3 spawn a wave · F4 attack-ring overlay · F6 noise / awareness overlay (debug).
+WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay · F2 flow-field arrows · F3 spawn a wave · F4 attack-ring overlay · F6 noise / awareness / utility-action overlay (debug).
 
 ## Scene / code map
 - `world/main.tscn` (main scene, script `main.gd`): `MapleHollow`, `WaveManager` (enemies are its
@@ -110,6 +124,12 @@ WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay ·
   `take_result`, `process()` (main.gd calls it each physics frame), `clear_cache()`, stats
   `searches_run / cache_hits / reuse_hits / last_process_usec`; `budget_usec` 2000, `max_per_frame` 4.
 - `TerrainGrid.has_line_of_sight(from_world, to_world)`, `blocks_vision(cell)`.
+- `UtilityAI` API: `UtilityAI.new(settings, genes, phase)`, `tick(delta) -> bool`, `request_decision()`,
+  `decide(inputs) -> UtilityAction.Type`, `current`, `last_scores`, `switches`.
+  `UtilityAction.Type {IDLE, CHASE, FLANK, INVESTIGATE}`; each action: `score(inputs, genes, settings)`.
+  `FlankPlanner.choose(player_pos, player_facing, enemy_pos, flow_field, settings)` → point or INF.
+  `Enemy.brain: UtilityAI`, `Enemy.flank_point`. `EnemyStats.behaviour` + `.utility_settings`.
+  Player facing = `Player.aim_direction` (read via `get("aim_direction")`).
 - `AttackRing` API: `AttackRing.new(flow_field, settings)`, `engage(id, pos)`, `disengage(id)`,
   `is_member`, `get_role(id) -> Role {NONE, WAITING, HOLDING, ATTACKING}`, `get_target(id)`,
   `update(player_pos, delta)`, `slot_position/slot_direction/is_slot_valid/get_slot_owner(i)`,
@@ -175,7 +195,9 @@ Spawns are 15–32 tiles from the player; all 1383 walkable cells reachable (che
 - `Performance.TIME_PHYSICS_PROCESS` is coarse/stale headless; measure frame time with
   `Time.get_ticks_usec()` between consecutive frames instead.
 - Learning-mode files written on request so far: astar.gd, flow_field.gd, path_queue.gd (ai/nav),
-  awareness.gd (ai/decision) — each with explanation + pseudocode given first in chat.
+  awareness.gd, utility_ai.gd, utility_action.gd, actions/*.gd, flank_planner.gd, decision_inputs.gd,
+  behaviour_weights.gd, utility_settings.gd (ai/decision) — each with explanation + pseudocode first.
+- Headless tests can't move the mouse: set `player.aim_direction` directly each frame.
 - Don't `await` inside a SceneTree script's `_physics_process(delta) -> bool`: it turns into a coroutine and the tree quits.
 - Keep enemy colours distinct from terrain (pink enemies vanished against pink houses → Runners are red).
 - Hand-written `.tscn` files get `uid=` added by the editor on first open — commit that churn.

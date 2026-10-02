@@ -1,6 +1,8 @@
 [gd_resource type="Resource" script_class="EnemyStats" format=3]
 
 [ext_resource type="Script" path="res://entities/enemies/enemy_stats.gd" id="1_stats"]
+[ext_resource type="Resource" path="res://data/runner_behaviour.tres" id="2_behaviour"]
+[ext_resource type="Resource" path="res://data/utility_ai.tres" id="3_utility"]
 
 [resource]
 script = ExtResource("1_stats")
@@ -8,12 +10,15 @@ archetype = &"runner"
 max_health = 30.0
 move_speed = 70.0
 acceleration = 500.0
+behaviour = ExtResource("2_behaviour")
+utility_settings = ExtResource("3_utility")
 max_turn_rate_degrees = 360.0
 turn_limit_min_speed = 0.0
 sight_range = 160.0
 sense_radius = 32.0
 prediction_time = 0.3
 investigate_arrive_distance = 12.0
+investigate_view_distance = 48.0
 search_time = 2.0
 waypoint_radius = 8.0
 off_path_distance = 40.0
