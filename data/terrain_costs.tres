@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TerrainCosts" format=3]
+
+[ext_resource type="Script" path="res://ai/grid/terrain_costs.gd" id="1_costs"]
+
+[resource]
+script = ExtResource("1_costs")
+costs = Dictionary[String, float]({
+"fence": 6.0,
+"grass": 1.0,
+"road": 1.0,
+"tall_grass": 2.0
+})
+impassable = PackedStringArray("wall", "house")
