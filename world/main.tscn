@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://world/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://world/zones/maple_hollow/maple_hollow.tscn" id="2_map"]
@@ -14,6 +14,8 @@
 [ext_resource type="Resource" path="res://data/genome_rules.tres" id="12_genome_rules"]
 [ext_resource type="Script" path="res://ui/debug/genome_overlay.gd" id="13_genome_overlay"]
 [ext_resource type="Resource" path="res://data/fitness.tres" id="14_fitness"]
+[ext_resource type="Resource" path="res://data/ga.tres" id="15_ga"]
+[ext_resource type="Script" path="res://ui/hud/wave_hud.gd" id="16_hud"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -27,6 +29,7 @@ fitness_settings = ExtResource("14_fitness")
 [node name="WaveManager" type="Node2D" parent="."]
 script = ExtResource("7_waves")
 enemy_scene = ExtResource("8_runner")
+ga_settings = ExtResource("15_ga")
 
 [node name="Player" parent="." instance=ExtResource("3_player")]
 
@@ -44,3 +47,15 @@ script = ExtResource("11_awareness")
 
 [node name="GenomeOverlay" type="Node2D" parent="."]
 script = ExtResource("13_genome_overlay")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="WaveHud" type="Label" parent="HUD"]
+offset_left = 4.0
+offset_top = 2.0
+offset_right = 476.0
+offset_bottom = 40.0
+theme_override_font_sizes/font_size = 8
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 2
+script = ExtResource("16_hud")

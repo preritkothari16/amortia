@@ -535,6 +535,25 @@ func take_damage(amount: float) -> void:
 		_die()
 
 
+## Removes the enemy without it counting as killed (e.g. leftovers when the next wave starts).
+## Its fitness record should already be frozen by the wave end.
+func despawn() -> void:
+	if _dead:
+		return
+	_dead = true
+	if fitness_record != null:
+		fitness_record.freeze()
+	var id: int = get_instance_id()
+	if _ring != null:
+		_ring.disengage(id)
+	if _ctx != null:
+		_ctx.path_queue.cancel(id)
+	collision_layer = 0
+	collision_mask = 0
+	set_physics_process(false)
+	queue_free()
+
+
 func _die() -> void:
 	_dead = true
 	if fitness_record != null:

@@ -1,13 +1,17 @@
 class_name WaveManager
 extends Node2D
-## Prototype spawner: scatters a wave of enemies around the map's enemy spawn points and
-## tracks who is alive. Each enemy gets a random genome (no GA yet) and a FitnessRecord.
-## A wave ends when all its enemies are dead, when the next wave spawns, or on F8 (debug);
-## then every record is frozen, scored and reported. F3 spawns another wave (debug).
+## Runs the evolution loop (GDD 5.4, 8.1): spawn the current population as a wave -> the
+## player fights it -> each enemy's FitnessRecord is filled in -> the wave ends -> fitness is
+## scored -> the GeneticAlgorithm breeds the next generation -> after an intermission the next
+## wave spawns from it. The population persists between waves; wave 1 is random.
+## A wave ends when all its enemies are dead or on F8. Debug: F3 = next wave now,
+## F8 = end wave (score + evolve), F9 = restart the current wave (same genomes, no scoring).
 
 signal wave_cleared
 ## Fitness results of a finished wave, best first (see end_wave for the entry format).
 signal wave_ended(results: Array[Dictionary])
+## A new generation was bred (after wave `from_wave`), with its summary (see _evolve).
+signal generation_bred(summary: Dictionary)
 
 @export var enemy_scene: PackedScene
 @export var wave_size: int = 20
@@ -26,6 +30,20 @@ signal wave_ended(results: Array[Dictionary])
 ## Print a one-line gene summary per wave.
 @export var log_waves: bool = true
 
+@export_group("Evolution")
+## Breed each wave from the last one with the GA. Off = every wave is random.
+@export var evolve: bool = true
+@export var ga_settings: GASettings
+## Seed for the GA. 0 = use spawn_seed; if that is 0 too, a random seed (logged, so the run
+## can be repeated by putting it here).
+@export var evolution_seed: int = 0
+## Start the next wave automatically after a wave ends.
+@export var auto_next_wave: bool = true
+## Pause between waves (seconds).
+@export var intermission_seconds: float = 3.0
+## Remove survivors of an ended wave when the next one spawns (they were already scored).
+@export var despawn_leftovers: bool = true
+
 ## Waves spawned so far in this zone (the first wave is 1). Sets the stat budget.
 var wave_number: int = 0
 
@@ -36,9 +54,21 @@ var last_wave_results: Array[Dictionary] = []
 ## Seconds since the current wave spawned (only counts while it is open).
 var wave_seconds: float = 0.0
 
+## The genomes the next wave will be made of. Persists between waves.
+var population: Array[Genome] = []
+## Generations bred so far (0 = the random first population).
+var generation: int = 0
+## One summary per bred generation (see _evolve), oldest first.
+var history: Array[Dictionary] = []
+## Seconds until the next wave starts (< 0 = no intermission running).
+var intermission_left: float = -1.0
+## The seed the GA actually uses (for repeating a run).
+var ga_seed: int = 0
+
 ## The wave being scored: one {genome, record} per enemy spawned by spawn_wave().
 var _wave_entries: Array[Dictionary] = []
 var _wave_open: bool = false
+var _ga: GeneticAlgorithm
 
 var _context: EnemyContext
 var _spawn_points: Array[Vector2] = []
@@ -52,6 +82,13 @@ func setup(spawn_points: Array[Vector2], context: EnemyContext) -> void:
 		_rng.randomize()
 	_spawn_points = spawn_points
 	_context = context
+	if ga_settings != null:
+		ga_seed = evolution_seed if evolution_seed != 0 else spawn_seed
+		if ga_seed == 0:
+			ga_seed = randi()
+		_ga = GeneticAlgorithm.new(ga_settings, _context.genome_rules, ga_seed)
+		if log_waves and evolve:
+			print("[Evolution] GA seed %d (put it in evolution_seed to repeat this run)" % ga_seed)
 	if auto_start:
 		spawn_wave()
 
@@ -59,25 +96,42 @@ func setup(spawn_points: Array[Vector2], context: EnemyContext) -> void:
 func _physics_process(delta: float) -> void:
 	if _wave_open:
 		wave_seconds += delta
+	if intermission_left >= 0.0:
+		intermission_left -= delta
+		if intermission_left < 0.0:
+			spawn_wave()
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("debug_spawn_wave"):
-		spawn_wave()
+		spawn_wave()  # ends (scores, evolves) the current wave first if it is still running
 	elif event.is_action_pressed("debug_end_wave"):
 		end_wave()
+	elif event.is_action_pressed("debug_restart_wave"):
+		restart_wave()
 
 
-## Spawns `count` enemies, cycling through the spawn markers. Each gets its own genome.
+func is_wave_running() -> bool:
+	return _wave_open
+
+
+## Starts the next wave: `count` enemies made from the population (cycling through the spawn
+## markers). If the population doesn't have `count` genomes (first wave, or a different size
+## was asked for) a new random population is made.
 func spawn_wave(count: int = wave_size) -> void:
-	end_wave()  # close and score the previous wave first, if it is still open
+	end_wave()  # close, score and evolve the previous wave first, if it is still open
+	intermission_left = -1.0
+	if despawn_leftovers:
+		_despawn_all()
 	wave_number += 1
 	wave_seconds = 0.0
 	_wave_entries.clear()
 	_wave_open = true
+	if population.size() != count or not evolve:
+		_new_random_population(count)
 	var genomes: Array[Genome] = []
 	for i: int in count:
-		var genome: Genome = make_genome()
+		var genome: Genome = population[i]
 		genomes.append(genome)
 		var record: FitnessRecord = FitnessRecord.new()
 		record.wave = wave_number
@@ -85,6 +139,96 @@ func spawn_wave(count: int = wave_size) -> void:
 		spawn_enemy(_spawn_points[i % _spawn_points.size()], genome, record)
 	if log_waves and not genomes.is_empty() and genomes[0] != null:
 		print(_wave_summary(genomes))
+
+
+## Ends the current wave WITHOUT scoring or evolving, removes its enemies and spawns the same
+## genomes again as the same wave number (debugging).
+func restart_wave() -> void:
+	if wave_number == 0:
+		return
+	_wave_open = false
+	intermission_left = -1.0
+	_despawn_all()
+	wave_number -= 1
+	if log_waves:
+		print("[Wave %d] restarted with the same genomes" % (wave_number + 1))
+	spawn_wave(population.size() if not population.is_empty() else wave_size)
+
+
+## Mean of each gene over a list of genomes: gene name -> mean.
+static func gene_means(genomes: Array[Genome]) -> Dictionary:
+	var means: Dictionary = {}
+	for gene: StringName in Genome.STAT_GENES + Genome.BEHAVIOUR_GENES:
+		var total: float = 0.0
+		for g: Genome in genomes:
+			total += g.get(gene)
+		means[String(gene)] = total / maxf(genomes.size(), 1)
+	return means
+
+
+func _new_random_population(count: int) -> void:
+	population.clear()
+	generation = 0
+	for i: int in count:
+		population.append(make_genome())
+
+
+## Breeds the next population from a finished wave and logs what changed.
+func _evolve(results: Array[Dictionary]) -> void:
+	if _ga == null or results.is_empty() or results[0]["genome"] == null:
+		return
+	var parents: Array[Genome] = []
+	for r: Dictionary in results:
+		parents.append(r["genome"])
+	var budget: int = _context.genome_rules.budget_for_wave(wave_number + 1)
+	var children: Array[Genome] = _ga.next_generation_from_results(results, budget)
+	if children.is_empty():
+		return
+	population = children
+	generation += 1
+	var before: Dictionary = gene_means(parents)
+	var after: Dictionary = gene_means(population)
+	var counts: Dictionary = {}
+	for g: Genome in population:
+		var m: String = Genome.PathMode.keys()[g.path_mode]
+		counts[m] = counts.get(m, 0) + 1
+	var summary: Dictionary = {
+		"from_wave": wave_number, "generation": generation, "budget": budget,
+		"best_fitness": _ga.last_stats["best_fitness"], "mean_fitness": _ga.last_stats["mean_fitness"],
+		"means_before": before, "means_after": after, "path_modes": counts,
+		"diversity_guard": _ga.last_stats["diversity_guard"], "mutation_rate": _ga.last_stats["mutation_rate"],
+		"best_genome": results[0]["genome"].describe(),
+	}
+	history.append(summary)
+	if log_waves:
+		print(_generation_report(summary))
+	generation_bred.emit(summary)
+
+
+## e.g. "[Evolution] wave 3 -> generation 3 (budget 18) | fitness best 0.31 mean 0.12 |
+##       gene means: speed 5.2 (+0.4) ... | biggest shifts: patience -0.08, speed +0.40 | ..."
+func _generation_report(s: Dictionary) -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	var shifts: Array = []
+	for gene: String in s["means_after"]:
+		var a: float = s["means_after"][gene]
+		var d: float = a - s["means_before"][gene]
+		parts.append("%s %.2f (%+.2f)" % [gene, a, d])
+		# Stat genes span 1..10, behaviour genes 0..1: compare shifts relative to their range.
+		var scale: float = 9.0 if Genome.STAT_GENES.has(StringName(gene)) else 1.0
+		shifts.append([absf(d) / scale, "%s %+.2f" % [gene, d]])
+	shifts.sort_custom(func(x: Array, y: Array) -> bool: return x[0] > y[0])
+	return "[Evolution] wave %d -> generation %d (next budget %d) | parents' fitness best %.3f mean %.3f | biggest shifts: %s, %s, %s | gene means: %s | paths %s | mutation %.2f%s\n  best genome so far: %s" % [
+		s["from_wave"], s["generation"], s["budget"], s["best_fitness"], s["mean_fitness"],
+		shifts[0][1], shifts[1][1], shifts[2][1], " | ".join(parts), s["path_modes"], s["mutation_rate"],
+		" (diversity guard ON)" if s["diversity_guard"] else "", s["best_genome"]]
+
+
+## Frees every living enemy without counting it as killed.
+func _despawn_all() -> void:
+	for enemy: Enemy in alive.duplicate():
+		enemy.despawn()
+	alive.clear()
 
 
 ## A random genome for the current wave's budget, or null if genomes are off.
@@ -165,6 +309,10 @@ func end_wave() -> void:
 	if log_waves:
 		print(fitness_report(results))
 	wave_ended.emit(results)
+	if evolve:
+		_evolve(results)
+	if auto_next_wave:
+		intermission_left = intermission_seconds
 
 
 ## Current fitness of a record if the wave ended now (for live debug display).

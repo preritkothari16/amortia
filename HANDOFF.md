@@ -37,15 +37,16 @@ When something looks odd, check if it's a gene effect first; flag formula proble
 | 17 | Fitness tracking (learning mode, explained + pseudocode first): `FitnessRecord` = raw facts per enemy (damage_dealt, pressure_seconds within `pressure_radius` 64 px, alive_seconds, objective_score, died, frozen, wave); `Fitness` normalises explicitly (term = clamp(raw / cap, 0, 1); cap 0 for P/S = wave duration) and weights F = 0.4 D + 0.25 P + 0.15 S + 0.2 O (`FitnessSettings`, `data/fitness.tres`). **D is always 0 until Runners can attack** (hook `Enemy.record_damage_dealt`), **O is always 0 until objectives exist** (`FitnessRecord.add_objective`). Enemy ticks its record each physics frame (evaluator distance, not perception) and marks it dead in `_die`. WaveManager owns one {genome, record} per spawn_wave enemy; a wave ends when all its enemies are dead, when the next wave spawns, or F8 → records frozen, scored, sorted, `last_wave_results`, `wave_ended(results)` signal, printed report (genome + D/P/S/O + raw + F). F7 overlay shows live F. 208 GUT tests | `ai/evolution/fitness.gd`, `fitness_record.gd`, `fitness_settings.gd`, `data/fitness.tres`, `entities/enemies/enemy.gd`, `enemy_context.gd`, `world/wave_manager.gd`, `world/main.gd/.tscn`, `ui/debug/genome_overlay.gd`, `tests/test_fitness.gd` |
 | 18 | Genetic Algorithm (graded, learning mode, explained + pseudocode first): `GeneticAlgorithm` (pure, own seeded RNG) `next_generation(population, fitness, budget)`: diversity guard (most common path_mode share > 0.8 → mutation rate × 2 for this generation), elitism (top 2 by fitness, ties → lower index, copied unchanged then repaired only if the budget shrank), tournament selection k = 3 with replacement, uniform crossover p 0.9 (else copy of parent A), `Genome.mutate` at the GA's rate (Gaussian nudge / path_mode re-pick), explicit repair (clamp + budget). `last_stats` (best/mean fitness, elite indices, rate, guard, crossovers, genes mutated). `next_generation_from_results(WaveManager.last_wave_results, budget)`. Config `GASettings` / `data/ga.tres` (20, 3, 2, 0.9, 0.1, 0.8, ×2). **Not wired into gameplay yet** (user: don't modify unrelated systems). 33 GA tests, 241 total | `ai/evolution/genetic_algorithm.gd`, `ga_settings.gd`, `data/ga.tres`, `tests/test_genetic_algorithm.gd` |
 | 19 | Range-based provocation (user request): perception is unchanged (line of sight within the vision-gene range 6–15 tiles, plus a 2-tile "through walls" sense). Noises now carry a strength = 1 − distance/radius at the listener (`Awareness.hear(pos, strength)`, `lead_strength`); the spawn Pulse has strength 0; losing sight of a chased player has `lost_sight_strength` 0.5. Investigate drive = patience + (1 − patience) × lead_strength × `provocation_weight` (1.0), score = drive × (0.4 + 0.6 freshness). So lazy Runners ignore the Pulse and distant shots but react to shots close by; hungry ones react to anything. In-game: lazy at 9 tiles (strength 0.21–0.25) came, lazy at 11 tiles (0.07) stayed, hungry at 11 tiles came. 248 GUT tests | `ai/decision/awareness.gd`, `decision_inputs.gd`, `utility_settings.gd`, `actions/investigate_action.gd`, `data/utility_ai.tres`, `entities/enemies/enemy.gd`, tests |
+| 20 | Evolution loop: WaveManager keeps a persistent `population` (20) + seeded `GeneticAlgorithm` (`ga_settings` = data/ga.tres; seed = `evolution_seed`, else `spawn_seed`, else random — logged). Wave 1 random; on wave end (all dead / F8): score → `_evolve` → `ga.next_generation_from_results(results, budget_for_wave(next))` → `history`, `generation_bred` signal, `[Evolution]` log (fitness best/mean, biggest gene shifts, gene means, path modes, guard, best genome) → `intermission_seconds` 3 → next wave from the population. Leftovers despawned (`Enemy.despawn()`: no death, leaves ring, cancels paths). F3 next wave now, F8 end wave, F9 restart wave (same genomes, no scoring). HUD (`ui/hud/wave_hud.gd`, CanvasLayer `HUD/WaveHud`): wave, generation, alive / countdown, last fitness, average genes. 248 GUT tests | `world/wave_manager.gd`, `entities/enemies/enemy.gd`, `ui/hud/wave_hud.gd`, `world/main.gd/.tscn`, `project.godot` |
 
 ### Next recommended step
-**Wire the GA between waves**: on `WaveManager.wave_ended`, call
-`ga.next_generation_from_results(results, rules.budget_for_wave(wave_number + 1))` and spawn the
-next wave from that population instead of `Genome.random` (first wave stays random). Seed the GA
-from `spawn_seed` for repeatable runs; log per-generation best/mean fitness + gene means (the
-"Runners visibly change across waves" check). Then **Runner attack + player HP** so fitness term D
-(40 %) stops being 0 for everyone. Later: headless `ga_vs_random` experiment runner (`tools/`),
-hill-climbing baseline, path_mode actually used (needs Greedy).
+**Runner attack + player HP → fitness term D.** Evolution-loop test (scratch `evolution_loop.gd`,
+bot player stands at the crossroads shooting the nearest visible Runner, 45 s wave timeout):
+lifecycle 0 problems over 8 waves, deterministic (same seed → identical runs), but with D = 0 the
+formula's best strategy is "don't approach": from wave 3 all 20 survived every wave at F = 0.150
+(S = 1 only), mean patience 0.31 → 0.08, speed rose 71 → 89 px/s then fell. User's principle:
+fix via the master formula, not rule tweaks — so giving Runners a way to score D (40 %) is the
+fix; formula weights untouched unless the user decides otherwise.
 
 GA test evidence (step 18): elites kept unchanged and never lost over 10 generations; 50
 harsh-mutation generations always valid; budget 24 → 15 enforced; crossover takes each gene from a
@@ -131,7 +132,7 @@ many enemies use A*. Flow rebuilds could move to `WorkerThreadPool` later if the
 `TerrainGrid.get_neighbors` allocates per call; hot loops should use `build_cost_array` + indices.
 
 ## Current controls
-WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay · F2 flow-field arrows · F3 spawn a wave · F4 attack-ring overlay · F6 noise / awareness / utility-action overlay · F7 genome + live fitness overlay · F8 end wave and print the fitness report (debug).
+WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay · F2 flow-field arrows · F3 spawn a wave · F4 attack-ring overlay · F6 noise / awareness / utility-action overlay · F7 genome + live fitness overlay · F8 end wave and print the fitness report · F9 restart current wave (debug). HUD top-left: wave / generation / gene averages.
 
 ## Scene / code map
 - `world/main.tscn` (main scene, script `main.gd`): `MapleHollow`, `WaveManager` (enemies are its
@@ -209,7 +210,7 @@ WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay ·
 - `ZoneMap` API: `get_grid_size()`, `get_terrain_at(cell)`, `get_terrain_rows()` (plain data for AI),
   `world_to_cell()`, `cell_to_world()`, `get_world_rect()`, `get_player_spawn()`, `get_enemy_spawns()`.
 - Tuning lives in Resources: `PlayerStats` (`data/player_stats.tres`), `WeaponStats` (`data/pistol.tres`).
-- Input actions in `project.godot`: `move_left/right/up/down`, `shoot`, `dodge`, `debug_overlay` (F1), `debug_flow_field` (F2), `debug_spawn_wave` (F3), `debug_attack_ring` (F4), `debug_awareness` (F6), `debug_genome` (F7), `debug_end_wave` (F8).
+- Input actions in `project.godot`: `move_left/right/up/down`, `shoot`, `dodge`, `debug_overlay` (F1), `debug_flow_field` (F2), `debug_spawn_wave` (F3), `debug_attack_ring` (F4), `debug_awareness` (F6), `debug_genome` (F7), `debug_end_wave` (F8), `debug_restart_wave` (F9).
 - Physics layers: 1 world, 2 player, 3 enemies, 4 player_bullets, 5 enemy_attacks, 6 barricades.
   Player: layer 2, mask 1. Bullet: layer 4, mask 1+3. Solid tiles: layer 1.
 
