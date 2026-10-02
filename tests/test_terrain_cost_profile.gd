@@ -59,6 +59,14 @@ func test_cheapest_adaptation_wins() -> void:
 	assert_eq(p.cost_of("fence"), 2.0)
 
 
+func test_min_cost() -> void:
+	assert_eq(TerrainCostProfile.create(_rules).get_min_cost(), 1.0)
+	_rules.costs["road"] = 2.0
+	_rules.adaptations["swimmer"]["shallow_water"] = 0.5
+	assert_eq(TerrainCostProfile.create(_rules).get_min_cost(), 2.0, "walls (INF) ignored")
+	assert_eq(TerrainCostProfile.create(_rules, {"swimmer": 1.0}).get_min_cost(), 0.5, "adapted cost counts")
+
+
 func test_unknown_ids_are_impassable() -> void:
 	var p: TerrainCostProfile = TerrainCostProfile.create(_rules)
 	assert_eq(p.cost_of_id(-1), INF)

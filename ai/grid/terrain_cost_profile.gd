@@ -53,6 +53,15 @@ func cost_of_id(id: int) -> float:
 	return _cost_by_id[id]
 
 
+## Cheapest cost of any enterable terrain. Heuristics (A*, Greedy) multiply by this so they
+## never overestimate, even for a mover with adapted costs.
+func get_min_cost() -> float:
+	var lowest: float = INF
+	for cost: float in _cost_by_id:
+		lowest = minf(lowest, cost)
+	return lowest
+
+
 ## Same as cost_of_id but by name. Slower; meant for tests and debug output.
 func cost_of(terrain: String) -> float:
 	return cost_of_id(source.get_terrain_names().find(terrain))

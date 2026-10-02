@@ -17,17 +17,21 @@ prompt; the user says when to move on. Never start the next step automatically.
 | 5 | Maple Hollow greybox map: 60×34 TileMapLayer, terrains road/grass/tall_grass/fence/wall/house via `terrain` custom data, PlayerSpawn + 8 EnemySpawns, fences with gates for alternate routes | `tools/build_maple_hollow.gd`, `world/tilesets/greybox_tileset.tres`, `world/zones/maple_hollow/maple_hollow.tscn`, `world/zones/zone_map.gd`, `world/main.gd/.tscn` |
 | 6 | Terrain-cost grid + GUT 9.7.1: `TerrainGrid` (RefCounted, flat cost array, INF = impassable, 8-way neighbours with no corner cutting, √2 diagonal step cost, set_terrain for runtime changes, world↔cell). Costs in `TerrainCosts` resource (road/grass 1, tall_grass 2, fence 6, wall/house INF; unknown terrain = INF). `main.gd` builds `terrain_grid` from the map at startup. F1 toggles a cost overlay. 13 GUT tests pass | `ai/grid/terrain_grid.gd`, `ai/grid/terrain_costs.gd`, `data/terrain_costs.tres`, `tests/test_terrain_grid.gd`, `ui/debug/terrain_cost_overlay.gd`, `addons/gut/`, `.gutconfig.json` |
 | 7 | TerrainGrid v2 (AI foundation): cells store terrain **ids**; costs come from a `TerrainCostProfile` (base, or built from terrain genes: passable → `lerp(base, adapted, gene)`, impassable → `adapted` once gene ≥ `unlock_threshold` 0.5; cheapest trait wins). Coordinates moved to `GridCoords` (tile size + origin). `terrain_costs.tres` now holds the full GDD §4.2 table + adaptations (climber fence 2, swimmer shallow 1 / deep 2, crawler vent 1, toxin_resistance toxic_pool 2). 37 GUT tests pass | `ai/grid/grid_coords.gd`, `ai/grid/terrain_cost_profile.gd`, `ai/grid/terrain_grid.gd`, `ai/grid/terrain_costs.gd`, `tests/test_grid_coords.gd`, `tests/test_terrain_cost_profile.gd`, `tests/test_terrain_costs.gd`, `tests/test_terrain_grid.gd` |
+| 8 | Hand-written A* (learning-mode file, written on request): f = g + h, octile heuristic × `profile.get_min_cost()`, binary `MinHeap` open list with lazy deletion (stale entries skipped), dictionaries for g / came_from / closed, returns `Array[Vector2i]` start→goal or `[]`; `last_cost` / `last_expanded` stats for experiment N2. Optional profile (climber etc.). Not wired to enemies. 59 GUT tests pass incl. A* = brute-force Dijkstra on 40 random grids | `ai/nav/astar.gd`, `ai/util/min_heap.gd`, `tests/test_astar.gd`, `tests/test_min_heap.gd`, `TerrainCostProfile.get_min_cost()` |
 
 ### Next recommended step
 **Flow field** — `ai/nav/flow_field.gd`: Dijkstra / Uniform Cost Search outward from the
-player's cell over `TerrainGrid` (use `get_neighbors` + `get_step_cost`), each cell stores the
-direction to its cheapest neighbour (GDD §6.2). Rebuild when the player changes cell.
-Take an optional `TerrainCostProfile` so climbers/swimmers can get their own field later.
-Perf note: `get_neighbors` allocates an array per call — iterating all 2040 cells took ~36 ms
-headless (debug build). If a full rebuild is too slow, inline the neighbour loop in the flow field.
-`ai/nav/` is **learning mode** → explain the approach + pseudocode first; write code only when
-the user asks. Needs `tests/test_flow_field.gd`. Extend the F1 overlay to draw arrows.
-Then: a Runner enemy that follows the field (GDD §11.1 days 5–6), then hand-written A*.
+player's cell over `TerrainGrid` (reuse `MinHeap`, `get_neighbors`, `get_step_cost`); each cell
+stores the direction to its cheapest neighbour (GDD §6.2). Rebuild when the player changes cell.
+Take an optional `TerrainCostProfile`. `ai/nav/` is **learning mode** → explain + pseudocode
+first; code only when the user asks. Needs `tests/test_flow_field.gd`. Extend the F1 overlay
+to draw arrows. Then: a Runner enemy that follows the field (GDD §11.1 days 5–6), using A*
+only for non-player targets (noise, flank points).
+
+Perf notes (headless debug build, Maple Hollow): `get_neighbors` over all 2040 cells ~36 ms;
+A* spawn→player 2–8 ms per search (15–173 cells expanded). GDD allows max 4 A* searches per
+frame — that could exceed a 16 ms frame, so a path queue / per-frame budget + caching is needed
+before many enemies use A*. Inlining the neighbour loop is the first optimisation to try.
 
 ## Current controls
 WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay (debug).
