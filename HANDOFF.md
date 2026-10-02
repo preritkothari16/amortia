@@ -3,6 +3,12 @@
 Read this first in a new session, together with `CLAUDE.md` and `Game Design Document.md`.
 It is updated at the end of every prompt. Last update: 2026-10-02.
 
+> **Resume here (end of session 1):** steps 1–21 done and pushed to `main`. 248 GUT tests pass.
+> Full loop works: Maple Hollow greybox → Runners (flow field, A*, steering, attack ring, noise,
+> utility AI) with per-enemy genomes → fitness → GA between waves → Wave Report screen.
+> **Next: Runner attack + player HP** (makes fitness term D real; see "Next recommended step").
+> Keep the design principle below in mind before changing any enemy rule.
+
 ## Where we are
 Phase 1 greybox prototype (GDD §11.1 calls it "Phase 0" — same thing). Work goes one step per
 prompt; the user says when to move on. Never start the next step automatically.
