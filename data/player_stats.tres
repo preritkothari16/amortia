@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="PlayerStats" format=3]
+
+[ext_resource type="Script" path="res://entities/player/player_stats.gd" id="1_stats"]
+
+[resource]
+script = ExtResource("1_stats")
+move_speed = 90.0
+acceleration = 900.0
+friction = 1200.0
+dodge_speed = 240.0
+dodge_duration = 0.3
+dodge_invulnerable_time = 0.3
+dodge_cooldown = 1.2
