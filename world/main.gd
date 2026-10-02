@@ -3,11 +3,14 @@ extends Node2D
 ## builds the terrain-cost grid, and keeps the shared flow field pointing at the player.
 
 @export var terrain_costs: TerrainCosts
+@export var attack_ring_settings: AttackRingSettings
 
 ## Plain-data copy of the map for the AI. Rebuild or set_terrain() when terrain changes.
 var terrain_grid: TerrainGrid
 ## Shared flow field towards the player, rebuilt whenever the player enters a new cell.
 var flow_field: FlowField
+## Slots around the player that decide who surrounds and who attacks (GDD 6.4).
+var attack_ring: AttackRing
 ## How long the last flow field rebuild took, in milliseconds.
 var last_flow_build_msec: float = 0.0
 
@@ -16,6 +19,7 @@ var last_flow_build_msec: float = 0.0
 @onready var _cost_overlay: TerrainCostOverlay = $TerrainCostOverlay
 @onready var _flow_overlay: FlowFieldOverlay = $FlowFieldOverlay
 @onready var _wave_manager: WaveManager = $WaveManager
+@onready var _ring_overlay: AttackRingOverlay = $AttackRingOverlay
 
 
 func _ready() -> void:
@@ -24,6 +28,8 @@ func _ready() -> void:
 	_cost_overlay.grid = terrain_grid
 	flow_field = FlowField.new(terrain_grid)
 	_flow_overlay.field = flow_field
+	attack_ring = AttackRing.new(flow_field, attack_ring_settings)
+	_ring_overlay.ring = attack_ring
 
 	_player.global_position = _map.get_player_spawn()
 	var bounds: Rect2 = _map.get_world_rect()
@@ -34,11 +40,14 @@ func _ready() -> void:
 	camera.limit_bottom = int(bounds.end.y)
 	camera.reset_smoothing()
 	_update_flow_field()
-	_wave_manager.setup(_map.get_enemy_spawns(), flow_field, _player)
+	attack_ring.update(_player.global_position, 0.0)
+	_wave_manager.setup(_map.get_enemy_spawns(), flow_field, _player, attack_ring)
 
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	_update_flow_field()
+	# Runs before the enemies (parents process first), so they read this frame's roles.
+	attack_ring.update(_player.global_position, delta)
 
 
 ## Rebuilds the field only when the player's cell changes (GDD 6.2).

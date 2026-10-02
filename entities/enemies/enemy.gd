@@ -13,12 +13,15 @@ var health: float = 0.0
 ## True while crossing a climbable tile (fence) with world collision switched off.
 var is_climbing: bool = false
 ## How the enemy chose its heading this frame: &"flow" (arrows), &"sight" (straight at the
-## player / predicted position), &"close" (arriving next to the player), &"climb".
+## player / predicted position), &"ring" (going to its attack-ring slot / attack point /
+## waiting point), &"close" (arriving next to the player, only without a ring), &"climb".
 var nav_mode: StringName = &"flow"
 
 var _flow_field: FlowField
 var _grid: TerrainGrid
 var _target: Node2D
+## Shared attack ring (null = no ring: close in on the player directly).
+var _ring: AttackRing
 ## Shared list of living enemies (owned by WaveManager), used for separation.
 var _allies: Array[Enemy] = []
 ## Collision mask while walking (world + other enemies), and the world-only part of it.
@@ -49,11 +52,12 @@ func _ready() -> void:
 
 
 ## Called by the spawner before the enemy starts moving.
-func setup(flow_field: FlowField, target: Node2D, allies: Array[Enemy]) -> void:
+func setup(flow_field: FlowField, target: Node2D, allies: Array[Enemy], ring: AttackRing = null) -> void:
 	_flow_field = flow_field
 	_grid = flow_field.grid
 	_target = target
 	_allies = allies
+	_ring = ring
 
 
 func _physics_process(delta: float) -> void:
@@ -61,7 +65,9 @@ func _physics_process(delta: float) -> void:
 		return
 	var cell: Vector2i = _grid.coords.world_to_cell(global_position)
 	var next: Vector2i = _flow_field.get_next_cell(cell)
-	var close: bool = _flow_field.get_cost(cell) <= stats.close_in_cost
+	var cost: float = _flow_field.get_cost(cell)
+	var role: AttackRing.Role = _update_ring_membership(cost)
+	var close: bool = _ring == null and cost <= stats.close_in_cost
 	# Where to aim if the player is visible (INF = not visible). A clear straight line beats
 	# climbing a fence the arrows would have sent us over.
 	var sight_point: Vector2 = Vector2.INF if (close or is_climbing) else _sight_target()
@@ -72,7 +78,9 @@ func _physics_process(delta: float) -> void:
 
 	# Gather the context, let ContextSteering decide, then move.
 	var seek_velocity: Vector2
-	if close:
+	if role != AttackRing.Role.NONE:
+		seek_velocity = _ring_seek(role)
+	elif close:
 		# Next to the player: close in directly and slow down instead of piling onto them.
 		nav_mode = &"close"
 		seek_velocity = ContextSteering.arrive(_target.global_position - global_position, stats.move_speed, stats.arrive_radius)
@@ -84,8 +92,9 @@ func _physics_process(delta: float) -> void:
 				(sight_point - global_position) if in_sight else Vector2.ZERO)
 		seek_velocity = ContextSteering.seek(heading_dir, stats.move_speed)
 	_gather_neighbours()
-	if _flow_field.get_cost(cell) <= stats.crowd_cost:
+	if cost <= stats.crowd_cost and (role == AttackRing.Role.NONE or role == AttackRing.Role.WAITING):
 		# Near the player a crowd forms: wait behind slower allies instead of shoving them.
+		# Slot holders and attackers skip this so waiting enemies can't block them for good.
 		seek_velocity *= ContextSteering.queue_factor(global_position, seek_velocity, _near_positions, _near_velocities,
 				stats.separation_radius, stats.queue_lane_width)
 	var separation_push: Vector2 = ContextSteering.separation(global_position, _near_positions, stats.separation_radius)
@@ -95,6 +104,35 @@ func _physics_process(delta: float) -> void:
 	velocity = ContextSteering.smooth_velocity(velocity, desired, stats.acceleration, delta,
 			stats.dead_zone_speed, deg_to_rad(stats.max_turn_rate_degrees), stats.turn_limit_min_speed)
 	move_and_slide()
+
+
+## Joins the ring when the flow cost to the player is low enough, leaves it when it is
+## clearly too high (in between: keep whatever we had). Returns our role.
+func _update_ring_membership(cost: float) -> AttackRing.Role:
+	if _ring == null:
+		return AttackRing.Role.NONE
+	var id: int = get_instance_id()
+	if cost <= _ring.settings.engage_cost or (_ring.is_member(id) and cost <= _ring.settings.release_cost):
+		_ring.engage(id, global_position)
+	else:
+		_ring.disengage(id)
+	return _ring.get_role(id)
+
+
+## Seek velocity for an enemy in the ring: straight to its ring target when the way is clear,
+## otherwise keep following the flow field until it is.
+func _ring_seek(role: AttackRing.Role) -> Vector2:
+	var target: Vector2 = _ring.get_target(get_instance_id())
+	var clear: bool = _clear_path_to(target)
+	if role == AttackRing.Role.WAITING and not clear \
+			and global_position.distance_to(_ring.center) <= _ring.settings.wait_radius:
+		nav_mode = &"ring"
+		return Vector2.ZERO  # too close and boxed in: hold still rather than push inwards
+	if clear:
+		nav_mode = &"ring"
+		return ContextSteering.arrive(target - global_position, stats.move_speed, stats.arrive_radius)
+	nav_mode = &"flow"
+	return ContextSteering.seek(ContextSteering.sample_flow(_flow_field, global_position), stats.move_speed)
 
 
 ## Line-of-sight shortcut + pursuit: the point to run straight at, or Vector2.INF if the
@@ -201,6 +239,8 @@ func take_damage(amount: float) -> void:
 
 func _die() -> void:
 	_dead = true
+	if _ring != null:
+		_ring.disengage(get_instance_id())
 	collision_layer = 0
 	collision_mask = 0
 	set_physics_process(false)

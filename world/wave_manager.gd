@@ -20,11 +20,12 @@ var alive: Array[Enemy] = []
 
 var _flow_field: FlowField
 var _target: Node2D
+var _ring: AttackRing
 var _spawn_points: Array[Vector2] = []
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 
-func setup(spawn_points: Array[Vector2], flow_field: FlowField, target: Node2D) -> void:
+func setup(spawn_points: Array[Vector2], flow_field: FlowField, target: Node2D, ring: AttackRing = null) -> void:
 	if spawn_seed != 0:
 		_rng.seed = spawn_seed
 	else:
@@ -32,6 +33,7 @@ func setup(spawn_points: Array[Vector2], flow_field: FlowField, target: Node2D) 
 	_spawn_points = spawn_points
 	_flow_field = flow_field
 	_target = target
+	_ring = ring
 	if auto_start:
 		spawn_wave()
 
@@ -50,7 +52,7 @@ func spawn_wave(count: int = wave_size) -> void:
 func spawn_enemy(near: Vector2) -> Enemy:
 	var enemy: Enemy = enemy_scene.instantiate() as Enemy
 	enemy.global_position = _pick_spawn_position(near, enemy.stats)
-	enemy.setup(_flow_field, _target, alive)
+	enemy.setup(_flow_field, _target, alive, _ring)
 	enemy.died.connect(_on_enemy_died)
 	alive.append(enemy)
 	add_child(enemy)
