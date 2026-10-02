@@ -14,6 +14,8 @@ func _process(_delta: float) -> void:
 	var status: String = "%d / %d Runners left" % [wm.alive.size(), wm.population.size()]
 	if wm.intermission_left >= 0.0:
 		status = "next wave in %.1f s" % wm.intermission_left
+	elif wm.waiting_for_continue:
+		status = "wave over - see report"
 	lines.append("Wave %d  |  Generation %d  |  %s" % [wm.wave_number, wm.generation, status])
 	if not wm.history.is_empty():
 		var last: Dictionary = wm.history[-1]

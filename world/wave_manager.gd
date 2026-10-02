@@ -12,6 +12,8 @@ signal wave_cleared
 signal wave_ended(results: Array[Dictionary])
 ## A new generation was bred (after wave `from_wave`), with its summary (see _evolve).
 signal generation_bred(summary: Dictionary)
+## A wave just spawned.
+signal wave_started(wave: int)
 
 @export var enemy_scene: PackedScene
 @export var wave_size: int = 20
@@ -39,6 +41,9 @@ signal generation_bred(summary: Dictionary)
 @export var evolution_seed: int = 0
 ## Start the next wave automatically after a wave ends.
 @export var auto_next_wave: bool = true
+## Instead of the intermission countdown, wait for continue_to_next_wave() (the Wave Report's
+## Continue button). Only applies when auto_next_wave is on.
+@export var pause_between_waves: bool = true
 ## Pause between waves (seconds).
 @export var intermission_seconds: float = 3.0
 ## Remove survivors of an ended wave when the next one spawns (they were already scored).
@@ -62,6 +67,8 @@ var generation: int = 0
 var history: Array[Dictionary] = []
 ## Seconds until the next wave starts (< 0 = no intermission running).
 var intermission_left: float = -1.0
+## True while a finished wave waits for continue_to_next_wave().
+var waiting_for_continue: bool = false
 ## The seed the GA actually uses (for repeating a run).
 var ga_seed: int = 0
 
@@ -121,6 +128,7 @@ func is_wave_running() -> bool:
 func spawn_wave(count: int = wave_size) -> void:
 	end_wave()  # close, score and evolve the previous wave first, if it is still open
 	intermission_left = -1.0
+	waiting_for_continue = false
 	if despawn_leftovers:
 		_despawn_all()
 	wave_number += 1
@@ -137,8 +145,15 @@ func spawn_wave(count: int = wave_size) -> void:
 		record.wave = wave_number
 		_wave_entries.append({"genome": genome, "record": record})
 		spawn_enemy(_spawn_points[i % _spawn_points.size()], genome, record)
+	wave_started.emit(wave_number)
 	if log_waves and not genomes.is_empty() and genomes[0] != null:
 		print(_wave_summary(genomes))
+
+
+## Starts the next wave after a wave ended (the Wave Report's Continue button).
+func continue_to_next_wave() -> void:
+	if not _wave_open:
+		spawn_wave(population.size() if not population.is_empty() else wave_size)
 
 
 ## Ends the current wave WITHOUT scoring or evolving, removes its enemies and spawns the same
@@ -148,6 +163,7 @@ func restart_wave() -> void:
 		return
 	_wave_open = false
 	intermission_left = -1.0
+	waiting_for_continue = false
 	_despawn_all()
 	wave_number -= 1
 	if log_waves:
@@ -188,12 +204,20 @@ func _evolve(results: Array[Dictionary]) -> void:
 	generation += 1
 	var before: Dictionary = gene_means(parents)
 	var after: Dictionary = gene_means(population)
-	var counts: Dictionary = {}
-	for g: Genome in population:
-		var m: String = Genome.PathMode.keys()[g.path_mode]
-		counts[m] = counts.get(m, 0) + 1
+	var counts: Dictionary = _path_mode_counts(population)
+	var killed: int = 0
+	var component_means: Dictionary = {Fitness.D: 0.0, Fitness.P: 0.0, Fitness.S: 0.0, Fitness.O: 0.0}
+	var fitness_values: Array[float] = []
+	for r: Dictionary in results:
+		killed += 1 if (r["record"] as FitnessRecord).died else 0
+		fitness_values.append(r["fitness"])
+		for key: StringName in component_means:
+			component_means[key] += r["components"][key] / results.size()
 	var summary: Dictionary = {
 		"from_wave": wave_number, "generation": generation, "budget": budget,
+		"wave_seconds": wave_seconds, "killed": killed, "survived": results.size() - killed,
+		"component_means": component_means, "fitness_values": fitness_values,
+		"path_modes_before": _path_mode_counts(parents),
 		"best_fitness": _ga.last_stats["best_fitness"], "mean_fitness": _ga.last_stats["mean_fitness"],
 		"means_before": before, "means_after": after, "path_modes": counts,
 		"diversity_guard": _ga.last_stats["diversity_guard"], "mutation_rate": _ga.last_stats["mutation_rate"],
@@ -203,6 +227,15 @@ func _evolve(results: Array[Dictionary]) -> void:
 	if log_waves:
 		print(_generation_report(summary))
 	generation_bred.emit(summary)
+
+
+## path_mode name -> how many genomes use it.
+static func _path_mode_counts(genomes: Array[Genome]) -> Dictionary:
+	var counts: Dictionary = {}
+	for g: Genome in genomes:
+		var m: String = Genome.PathMode.keys()[g.path_mode]
+		counts[m] = counts.get(m, 0) + 1
+	return counts
 
 
 ## e.g. "[Evolution] wave 3 -> generation 3 (budget 18) | fitness best 0.31 mean 0.12 |
@@ -312,7 +345,10 @@ func end_wave() -> void:
 	if evolve:
 		_evolve(results)
 	if auto_next_wave:
-		intermission_left = intermission_seconds
+		if pause_between_waves:
+			waiting_for_continue = true
+		else:
+			intermission_left = intermission_seconds
 
 
 ## Current fitness of a record if the wave ended now (for live debug display).
