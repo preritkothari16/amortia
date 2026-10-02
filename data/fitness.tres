@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="FitnessSettings" format=3]
+
+[ext_resource type="Script" path="res://ai/evolution/fitness_settings.gd" id="1_fitness"]
+
+[resource]
+script = ExtResource("1_fitness")
+weight_damage = 0.4
+weight_pressure = 0.25
+weight_survival = 0.15
+weight_objective = 0.2
+damage_cap = 50.0
+pressure_radius = 64.0
+pressure_cap_seconds = 0.0
+survival_cap_seconds = 0.0
+objective_cap = 1.0

@@ -11,3 +11,5 @@ var path_queue: PathQueue
 var target: Node2D
 ## How genome genes turn into stats (null = enemies ignore genomes).
 var genome_rules: GenomeRules
+## Fitness evaluator; enemies read its settings (pressure radius) while recording.
+var fitness: Fitness

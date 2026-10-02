@@ -5,6 +5,7 @@ extends Node2D
 @export var terrain_costs: TerrainCosts
 @export var attack_ring_settings: AttackRingSettings
 @export var genome_rules: GenomeRules
+@export var fitness_settings: FitnessSettings
 
 ## Plain-data copy of the map for the AI. Rebuild or set_terrain() when terrain changes.
 var terrain_grid: TerrainGrid
@@ -56,6 +57,7 @@ func _ready() -> void:
 	context.path_queue = path_queue
 	context.target = _player
 	context.genome_rules = genome_rules
+	context.fitness = Fitness.new(fitness_settings)
 	_wave_manager.setup(_map.get_enemy_spawns(), context)
 
 

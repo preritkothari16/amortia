@@ -19,6 +19,8 @@ var health: float = 0.0
 var is_climbing: bool = false
 ## This enemy's genes (null = plain archetype values from `stats`).
 var genome: Genome
+## Raw fitness facts for the GA (null = not being scored). Shared with the WaveManager.
+var fitness_record: FitnessRecord
 ## What this enemy knows about the player.
 var awareness: Awareness = Awareness.new()
 ## Chooses the action (scores live in the AI layer; this Node executes them).
@@ -87,8 +89,10 @@ func _ready() -> void:
 
 
 ## Called by the spawner before the enemy enters the tree (so _ready can apply the genome).
-func setup(context: EnemyContext, allies: Array[Enemy], enemy_genome: Genome = null) -> void:
+func setup(context: EnemyContext, allies: Array[Enemy], enemy_genome: Genome = null,
+		record: FitnessRecord = null) -> void:
 	genome = enemy_genome
+	fitness_record = record
 	_ctx = context
 	_flow_field = context.flow_field
 	_grid = _flow_field.grid
@@ -111,6 +115,21 @@ func _apply_genome(rules: GenomeRules) -> void:
 	_body.scale = Vector2.ONE * lerpf(0.85, 1.25, bulk)
 
 
+## Survival and pressure time for the fitness record. The distance is the evaluator's
+## measurement (god's-eye view), not something the enemy perceives.
+func _record_fitness(delta: float) -> void:
+	if fitness_record != null and _ctx.fitness != null:
+		fitness_record.tick(delta, global_position.distance_to(_target.global_position),
+				_ctx.fitness.settings.pressure_radius)
+
+
+## Call when this enemy damages the player / an escort (fitness term D). Nothing calls it yet:
+## Runner attacks don't exist so far, so D stays 0.
+func record_damage_dealt(amount: float) -> void:
+	if fitness_record != null:
+		fitness_record.add_damage(amount)
+
+
 ## Tell the enemy where the player was (e.g. when a wave spawns). Same as hearing a noise there.
 func alert(position: Vector2) -> void:
 	awareness.hear(position)
@@ -124,6 +143,7 @@ func _on_noise_emitted(noise_position: Vector2, radius: float) -> void:
 func _physics_process(delta: float) -> void:
 	if _ctx == null or not _flow_field.is_built():
 		return
+	_record_fitness(delta)
 	var cell: Vector2i = _grid.coords.world_to_cell(global_position)
 	_update_awareness(delta)
 	_update_decision(delta)
@@ -510,6 +530,8 @@ func take_damage(amount: float) -> void:
 
 func _die() -> void:
 	_dead = true
+	if fitness_record != null:
+		fitness_record.mark_dead()
 	var id: int = get_instance_id()
 	if _ring != null:
 		_ring.disengage(id)

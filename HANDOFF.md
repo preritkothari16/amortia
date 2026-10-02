@@ -26,16 +26,21 @@ prompt; the user says when to move on. Never start the next step automatically.
 | 14 | Noise + awareness + A* investigation. **No live tracking any more**: each enemy has an `Awareness` (ai/decision, pure): IDLE / INVESTIGATE / SEARCH / CHASE. CHASE only while it perceives the player (within `sense_radius` 32 px always, else grid line of sight within `sight_range` 160); losing sight → INVESTIGATE the last *seen* spot; shots emit `EventBus.noise_emitted(pos, weapon.noise_radius)` (pistol 192 px) → enemies in range INVESTIGATE the shot spot; arrive → SEARCH `search_time` 2 s → IDLE. Flow field + ring only used in CHASE. Investigation goes straight if the fat ray is clear, else A* via `PathQueue` (ai/nav: per-frame budget 2 ms / max 4, exact (start,goal) cache, tail reuse when start lies on a cached path to the same goal). Paths can include fence climbs (climb code now takes a cell list). Vision = `TerrainGrid.has_line_of_sight` (Amanatides–Woo DDA) with `TerrainCosts.blocks_vision` = wall, house (fences don't block; tall grass later with stealth). WaveManager `alert_on_spawn` (default on): new enemies get the player's spawn-time position. `EnemyContext` bundles flow field / ring / path queue / target; `Enemy.setup(context, allies)`, `WaveManager.setup(spawns, context)`. F6 debug overlay. 136 GUT tests | `ai/decision/awareness.gd`, `ai/nav/path_queue.gd`, `ai/grid/terrain_grid.gd`, `terrain_costs.gd`, `entities/enemies/enemy.gd`, `enemy_context.gd`, `enemy_stats.gd`, `entities/player/player.gd`, `entities/projectiles/weapon_stats.gd`, `ui/debug/awareness_overlay.gd`, `world/main.gd/.tscn`, `world/wave_manager.gd`, `tests/test_awareness.gd`, `tests/test_path_queue.gd` |
 | 15 | Utility AI (learning mode, explained + pseudocode first): `UtilityAI` scores `ChaseAction` (aggression × (0.5 + 0.5 closeness), needs sight), `FlankAction` (flanking × allies × facing-away × far-enough, needs sight + allies chasing + a FlankPlanner point), `InvestigateAction` (patience × (0.4 + 0.6 freshness), needs an unchecked lead, no sight); idle baseline 0.1; +0.1 momentum for the current action (idle included); an action only competes if its RAW score > idle. Decides at 5 Hz (staggered by golden-ratio phase from instance id) + immediately when awareness state / target_version changes. Inputs in `DecisionInputs` (gathered by `Enemy._gather_inputs`). Genes in `BehaviourWeights` (`data/runner_behaviour.tres`: 0.6/0.6/0.6), shared tuning in `UtilitySettings` (`data/utility_ai.tres`). Enemy executes: CHASE = old chase + ring; FLANK = arrive at flank point (flow field if blocked), no ring, no queuing; INVESTIGATE = A*/straight to lead; IDLE = stand. Investigation also counts as checked when the spot is in view within `investigate_view_distance` 48 px (fixes crowds stuck around a shared last-seen spot). `Awareness.lead_age`, `has_lead()`. F6 overlay shows action letters + flank points. 168 GUT tests | `ai/decision/utility_ai.gd`, `utility_action.gd`, `actions/chase_action.gd`, `actions/flank_action.gd`, `actions/investigate_action.gd`, `decision_inputs.gd`, `behaviour_weights.gd`, `utility_settings.gd`, `flank_planner.gd`, `awareness.gd`, `data/utility_ai.tres`, `data/runner_behaviour.tres`, `entities/enemies/enemy.gd`, `enemy_stats.gd`, `data/runner.tres`, `ui/debug/awareness_overlay.gd`, tests `test_utility_ai.gd`, `test_utility_actions.gd`, `test_flank_planner.gd` |
 | 16 | Genome (learning mode, explained + pseudocode first): `Genome` Resource (ai/evolution) with stats speed/health/vision (1–10, budgeted), behaviour aggression/caution/flanking/cohesion/patience (0–1), `path_mode` FLOW/ASTAR/GREEDY. `random()` spends the wave budget exactly (random weights, water-filling over the 10 cap), `copy()`, `mutate(rng, rules, budget, rate)` (Gaussian nudge σ 1.0 stats / 0.1 behaviour, category re-picked to a different value, then repair), `repair()` (clamp, then shrink points above stat_min proportionally to fit the budget), `is_valid`, `to_dict/from_dict` (JSON-safe), `describe()`. Gene → value: base × (1 + (gene − 5) × per_point) with speed 0.10, health 0.15, vision 0.10 per point (`GenomeRules`, `data/genome_rules.tres`; budget 15 +1/wave, cap 24). `Enemy._apply_genome` duplicates `stats` per enemy and sets move_speed / max_health / sight_range / behaviour; body scale follows the health gene (visual only). WaveManager gives each spawned enemy `Genome.random` for the wave budget (`random_genomes`, `wave_number`, logs a per-wave gene summary). Caution, cohesion and path_mode are carried but NOT used by behaviour yet. F7 genome overlay. 191 GUT tests | `ai/evolution/genome.gd`, `genome_rules.gd`, `data/genome_rules.tres`, `ai/decision/behaviour_weights.gd`, `entities/enemies/enemy.gd`, `enemy_context.gd`, `world/wave_manager.gd`, `world/main.gd/.tscn`, `ui/debug/genome_overlay.gd`, `tests/test_genome.gd` |
+| 17 | Fitness tracking (learning mode, explained + pseudocode first): `FitnessRecord` = raw facts per enemy (damage_dealt, pressure_seconds within `pressure_radius` 64 px, alive_seconds, objective_score, died, frozen, wave); `Fitness` normalises explicitly (term = clamp(raw / cap, 0, 1); cap 0 for P/S = wave duration) and weights F = 0.4 D + 0.25 P + 0.15 S + 0.2 O (`FitnessSettings`, `data/fitness.tres`). **D is always 0 until Runners can attack** (hook `Enemy.record_damage_dealt`), **O is always 0 until objectives exist** (`FitnessRecord.add_objective`). Enemy ticks its record each physics frame (evaluator distance, not perception) and marks it dead in `_die`. WaveManager owns one {genome, record} per spawn_wave enemy; a wave ends when all its enemies are dead, when the next wave spawns, or F8 → records frozen, scored, sorted, `last_wave_results`, `wave_ended(results)` signal, printed report (genome + D/P/S/O + raw + F). F7 overlay shows live F. 208 GUT tests | `ai/evolution/fitness.gd`, `fitness_record.gd`, `fitness_settings.gd`, `data/fitness.tres`, `entities/enemies/enemy.gd`, `enemy_context.gd`, `world/wave_manager.gd`, `world/main.gd/.tscn`, `ui/debug/genome_overlay.gd`, `tests/test_fitness.gd` |
 
 ### Next recommended step
-Either (a) **Runner attack + player HP** (still missing — fitness term D "damage dealt" needs it),
-or (b) **fitness tracking + GA between waves** (`ai/evolution/fitness.gd`,
-`genetic_algorithm.gd`, learning mode): F = 0.4 D + 0.25 P + 0.15 S + 0.2 O (GDD §5.4); tournament
-size 3, elitism 2, uniform crossover 0.9, mutation via `Genome.mutate`, repair, diversity guard on
-path_mode. WaveManager would then spawn from the evolved population instead of `Genome.random`.
-Recommend (a) first so fitness has real damage data. Later: wire `path_mode` (needs Greedy for
-the AI-submission comparison), caution / cohesion actions, terrain genes (GDD §4.5, adaptation
-budget ≤ 1.5 → `TerrainCostProfile`).
+**Genetic Algorithm** (`ai/evolution/genetic_algorithm.gd`, learning mode — user requested it
+during step 17): takes `WaveManager.last_wave_results` (genome + fitness), tournament 3, elitism 2,
+uniform crossover 0.9, mutation via `Genome.mutate` (10 %), repair, diversity guard on path_mode,
+seeded RNG. Then WaveManager spawns the next wave from the evolved population. Runner attack +
+player HP still missing (D = 0 for everyone until then).
+
+Fitness measurements (step 17, scratch `fitness_game.gd`, seed 21, 20 Runners, 24 s wave,
+11 killed / 9 survived): records equal an independent per-frame shadow count (alive exact,
+pressure within 1 frame); F equals the weighted sum exactly; all survivors S = 1; killed
+enemies' alive time = their kill time; records don't change after the wave ends; end_wave twice
+→ one signal; wave 2 auto-ends when all 6 die, records are wave 2 only. F spread 0.07–0.33
+(max possible without D and O is 0.40).
 
 Genome measurements (step 16, scratch `genome_game.gd`, seed 5):
 - 20 genome Runners: 0 mismatches between genome-derived and live move_speed / max_health /
@@ -107,7 +112,7 @@ many enemies use A*. Flow rebuilds could move to `WorkerThreadPool` later if the
 `TerrainGrid.get_neighbors` allocates per call; hot loops should use `build_cost_array` + indices.
 
 ## Current controls
-WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay · F2 flow-field arrows · F3 spawn a wave · F4 attack-ring overlay · F6 noise / awareness / utility-action overlay · F7 genome overlay (debug).
+WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay · F2 flow-field arrows · F3 spawn a wave · F4 attack-ring overlay · F6 noise / awareness / utility-action overlay · F7 genome + live fitness overlay · F8 end wave and print the fitness report (debug).
 
 ## Scene / code map
 - `world/main.tscn` (main scene, script `main.gd`): `MapleHollow`, `WaveManager` (enemies are its
@@ -147,7 +152,13 @@ WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay ·
   `to_behaviour_weights()`, `to_dict()` / `Genome.from_dict(d)`, `describe()`. Gene name lists
   `Genome.STAT_GENES`, `Genome.BEHAVIOUR_GENES`; `Genome.PathMode`.
 - `GenomeRules.budget_for_wave(wave)`. `Enemy.genome`; `Enemy.setup(context, allies, genome)`;
-  `EnemyContext.genome_rules`; `WaveManager.wave_number`, `make_genome()`, `spawn_enemy(near, genome)`.
+  `EnemyContext.genome_rules`; `WaveManager.wave_number`, `make_genome()`, `spawn_enemy(near, genome, record)`.
+- Fitness API: `FitnessRecord.tick(delta, dist, radius)`, `add_damage`, `add_objective`, `mark_dead`, `freeze`,
+  `to_dict`; `Fitness.new(settings)`, `components(record, wave_seconds)` → {&"D", &"P", &"S", &"O"},
+  `score`, `score_components`, static `normalise(raw, cap)`, `describe`. `EnemyContext.fitness`.
+  `Enemy.fitness_record`, `Enemy.record_damage_dealt(amount)`. `WaveManager.end_wave()`,
+  `last_wave_results` (each {genome, record, components, fitness, index}, best first), `wave_seconds`,
+  `preview_fitness(record)`, `fitness_report(results)`, signal `wave_ended(results)`.
 - `AttackRing` API: `AttackRing.new(flow_field, settings)`, `engage(id, pos)`, `disengage(id)`,
   `is_member`, `get_role(id) -> Role {NONE, WAITING, HOLDING, ATTACKING}`, `get_target(id)`,
   `update(player_pos, delta)`, `slot_position/slot_direction/is_slot_valid/get_slot_owner(i)`,
@@ -176,7 +187,7 @@ WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay ·
 - `ZoneMap` API: `get_grid_size()`, `get_terrain_at(cell)`, `get_terrain_rows()` (plain data for AI),
   `world_to_cell()`, `cell_to_world()`, `get_world_rect()`, `get_player_spawn()`, `get_enemy_spawns()`.
 - Tuning lives in Resources: `PlayerStats` (`data/player_stats.tres`), `WeaponStats` (`data/pistol.tres`).
-- Input actions in `project.godot`: `move_left/right/up/down`, `shoot`, `dodge`, `debug_overlay` (F1), `debug_flow_field` (F2), `debug_spawn_wave` (F3), `debug_attack_ring` (F4), `debug_awareness` (F6), `debug_genome` (F7).
+- Input actions in `project.godot`: `move_left/right/up/down`, `shoot`, `dodge`, `debug_overlay` (F1), `debug_flow_field` (F2), `debug_spawn_wave` (F3), `debug_attack_ring` (F4), `debug_awareness` (F6), `debug_genome` (F7), `debug_end_wave` (F8).
 - Physics layers: 1 world, 2 player, 3 enemies, 4 player_bullets, 5 enemy_attacks, 6 barricades.
   Player: layer 2, mask 1. Bullet: layer 4, mask 1+3. Solid tiles: layer 1.
 
