@@ -15,6 +15,7 @@ var last_flow_build_msec: float = 0.0
 @onready var _player: Player = $Player
 @onready var _cost_overlay: TerrainCostOverlay = $TerrainCostOverlay
 @onready var _flow_overlay: FlowFieldOverlay = $FlowFieldOverlay
+@onready var _wave_manager: WaveManager = $WaveManager
 
 
 func _ready() -> void:
@@ -33,6 +34,7 @@ func _ready() -> void:
 	camera.limit_bottom = int(bounds.end.y)
 	camera.reset_smoothing()
 	_update_flow_field()
+	_wave_manager.setup(_map.get_enemy_spawns(), flow_field, _player)
 
 
 func _physics_process(_delta: float) -> void:
