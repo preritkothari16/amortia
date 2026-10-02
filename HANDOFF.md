@@ -20,19 +20,27 @@ prompt; the user says when to move on. Never start the next step automatically.
 | 8 | Hand-written A* (learning-mode file, written on request): f = g + h, octile heuristic × `profile.get_min_cost()`, binary `MinHeap` open list with lazy deletion (stale entries skipped), dictionaries for g / came_from / closed, returns `Array[Vector2i]` start→goal or `[]`; `last_cost` / `last_expanded` stats for experiment N2. Optional profile (climber etc.). Not wired to enemies. 59 GUT tests pass incl. A* = brute-force Dijkstra on 40 random grids | `ai/nav/astar.gd`, `ai/util/min_heap.gd`, `tests/test_astar.gd`, `tests/test_min_heap.gd`, `TerrainCostProfile.get_min_cost()` |
 | 9 | Shared flow field (learning-mode file, written on request): Dijkstra/UCS outward from the player's cell; per cell integration cost (INF = unreachable) + next-cell index; step a→b pays cost of ENTERING b; same no-corner-cutting rule as TerrainGrid. Optimised: flat int indices + `TerrainGrid.build_cost_array(profile)` instead of `get_neighbors`, and MinHeap rewritten with "hole" sifting → rebuild ~7.5 ms (max ~9.5) on Maple Hollow in debug headless (was 46–73 ms). `main.gd` rebuilds it when the player enters a new walkable cell. F2 = arrow overlay (yellow near → blue far, magenta dot = walkable but unreachable). 75 GUT tests pass incl. field cost = A* cost from every cell on 15 random grids | `ai/nav/flow_field.gd`, `tests/test_flow_field.gd`, `ui/debug/flow_field_overlay.gd`, `world/main.gd/.tscn`, `ai/util/min_heap.gd` |
 | 10 | Runner enemy + prototype WaveManager: `Enemy` (CharacterBody2D, layer 3, mask 1) is a thin shell — reads `FlowField.get_direction(cell)`, gets velocity from `Steering` (pure: seek, arrive, separation, blend), smooths with `acceleration`. In the player's tile it `arrive`s at the player. HP + `take_damage` (white flash, HP bar once hurt), `died` signal, clean `queue_free`. **Fence climbing**: flow field allows fences (cost 6) but tiles are solid, so when the next arrow is a fence the enemy turns world collision off and walks arrow-to-arrow at `move_speed / tile cost`, then restores collision. Runner = `base_enemy.tscn` + `data/runner.tres` (30 HP, 70 px/s, red). `WaveManager` spawns `wave_size` (20) round-robin over the 8 spawns with scatter, auto-starts, F3 = spawn another wave, emits `wave_cleared`. Old pink EnemyStandIn removed. 82 GUT tests | `ai/steering/steering.gd`, `tests/test_steering.gd`, `entities/enemies/enemy.gd`, `enemy_stats.gd`, `base_enemy.tscn`, `runner.tscn`, `data/runner.tres`, `world/wave_manager.gd`, `world/main.gd/.tscn` |
+| 11 | Hand-written steering: `ContextSteering` (replaces `Steering`) = weighted Reynolds behaviours. Enemy Node gathers context (bilinear-sampled flow direction, neighbours' positions/velocities, 3 feeler raycasts on world layer) → `combine(seek·w, separation·w, wall_avoidance·w)` → `smooth_velocity` (dead zone, turn-rate limit at all speeds with **brake-to-turn** cos(angle), acceleration limit). Close to the player (flow cost ≤ `close_in_cost` 1.5) seek = `arrive`. In the crowd zone (flow cost ≤ `crowd_cost` 5) **queuing**: match the pace of a slower ally ahead. Enemies now also collide with each other (mask 5 = world + enemies; climbing still masks 0, restores 5). WaveManager `spawn_seed` for reproducible runs. 97 GUT tests | `ai/steering/context_steering.gd`, `tests/test_context_steering.gd`, `entities/enemies/enemy.gd`, `enemy_stats.gd`, `base_enemy.tscn`, `data/runner.tres`, `world/wave_manager.gd` |
 
 ### Next recommended step
-**Steering polish + tactical tricks** (GDD §6.3–6.4, §11.1 days 7–8): wall-avoidance feelers,
-line-of-sight shortcut (seek player directly when visible), pursuit prediction (player pos +
-vel × 0.3 s), attack ring (8 slots, max 3 attackers), plus the Runner's melee attack and player
-HP (then remove `debug_dodge`). `ai/steering/` is not learning mode. After that: utility AI
-(`ai/decision/`, learning mode), genome + GA (`ai/evolution/`, learning mode).
+**Runner attack + player HP + attack ring** (GDD §6.4, §7.1): player health (100), Runner melee
+contact attack with cooldown, respect `is_invulnerable` (then remove `debug_dodge`), attack ring
+(8 slots around the player, max 3 attackers, the rest hold/circle a free slot) — this also
+replaces today's "everyone crowds the player" end state. Optional before that: line-of-sight
+shortcut + pursuit prediction (GDD §6.1 items 3–4). Then utility AI (`ai/decision/`, learning
+mode), genome + GA (`ai/evolution/`, learning mode).
 
-Verified for step 10 (headless, `--fixed-fps 60`): 20 Runners from all 8 spawns, 13/20 with a
-house/fence on the straight line, all reach the player in 2.8–8.7 s, 0 stuck frames, 0 frames
-inside solid tiles; climb test over the SW fence works (~1.65 s); 3 pistol hits kill a Runner;
-20/20 die cleanly (signals, freed, list empty, `wave_cleared`). 50 Runners ≈ ≤4 ms physics/frame.
-Runners don't collide with each other or the player yet (separation only), and can't attack.
+Steering measurements (step 11, 40 Runners, seeds 12345 & 777, phase A player still 12 s,
+phase B player walks a loop 12 s, scratch script `steer_metrics.gd`):
+| | baseline (step 10) | final |
+|---|---|---|
+| turns > 20°/frame | 139 / 202 | 0 / 0 |
+| overlapping pairs (< 8 px) | 75 / 91 | 0 / 0 |
+| wall-scrape frames / moving frames | 5.7 % / 17.6 % | 3–8 % / 7–8 % |
+| longest stuck > 5 tiles from player | 92 frames | ≤ 26 frames |
+| avg speed of Runners near a still player (crowd churn) | 6 px/s | 0.0–0.7 px/s |
+Things tried and rejected: queuing everywhere (stop-and-go chains, 4 s stalls); turn limit
+only above half speed (sharp turns came back); turn limit without brake (units orbit the player).
 
 Perf notes (headless debug build, Maple Hollow): flow field rebuild ~7.5 ms median / 9.5 ms max.
 A* spawn→player 2–8 ms per search (measured before the MinHeap speed-up; likely faster now).
@@ -51,7 +59,16 @@ WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay ·
   signal `died(enemy)`. Stats from `EnemyStats` (archetype, max_health, move_speed, acceleration,
   separation_radius/weight, arrive_radius, climbable_terrains, color).
 - `WaveManager` API: `alive: Array[Enemy]`, `spawn_wave(count)`, `spawn_enemy(near)`, signal `wave_cleared`.
-- `Steering` (static): `seek(dir, speed)`, `arrive(offset, speed, slow_radius)`, `separation(pos, neighbours, radius)`, `blend(desired, push, weight, max_speed)`.
+- `ContextSteering` (static, + inner class `Weights {seek, separation, wall_avoidance}`):
+  `sample_flow(field, world_pos)`, `seek`, `arrive`, `separation(pos, neighbours, radius)`,
+  `queue_factor(pos, heading, n_pos, n_vel, look_ahead, lane_width)`, `wall_avoidance(fractions, normals)`,
+  `feeler_directions(heading, side_angle)`, `combine(seek_v, sep_push, wall_push, weights, max_speed)`,
+  `smooth_velocity(current, desired, accel, delta, dead_zone, max_turn_rate, turn_limit_speed)`.
+  Enemy Node does only the raycasts and neighbour gathering.
+- `EnemyStats` steering fields: `max_turn_rate_degrees` 360, `turn_limit_min_speed` 0, weights
+  `seek_weight` 1.0 / `separation_weight` 1.6 / `wall_avoidance_weight` 1.2, `separation_radius` 14,
+  `crowd_cost` 5, `queue_lane_width` 8, `feeler_length` 14, `feeler_angle_degrees` 35,
+  `close_in_cost` 1.5, `arrive_radius` 24, `dead_zone_speed` 6.
   `main.gd` puts the player on the map spawn and sets camera limits to the map rect.
   `main.gd` also exposes `terrain_grid: TerrainGrid` (costs from `data/terrain_costs.tres`)
   and feeds it to the `TerrainCostOverlay` node. It also owns `flow_field: FlowField` (target = player cell,

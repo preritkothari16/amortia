@@ -1,7 +1,8 @@
 class_name Enemy
 extends CharacterBody2D
 ## Thin enemy shell: physics, collision, health and greybox visuals.
-## Where to go comes from the shared FlowField; how to move comes from Steering (res://ai/).
+## Where to go comes from the shared FlowField; how to move comes from ContextSteering
+## (res://ai/steering/). The Node only supplies world information (ray hits, neighbours).
 ## Archetype numbers come from an EnemyStats resource (e.g. data/runner.tres).
 
 signal died(enemy: Enemy)
@@ -17,8 +18,14 @@ var _grid: TerrainGrid
 var _target: Node2D
 ## Shared list of living enemies (owned by WaveManager), used for separation.
 var _allies: Array[Enemy] = []
+## Collision mask while walking (world + other enemies), and the world-only part of it.
+var _normal_mask: int = 0
 var _world_mask: int = 0
 var _dead: bool = false
+var _weights: ContextSteering.Weights = ContextSteering.Weights.new()
+## Allies within the separation radius this frame (reused arrays, no per-frame allocation).
+var _near_positions: PackedVector2Array = PackedVector2Array()
+var _near_velocities: PackedVector2Array = PackedVector2Array()
 
 @onready var _body: Polygon2D = $Body
 
@@ -26,7 +33,11 @@ var _dead: bool = false
 func _ready() -> void:
 	health = stats.max_health
 	_body.color = stats.color
-	_world_mask = collision_mask
+	_normal_mask = collision_mask
+	_world_mask = collision_mask & 1  # feelers and climbing only care about the world layer
+	_weights.seek = stats.seek_weight
+	_weights.separation = stats.separation_weight
+	_weights.wall_avoidance = stats.wall_avoidance_weight
 
 
 ## Called by the spawner before the enemy starts moving.
@@ -46,16 +57,48 @@ func _physics_process(delta: float) -> void:
 		_climb(cell, next, delta)
 		return
 
-	var desired: Vector2
-	if cell == _flow_field.target:
-		# Same tile as the player: no arrow here, head straight for them.
-		desired = Steering.arrive(_target.global_position - global_position, stats.move_speed, stats.arrive_radius)
+	# Gather the context, let ContextSteering decide, then move.
+	var seek_velocity: Vector2
+	if _flow_field.get_cost(cell) <= stats.close_in_cost:
+		# Next to the player: close in directly and slow down instead of piling onto them.
+		seek_velocity = ContextSteering.arrive(_target.global_position - global_position, stats.move_speed, stats.arrive_radius)
 	else:
-		desired = Steering.seek(_flow_field.get_direction(cell), stats.move_speed)
-	var push: Vector2 = Steering.separation(global_position, _neighbour_positions(), stats.separation_radius)
-	desired = Steering.blend(desired, push, stats.separation_weight, stats.move_speed)
-	velocity = velocity.move_toward(desired, stats.acceleration * delta)
+		seek_velocity = ContextSteering.seek(ContextSteering.sample_flow(_flow_field, global_position), stats.move_speed)
+	_gather_neighbours()
+	if _flow_field.get_cost(cell) <= stats.crowd_cost:
+		# Near the player a crowd forms: wait behind slower allies instead of shoving them.
+		seek_velocity *= ContextSteering.queue_factor(global_position, seek_velocity, _near_positions, _near_velocities,
+				stats.separation_radius, stats.queue_lane_width)
+	var separation_push: Vector2 = ContextSteering.separation(global_position, _near_positions, stats.separation_radius)
+	var heading: Vector2 = velocity if velocity.length() > 5.0 else seek_velocity
+	var wall_push: Vector2 = _wall_push(heading)
+	var desired: Vector2 = ContextSteering.combine(seek_velocity, separation_push, wall_push, _weights, stats.move_speed)
+	velocity = ContextSteering.smooth_velocity(velocity, desired, stats.acceleration, delta,
+			stats.dead_zone_speed, deg_to_rad(stats.max_turn_rate_degrees), stats.turn_limit_min_speed)
 	move_and_slide()
+
+
+## Casts the feeler rays against the world layer and asks ContextSteering for a push.
+## This is the only part of steering that needs the physics engine, so it stays in the Node.
+func _wall_push(heading: Vector2) -> Vector2:
+	if heading == Vector2.ZERO:
+		return Vector2.ZERO
+	var space: PhysicsDirectSpaceState2D = get_world_2d().direct_space_state
+	var feelers: PackedVector2Array = ContextSteering.feeler_directions(heading, deg_to_rad(stats.feeler_angle_degrees))
+	var fractions: PackedFloat32Array = PackedFloat32Array()
+	var normals: PackedVector2Array = PackedVector2Array()
+	for dir: Vector2 in feelers:
+		var query: PhysicsRayQueryParameters2D = PhysicsRayQueryParameters2D.create(
+			global_position, global_position + dir * stats.feeler_length, _world_mask)
+		var hit: Dictionary = space.intersect_ray(query)
+		if hit.is_empty():
+			fractions.append(1.0)
+			normals.append(Vector2.ZERO)
+		else:
+			var hit_pos: Vector2 = hit["position"]
+			fractions.append(global_position.distance_to(hit_pos) / stats.feeler_length)
+			normals.append(hit["normal"])
+	return ContextSteering.wall_avoidance(fractions, normals)
 
 
 ## Crosses a fence by following the arrows tile centre to tile centre, without physics.
@@ -71,7 +114,7 @@ func _climb(cell: Vector2i, next: Vector2i, delta: float) -> void:
 		goal = _grid.coords.cell_to_world(cell)
 		if global_position.distance_to(goal) < 1.0:
 			is_climbing = false
-			collision_mask = _world_mask
+			collision_mask = _normal_mask
 			return
 	var speed: float = stats.move_speed
 	if on_climbable:
@@ -84,13 +127,15 @@ func _is_climbable(cell: Vector2i) -> bool:
 	return stats.climbable_terrains.has(_grid.get_terrain(cell))
 
 
-func _neighbour_positions() -> PackedVector2Array:
-	var result: PackedVector2Array = PackedVector2Array()
+## Fills _near_positions / _near_velocities with allies inside the separation radius.
+func _gather_neighbours() -> void:
+	_near_positions.clear()
+	_near_velocities.clear()
 	var radius_sq: float = stats.separation_radius * stats.separation_radius
 	for other: Enemy in _allies:
 		if other != self and global_position.distance_squared_to(other.global_position) < radius_sq:
-			result.append(other.global_position)
-	return result
+			_near_positions.append(other.global_position)
+			_near_velocities.append(other.velocity)
 
 
 ## Called by player bullets (Bullet._on_body_entered).

@@ -12,6 +12,8 @@ signal wave_cleared
 @export var auto_start: bool = true
 ## Enemies land on a random walkable tile up to this many tiles from a spawn marker.
 @export var spawn_scatter_tiles: int = 2
+## Fixed seed for reproducible spawn positions (tests, experiments). 0 = random each run.
+@export var spawn_seed: int = 0
 
 ## Living enemies. Shared with every enemy for separation, so only add/remove here.
 var alive: Array[Enemy] = []
@@ -23,6 +25,10 @@ var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 
 func setup(spawn_points: Array[Vector2], flow_field: FlowField, target: Node2D) -> void:
+	if spawn_seed != 0:
+		_rng.seed = spawn_seed
+	else:
+		_rng.randomize()
 	_spawn_points = spawn_points
 	_flow_field = flow_field
 	_target = target
