@@ -1,25 +1,26 @@
 extends GutTest
-## Tests for TerrainGrid and TerrainCosts. Uses small hand-made maps, no scenes.
+## Tests for TerrainGrid. Uses small hand-made maps, no scenes.
 
-var _costs: TerrainCosts
+var _rules: TerrainCosts
 
 
 func before_each() -> void:
-	_costs = TerrainCosts.new()
-	_costs.costs = {"road": 1.0, "grass": 1.0, "tall_grass": 2.0, "fence": 6.0}
-	_costs.impassable = PackedStringArray(["wall", "house"])
+	_rules = TerrainCosts.new()
+	_rules.costs = {"road": 1.0, "grass": 1.0, "tall_grass": 2.0, "fence": 6.0}
+	_rules.impassable = PackedStringArray(["wall", "deep_water"])
+	_rules.adaptations = {"climber": {"fence": 2.0}, "swimmer": {"deep_water": 2.0}}
 
 
-## Builds a grid from short codes: . road, , grass, * tall_grass, F fence, # wall.
+## Builds a grid from short codes: . road, , grass, * tall_grass, F fence, # wall, ~ deep_water.
 func _grid(lines: Array[String]) -> TerrainGrid:
-	var names: Dictionary = {".": "road", ",": "grass", "*": "tall_grass", "F": "fence", "#": "wall"}
+	var names: Dictionary = {".": "road", ",": "grass", "*": "tall_grass", "F": "fence", "#": "wall", "~": "deep_water"}
 	var rows: Array[PackedStringArray] = []
 	for line: String in lines:
 		var row: PackedStringArray = PackedStringArray()
 		for c: String in line:
 			row.append(names[c])
 		rows.append(row)
-	return TerrainGrid.from_rows(rows, _costs)
+	return TerrainGrid.from_rows(rows, _rules)
 
 
 func test_size_matches_rows() -> void:
@@ -28,13 +29,21 @@ func test_size_matches_rows() -> void:
 	assert_eq(g.height, 2)
 
 
-func test_costs_per_terrain() -> void:
-	var g: TerrainGrid = _grid([".,*F#"])
+func test_terrain_names_round_trip() -> void:
+	var g: TerrainGrid = _grid([".,*F#~"])
+	var expected: Array[String] = ["road", "grass", "tall_grass", "fence", "wall", "deep_water"]
+	for x: int in expected.size():
+		assert_eq(g.get_terrain(Vector2i(x, 0)), expected[x])
+
+
+func test_base_costs_per_terrain() -> void:
+	var g: TerrainGrid = _grid([".,*F#~"])
 	assert_eq(g.get_cost(Vector2i(0, 0)), 1.0, "road")
 	assert_eq(g.get_cost(Vector2i(1, 0)), 1.0, "grass")
 	assert_eq(g.get_cost(Vector2i(2, 0)), 2.0, "tall grass")
 	assert_eq(g.get_cost(Vector2i(3, 0)), 6.0, "fence")
 	assert_eq(g.get_cost(Vector2i(4, 0)), INF, "wall")
+	assert_eq(g.get_cost(Vector2i(5, 0)), INF, "deep water")
 
 
 func test_out_of_bounds_is_impassable() -> void:
@@ -47,7 +56,10 @@ func test_out_of_bounds_is_impassable() -> void:
 
 
 func test_unknown_terrain_is_impassable() -> void:
-	assert_eq(_costs.cost_of("lava_typo"), INF)
+	var g: TerrainGrid = _grid(["..."])
+	g.set_terrain(Vector2i(1, 0), "lava_typo")
+	assert_false(g.is_walkable(Vector2i(1, 0)))
+	assert_eq(g.get_terrain(Vector2i(1, 0)), "")
 
 
 func test_neighbors_straight_only() -> void:
@@ -100,20 +112,31 @@ func test_set_terrain_updates_cost() -> void:
 	assert_eq(g.get_cost(Vector2i(1, 0)), 1.0)
 
 
-func test_world_cell_round_trip() -> void:
+func test_climber_profile_lowers_fence_cost() -> void:
+	var g: TerrainGrid = _grid([".F."])
+	var climber: TerrainCostProfile = g.make_profile({"climber": 1.0})
+	assert_eq(g.get_cost(Vector2i(1, 0)), 6.0, "base unchanged")
+	assert_eq(g.get_cost(Vector2i(1, 0), climber), 2.0)
+	assert_eq(g.get_step_cost(Vector2i(0, 0), Vector2i(1, 0), climber), 2.0)
+
+
+func test_swimmer_profile_opens_deep_water() -> void:
+	# Deep water splits the map: a normal mover has no way across, a swimmer does.
+	var g: TerrainGrid = _grid([".~."])
+	var swimmer: TerrainCostProfile = g.make_profile({"swimmer": 0.8})
+	assert_does_not_have(g.get_neighbors(Vector2i(0, 0)), Vector2i(1, 0))
+	assert_has(g.get_neighbors(Vector2i(0, 0), true, swimmer), Vector2i(1, 0))
+
+
+func test_profile_changes_corner_cutting_too() -> void:
+	# Deep water blocks the diagonal for a normal mover, but not for a swimmer who can enter it.
+	var g: TerrainGrid = _grid(["..", ".~"])
+	var swimmer: TerrainCostProfile = g.make_profile({"swimmer": 1.0})
+	assert_eq(g.get_neighbors(Vector2i(0, 0)).size(), 2)
+	assert_eq(g.get_neighbors(Vector2i(0, 0), true, swimmer).size(), 3)
+
+
+func test_coords_are_attached() -> void:
 	var g: TerrainGrid = _grid(["...."])
-	assert_eq(g.world_to_cell(Vector2(0, 0)), Vector2i(0, 0))
-	assert_eq(g.world_to_cell(Vector2(15.9, 15.9)), Vector2i(0, 0))
-	assert_eq(g.world_to_cell(Vector2(16, 0)), Vector2i(1, 0))
-	assert_eq(g.world_to_cell(Vector2(-1, -1)), Vector2i(-1, -1), "floors, not truncates")
-	assert_eq(g.cell_to_world(Vector2i(2, 1)), Vector2(40, 24))
-
-
-func test_data_file_matches_design_doc() -> void:
-	var data: TerrainCosts = load("res://data/terrain_costs.tres")
-	assert_eq(data.cost_of("road"), 1.0)
-	assert_eq(data.cost_of("grass"), 1.0)
-	assert_eq(data.cost_of("tall_grass"), 2.0)
-	assert_eq(data.cost_of("fence"), 6.0)
-	assert_eq(data.cost_of("wall"), INF)
-	assert_eq(data.cost_of("house"), INF)
+	assert_not_null(g.coords)
+	assert_eq(g.coords.tile_size, 16)

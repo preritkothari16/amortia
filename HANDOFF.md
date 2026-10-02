@@ -16,11 +16,15 @@ prompt; the user says when to move on. Never start the next step automatically.
 | 4 | Dodge roll: Space, 0.3 s invuln, 1.2 s cooldown, movement dir or aim dir if still. `is_invulnerable` property. Temporary `debug_dodge` export (prints + see-through body) — turn off once damage exists | `player.gd`, `player_stats.gd` |
 | 5 | Maple Hollow greybox map: 60×34 TileMapLayer, terrains road/grass/tall_grass/fence/wall/house via `terrain` custom data, PlayerSpawn + 8 EnemySpawns, fences with gates for alternate routes | `tools/build_maple_hollow.gd`, `world/tilesets/greybox_tileset.tres`, `world/zones/maple_hollow/maple_hollow.tscn`, `world/zones/zone_map.gd`, `world/main.gd/.tscn` |
 | 6 | Terrain-cost grid + GUT 9.7.1: `TerrainGrid` (RefCounted, flat cost array, INF = impassable, 8-way neighbours with no corner cutting, √2 diagonal step cost, set_terrain for runtime changes, world↔cell). Costs in `TerrainCosts` resource (road/grass 1, tall_grass 2, fence 6, wall/house INF; unknown terrain = INF). `main.gd` builds `terrain_grid` from the map at startup. F1 toggles a cost overlay. 13 GUT tests pass | `ai/grid/terrain_grid.gd`, `ai/grid/terrain_costs.gd`, `data/terrain_costs.tres`, `tests/test_terrain_grid.gd`, `ui/debug/terrain_cost_overlay.gd`, `addons/gut/`, `.gutconfig.json` |
+| 7 | TerrainGrid v2 (AI foundation): cells store terrain **ids**; costs come from a `TerrainCostProfile` (base, or built from terrain genes: passable → `lerp(base, adapted, gene)`, impassable → `adapted` once gene ≥ `unlock_threshold` 0.5; cheapest trait wins). Coordinates moved to `GridCoords` (tile size + origin). `terrain_costs.tres` now holds the full GDD §4.2 table + adaptations (climber fence 2, swimmer shallow 1 / deep 2, crawler vent 1, toxin_resistance toxic_pool 2). 37 GUT tests pass | `ai/grid/grid_coords.gd`, `ai/grid/terrain_cost_profile.gd`, `ai/grid/terrain_grid.gd`, `ai/grid/terrain_costs.gd`, `tests/test_grid_coords.gd`, `tests/test_terrain_cost_profile.gd`, `tests/test_terrain_costs.gd`, `tests/test_terrain_grid.gd` |
 
 ### Next recommended step
 **Flow field** — `ai/nav/flow_field.gd`: Dijkstra / Uniform Cost Search outward from the
 player's cell over `TerrainGrid` (use `get_neighbors` + `get_step_cost`), each cell stores the
 direction to its cheapest neighbour (GDD §6.2). Rebuild when the player changes cell.
+Take an optional `TerrainCostProfile` so climbers/swimmers can get their own field later.
+Perf note: `get_neighbors` allocates an array per call — iterating all 2040 cells took ~36 ms
+headless (debug build). If a full rebuild is too slow, inline the neighbour loop in the flow field.
 `ai/nav/` is **learning mode** → explain the approach + pseudocode first; write code only when
 the user asks. Needs `tests/test_flow_field.gd`. Extend the F1 overlay to draw arrows.
 Then: a Runner enemy that follows the field (GDD §11.1 days 5–6), then hand-written A*.
@@ -34,10 +38,16 @@ WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay (d
   `main.gd` puts the player on the map spawn and sets camera limits to the map rect.
   `main.gd` also exposes `terrain_grid: TerrainGrid` (costs from `data/terrain_costs.tres`)
   and feeds it to the `TerrainCostOverlay` node.
-- `TerrainGrid` API: `from_rows(rows, costs, tile_px)`, `width/height/tile_size`, `in_bounds`,
-  `get_cost` (INF = blocked), `is_walkable`, `get_terrain`, `set_terrain`,
-  `get_neighbors(cell, allow_diagonal)`, `get_step_cost(from, to)`, `world_to_cell`, `cell_to_world`.
-  Enemies treat fences as walkable cost 6 (climbing); the player is blocked by fence collision.
+- `TerrainGrid` API: `from_rows(rows, rules: TerrainCosts, coords: GridCoords = null)`,
+  `width/height`, `coords`, `base_profile`, `make_profile(genes, label)`, `in_bounds`,
+  `get_terrain`, `set_terrain`, and with optional `profile` arg (null = base):
+  `get_cost` (INF = blocked), `is_walkable`, `get_neighbors(cell, allow_diagonal, profile)`,
+  `get_step_cost(from, to, profile)`. Diagonals never cut a blocked corner; diagonal ×√2.
+- `GridCoords`: `tile_size`, `origin`, `world_to_cell` (floor), `cell_to_world` (cell centre), `cell_rect`.
+- `TerrainCostProfile.create(rules, genes: Dictionary[String, float], label)`, `cost_of_id`, `cost_of`.
+  Terrain id = index in `TerrainCosts.get_terrain_names()` (sorted); grid asserts profile.source matches.
+- Enemies treat fences as walkable cost 6 (climbing); the player is blocked by fence collision.
+- `TerrainCostOverlay` has a `profile` property to show another mover's costs.
 - `ZoneMap` API: `get_grid_size()`, `get_terrain_at(cell)`, `get_terrain_rows()` (plain data for AI),
   `world_to_cell()`, `cell_to_world()`, `get_world_rect()`, `get_player_spawn()`, `get_enemy_spawns()`.
 - Tuning lives in Resources: `PlayerStats` (`data/player_stats.tres`), `WeaponStats` (`data/pistol.tres`).
@@ -79,4 +89,4 @@ Spawns are 15–32 tiles from the player; all 1383 walkable cells reachable (che
 - Tall grass has no gameplay effect yet (vision hiding, 80% player speed per GDD §4.2).
 - Fences block bullets; fence HP (40) comes later.
 - Not added yet on purpose: GameState / SaveSystem / AudioDirector autoloads, HUD.
-- Terrain cost profiles per gene (swimmer, climber…) come later (GDD §4.5, `ai/grid/cost_profiles.gd`).
+- Terrain cost profiles exist; wiring genes → profiles happens with the genome (GDD §5.3). Adaptation budget (sum ≤ 1.5) is the genome's job, not the grid's.

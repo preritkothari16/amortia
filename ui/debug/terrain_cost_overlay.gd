@@ -7,6 +7,11 @@ var grid: TerrainGrid:
 	set(value):
 		grid = value
 		queue_redraw()
+## Which mover's costs to show. null = the grid's base profile.
+var profile: TerrainCostProfile:
+	set(value):
+		profile = value
+		queue_redraw()
 
 
 func _ready() -> void:
@@ -22,17 +27,17 @@ func _unhandled_input(event: InputEvent) -> void:
 func _draw() -> void:
 	if grid == null:
 		return
-	var size: Vector2 = Vector2(grid.tile_size, grid.tile_size)
+	var cross: Color = Color(1, 0.2, 0.2, 0.6)
 	for y: int in grid.height:
 		for x: int in grid.width:
 			var cell: Vector2i = Vector2i(x, y)
-			var top_left: Vector2 = Vector2(cell * grid.tile_size)
-			var cost: float = grid.get_cost(cell)
+			var rect: Rect2 = grid.coords.cell_rect(cell)
+			var cost: float = grid.get_cost(cell, profile)
 			if cost == INF:
-				draw_line(top_left, top_left + size, Color(1, 0.2, 0.2, 0.6))
-				draw_line(top_left + Vector2(size.x, 0), top_left + Vector2(0, size.y), Color(1, 0.2, 0.2, 0.6))
+				draw_line(rect.position, rect.end, cross)
+				draw_line(Vector2(rect.end.x, rect.position.y), Vector2(rect.position.x, rect.end.y), cross)
 			else:
-				draw_rect(Rect2(top_left + Vector2.ONE, size - Vector2(2, 2)), _cost_color(cost))
+				draw_rect(rect.grow(-1.0), _cost_color(cost))
 
 
 func _cost_color(cost: float) -> Color:

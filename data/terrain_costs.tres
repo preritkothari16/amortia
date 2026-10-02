@@ -5,9 +5,33 @@
 [resource]
 script = ExtResource("1_costs")
 costs = Dictionary[String, float]({
+"barricade": 5.0,
+"bridge": 1.0,
+"door": 2.0,
 "fence": 6.0,
+"fire": 20.0,
+"fog": 1.0,
 "grass": 1.0,
+"mud": 3.0,
 "road": 1.0,
-"tall_grass": 2.0
+"shallow_water": 3.0,
+"tall_grass": 2.0,
+"toxic_pool": 8.0
 })
-impassable = PackedStringArray("wall", "house")
+impassable = PackedStringArray("wall", "house", "deep_water", "vent")
+adaptations = Dictionary[String, Dictionary]({
+"climber": {
+"fence": 2.0
+},
+"crawler": {
+"vent": 1.0
+},
+"swimmer": {
+"deep_water": 2.0,
+"shallow_water": 1.0
+},
+"toxin_resistance": {
+"toxic_pool": 2.0
+}
+})
+unlock_threshold = 0.5

@@ -13,8 +13,8 @@ var terrain_grid: TerrainGrid
 
 
 func _ready() -> void:
-	var tile_px: int = _map.terrain_layer.tile_set.tile_size.x
-	terrain_grid = TerrainGrid.from_rows(_map.get_terrain_rows(), terrain_costs, tile_px)
+	var coords: GridCoords = GridCoords.new(_map.terrain_layer.tile_set.tile_size.x, _map.get_world_rect().position)
+	terrain_grid = TerrainGrid.from_rows(_map.get_terrain_rows(), terrain_costs, coords)
 	_cost_overlay.grid = terrain_grid
 
 	_player.global_position = _map.get_player_spawn()
