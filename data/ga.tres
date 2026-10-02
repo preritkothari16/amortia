@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="GASettings" format=3]
+
+[ext_resource type="Script" path="res://ai/evolution/ga_settings.gd" id="1_ga"]
+
+[resource]
+script = ExtResource("1_ga")
+population_size = 20
+tournament_size = 3
+elitism = 2
+crossover_rate = 0.9
+mutation_rate = 0.1
+diversity_threshold = 0.8
+diversity_mutation_multiplier = 2.0

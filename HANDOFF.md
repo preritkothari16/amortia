@@ -27,13 +27,23 @@ prompt; the user says when to move on. Never start the next step automatically.
 | 15 | Utility AI (learning mode, explained + pseudocode first): `UtilityAI` scores `ChaseAction` (aggression × (0.5 + 0.5 closeness), needs sight), `FlankAction` (flanking × allies × facing-away × far-enough, needs sight + allies chasing + a FlankPlanner point), `InvestigateAction` (patience × (0.4 + 0.6 freshness), needs an unchecked lead, no sight); idle baseline 0.1; +0.1 momentum for the current action (idle included); an action only competes if its RAW score > idle. Decides at 5 Hz (staggered by golden-ratio phase from instance id) + immediately when awareness state / target_version changes. Inputs in `DecisionInputs` (gathered by `Enemy._gather_inputs`). Genes in `BehaviourWeights` (`data/runner_behaviour.tres`: 0.6/0.6/0.6), shared tuning in `UtilitySettings` (`data/utility_ai.tres`). Enemy executes: CHASE = old chase + ring; FLANK = arrive at flank point (flow field if blocked), no ring, no queuing; INVESTIGATE = A*/straight to lead; IDLE = stand. Investigation also counts as checked when the spot is in view within `investigate_view_distance` 48 px (fixes crowds stuck around a shared last-seen spot). `Awareness.lead_age`, `has_lead()`. F6 overlay shows action letters + flank points. 168 GUT tests | `ai/decision/utility_ai.gd`, `utility_action.gd`, `actions/chase_action.gd`, `actions/flank_action.gd`, `actions/investigate_action.gd`, `decision_inputs.gd`, `behaviour_weights.gd`, `utility_settings.gd`, `flank_planner.gd`, `awareness.gd`, `data/utility_ai.tres`, `data/runner_behaviour.tres`, `entities/enemies/enemy.gd`, `enemy_stats.gd`, `data/runner.tres`, `ui/debug/awareness_overlay.gd`, tests `test_utility_ai.gd`, `test_utility_actions.gd`, `test_flank_planner.gd` |
 | 16 | Genome (learning mode, explained + pseudocode first): `Genome` Resource (ai/evolution) with stats speed/health/vision (1–10, budgeted), behaviour aggression/caution/flanking/cohesion/patience (0–1), `path_mode` FLOW/ASTAR/GREEDY. `random()` spends the wave budget exactly (random weights, water-filling over the 10 cap), `copy()`, `mutate(rng, rules, budget, rate)` (Gaussian nudge σ 1.0 stats / 0.1 behaviour, category re-picked to a different value, then repair), `repair()` (clamp, then shrink points above stat_min proportionally to fit the budget), `is_valid`, `to_dict/from_dict` (JSON-safe), `describe()`. Gene → value: base × (1 + (gene − 5) × per_point) with speed 0.10, health 0.15, vision 0.10 per point (`GenomeRules`, `data/genome_rules.tres`; budget 15 +1/wave, cap 24). `Enemy._apply_genome` duplicates `stats` per enemy and sets move_speed / max_health / sight_range / behaviour; body scale follows the health gene (visual only). WaveManager gives each spawned enemy `Genome.random` for the wave budget (`random_genomes`, `wave_number`, logs a per-wave gene summary). Caution, cohesion and path_mode are carried but NOT used by behaviour yet. F7 genome overlay. 191 GUT tests | `ai/evolution/genome.gd`, `genome_rules.gd`, `data/genome_rules.tres`, `ai/decision/behaviour_weights.gd`, `entities/enemies/enemy.gd`, `enemy_context.gd`, `world/wave_manager.gd`, `world/main.gd/.tscn`, `ui/debug/genome_overlay.gd`, `tests/test_genome.gd` |
 | 17 | Fitness tracking (learning mode, explained + pseudocode first): `FitnessRecord` = raw facts per enemy (damage_dealt, pressure_seconds within `pressure_radius` 64 px, alive_seconds, objective_score, died, frozen, wave); `Fitness` normalises explicitly (term = clamp(raw / cap, 0, 1); cap 0 for P/S = wave duration) and weights F = 0.4 D + 0.25 P + 0.15 S + 0.2 O (`FitnessSettings`, `data/fitness.tres`). **D is always 0 until Runners can attack** (hook `Enemy.record_damage_dealt`), **O is always 0 until objectives exist** (`FitnessRecord.add_objective`). Enemy ticks its record each physics frame (evaluator distance, not perception) and marks it dead in `_die`. WaveManager owns one {genome, record} per spawn_wave enemy; a wave ends when all its enemies are dead, when the next wave spawns, or F8 → records frozen, scored, sorted, `last_wave_results`, `wave_ended(results)` signal, printed report (genome + D/P/S/O + raw + F). F7 overlay shows live F. 208 GUT tests | `ai/evolution/fitness.gd`, `fitness_record.gd`, `fitness_settings.gd`, `data/fitness.tres`, `entities/enemies/enemy.gd`, `enemy_context.gd`, `world/wave_manager.gd`, `world/main.gd/.tscn`, `ui/debug/genome_overlay.gd`, `tests/test_fitness.gd` |
+| 18 | Genetic Algorithm (graded, learning mode, explained + pseudocode first): `GeneticAlgorithm` (pure, own seeded RNG) `next_generation(population, fitness, budget)`: diversity guard (most common path_mode share > 0.8 → mutation rate × 2 for this generation), elitism (top 2 by fitness, ties → lower index, copied unchanged then repaired only if the budget shrank), tournament selection k = 3 with replacement, uniform crossover p 0.9 (else copy of parent A), `Genome.mutate` at the GA's rate (Gaussian nudge / path_mode re-pick), explicit repair (clamp + budget). `last_stats` (best/mean fitness, elite indices, rate, guard, crossovers, genes mutated). `next_generation_from_results(WaveManager.last_wave_results, budget)`. Config `GASettings` / `data/ga.tres` (20, 3, 2, 0.9, 0.1, 0.8, ×2). **Not wired into gameplay yet** (user: don't modify unrelated systems). 33 GA tests, 241 total | `ai/evolution/genetic_algorithm.gd`, `ga_settings.gd`, `data/ga.tres`, `tests/test_genetic_algorithm.gd` |
 
 ### Next recommended step
-**Genetic Algorithm** (`ai/evolution/genetic_algorithm.gd`, learning mode — user requested it
-during step 17): takes `WaveManager.last_wave_results` (genome + fitness), tournament 3, elitism 2,
-uniform crossover 0.9, mutation via `Genome.mutate` (10 %), repair, diversity guard on path_mode,
-seeded RNG. Then WaveManager spawns the next wave from the evolved population. Runner attack +
-player HP still missing (D = 0 for everyone until then).
+**Wire the GA between waves**: on `WaveManager.wave_ended`, call
+`ga.next_generation_from_results(results, rules.budget_for_wave(wave_number + 1))` and spawn the
+next wave from that population instead of `Genome.random` (first wave stays random). Seed the GA
+from `spawn_seed` for repeatable runs; log per-generation best/mean fitness + gene means (the
+"Runners visibly change across waves" check). Then **Runner attack + player HP** so fitness term D
+(40 %) stops being 0 for everyone. Later: headless `ga_vs_random` experiment runner (`tools/`),
+hill-climbing baseline, path_mode actually used (needs Greedy).
+
+GA test evidence (step 18): elites kept unchanged and never lost over 10 generations; 50
+harsh-mutation generations always valid; budget 24 → 15 enforced; crossover takes each gene from a
+parent (≈ 50/50) and over-budget children are repaired; measured crossover ≈ 0.9, mutation ≈ 0.1
+per gene; tournament matches theory (best ≈ 1 − (19/20)³ = 14.3 % of picks, worst ≈ 0.0125 %);
+toy fitness (aggression) mean rises from ≈ 0.5 to > 0.8 in 30 generations; same seed → identical
+10-generation run, different seed → different; global `seed()` has no effect.
 
 Fitness measurements (step 17, scratch `fitness_game.gd`, seed 21, 20 Runners, 24 s wave,
 11 killed / 9 survived): records equal an independent per-frame shadow count (alive exact,
@@ -159,6 +169,9 @@ WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay ·
   `Enemy.fitness_record`, `Enemy.record_damage_dealt(amount)`. `WaveManager.end_wave()`,
   `last_wave_results` (each {genome, record, components, fitness, index}, best first), `wave_seconds`,
   `preview_fitness(record)`, `fitness_report(results)`, signal `wave_ended(results)`.
+- `GeneticAlgorithm` API: `GeneticAlgorithm.new(settings, rules, seed)`, `next_generation(pop, fitness, budget)`,
+  `next_generation_from_results(results, budget)`, `tournament_select(fitness)`, `uniform_crossover(a, b)`,
+  static `rank(fitness)`, static `dominant_path_share(pop)`, `last_stats`, `rng`.
 - `AttackRing` API: `AttackRing.new(flow_field, settings)`, `engage(id, pos)`, `disengage(id)`,
   `is_member`, `get_role(id) -> Role {NONE, WAITING, HOLDING, ATTACKING}`, `get_target(id)`,
   `update(player_pos, delta)`, `slot_position/slot_direction/is_slot_valid/get_slot_owner(i)`,
@@ -225,7 +238,8 @@ Spawns are 15–32 tiles from the player; all 1383 walkable cells reachable (che
   `Time.get_ticks_usec()` between consecutive frames instead.
 - Learning-mode files written on request so far: astar.gd, flow_field.gd, path_queue.gd (ai/nav),
   awareness.gd, utility_ai.gd, utility_action.gd, actions/*.gd, flank_planner.gd, decision_inputs.gd,
-  behaviour_weights.gd, utility_settings.gd (ai/decision) — each with explanation + pseudocode first.
+  behaviour_weights.gd, utility_settings.gd (ai/decision), genome.gd, genome_rules.gd, fitness*.gd,
+  genetic_algorithm.gd, ga_settings.gd (ai/evolution) — each with explanation + pseudocode first.
 - Headless tests can't move the mouse: set `player.aim_direction` directly each frame.
 - `queue_free()` is deferred: `is_instance_valid()` stays true until the frame ends — loop on
   `health > 0` instead when counting hits.
