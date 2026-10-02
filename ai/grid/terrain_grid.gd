@@ -113,6 +113,17 @@ func get_step_cost(from: Vector2i, to: Vector2i, profile: TerrainCostProfile = n
 	return cost
 
 
+## Every cell's cost in one flat array (index = y * width + x), for hot loops such as the
+## flow field that would be slowed down by calling get_cost per neighbour.
+func build_cost_array(profile: TerrainCostProfile = null) -> PackedFloat32Array:
+	var p: TerrainCostProfile = _profile_or_base(profile)
+	var costs: PackedFloat32Array = PackedFloat32Array()
+	costs.resize(_terrain_ids.size())
+	for i: int in _terrain_ids.size():
+		costs[i] = p.cost_of_id(_terrain_ids[i])
+	return costs
+
+
 func _profile_or_base(profile: TerrainCostProfile) -> TerrainCostProfile:
 	if profile == null:
 		return base_profile

@@ -1,10 +1,11 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://world/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://world/zones/maple_hollow/maple_hollow.tscn" id="2_map"]
 [ext_resource type="PackedScene" path="res://entities/player/player.tscn" id="3_player"]
 [ext_resource type="Resource" path="res://data/terrain_costs.tres" id="4_costs"]
 [ext_resource type="Script" path="res://ui/debug/terrain_cost_overlay.gd" id="5_overlay"]
+[ext_resource type="Script" path="res://ui/debug/flow_field_overlay.gd" id="6_flow"]
 
 [sub_resource type="CircleShape2D" id="Circle_enemy"]
 radius = 6.0
@@ -31,3 +32,6 @@ polygon = PackedVector2Array(-6, -6, 6, -6, 6, 6, -6, 6)
 
 [node name="TerrainCostOverlay" type="Node2D" parent="."]
 script = ExtResource("5_overlay")
+
+[node name="FlowFieldOverlay" type="Node2D" parent="."]
+script = ExtResource("6_flow")

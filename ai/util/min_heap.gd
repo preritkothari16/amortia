@@ -40,58 +40,67 @@ func peek_priority() -> float:
 func pop() -> Variant:
 	assert(not _items.is_empty(), "MinHeap: pop() on empty heap")
 	var top: Variant = _items[0]
-	# Move the last entry to the root, shrink, then let it sink to its place.
+	# Take the last entry off the end, then sink it down from the root (the hole left by top).
 	var last: int = _items.size() - 1
-	_swap(0, last)
+	var item: Variant = _items[last]
+	var priority: float = _priorities[last]
+	var order: int = _order[last]
 	_items.resize(last)
 	_priorities.resize(last)
 	_order.resize(last)
 	if last > 0:
-		_sift_down(0)
+		_sift_down(item, priority, order)
 	return top
 
 
-## True if entry a should come out before entry b.
-func _less(a: int, b: int) -> bool:
-	if _priorities[a] != _priorities[b]:
-		return _priorities[a] < _priorities[b]
-	return _order[a] < _order[b]
-
-
-## Move a new entry up while it is smaller than its parent.
+## Moves the entry at index i up to its place. Uses a "hole": parents that are larger are
+## shifted down one level, and the entry is written once at the end (fewer writes than swapping).
 func _sift_up(i: int) -> void:
+	var item: Variant = _items[i]
+	var priority: float = _priorities[i]
+	var order: int = _order[i]
 	while i > 0:
-		var parent: int = (i - 1) / 2
-		if not _less(i, parent):
-			return
-		_swap(i, parent)
+		var parent: int = (i - 1) >> 1
+		var pp: float = _priorities[parent]
+		# Stop when the parent should come out first (smaller priority, or tie and older).
+		if pp < priority or (pp == priority and _order[parent] < order):
+			break
+		_move(parent, i)
 		i = parent
+	_put(i, item, priority, order)
 
 
-## Move an entry down while one of its children is smaller.
-func _sift_down(i: int) -> void:
+## Places an entry starting at the root hole and moves it down while a child is smaller.
+func _sift_down(item: Variant, priority: float, order: int) -> void:
 	var n: int = _items.size()
+	var i: int = 0
 	while true:
-		var smallest: int = i
-		var left: int = 2 * i + 1
-		var right: int = left + 1
-		if left < n and _less(left, smallest):
-			smallest = left
-		if right < n and _less(right, smallest):
-			smallest = right
-		if smallest == i:
-			return
-		_swap(i, smallest)
-		i = smallest
+		var child: int = 2 * i + 1
+		if child >= n:
+			break
+		# Pick the smaller of the two children.
+		var right: int = child + 1
+		if right < n:
+			var cp: float = _priorities[child]
+			var rp: float = _priorities[right]
+			if rp < cp or (rp == cp and _order[right] < _order[child]):
+				child = right
+		var chp: float = _priorities[child]
+		if priority < chp or (priority == chp and order < _order[child]):
+			break
+		_move(child, i)
+		i = child
+	_put(i, item, priority, order)
 
 
-func _swap(a: int, b: int) -> void:
-	var item: Variant = _items[a]
-	_items[a] = _items[b]
-	_items[b] = item
-	var p: float = _priorities[a]
-	_priorities[a] = _priorities[b]
-	_priorities[b] = p
-	var o: int = _order[a]
-	_order[a] = _order[b]
-	_order[b] = o
+## Copies entry `from` into slot `to`.
+func _move(from: int, to: int) -> void:
+	_items[to] = _items[from]
+	_priorities[to] = _priorities[from]
+	_order[to] = _order[from]
+
+
+func _put(i: int, item: Variant, priority: float, order: int) -> void:
+	_items[i] = item
+	_priorities[i] = priority
+	_order[i] = order

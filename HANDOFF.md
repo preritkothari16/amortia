@@ -18,30 +18,35 @@ prompt; the user says when to move on. Never start the next step automatically.
 | 6 | Terrain-cost grid + GUT 9.7.1: `TerrainGrid` (RefCounted, flat cost array, INF = impassable, 8-way neighbours with no corner cutting, √2 diagonal step cost, set_terrain for runtime changes, world↔cell). Costs in `TerrainCosts` resource (road/grass 1, tall_grass 2, fence 6, wall/house INF; unknown terrain = INF). `main.gd` builds `terrain_grid` from the map at startup. F1 toggles a cost overlay. 13 GUT tests pass | `ai/grid/terrain_grid.gd`, `ai/grid/terrain_costs.gd`, `data/terrain_costs.tres`, `tests/test_terrain_grid.gd`, `ui/debug/terrain_cost_overlay.gd`, `addons/gut/`, `.gutconfig.json` |
 | 7 | TerrainGrid v2 (AI foundation): cells store terrain **ids**; costs come from a `TerrainCostProfile` (base, or built from terrain genes: passable → `lerp(base, adapted, gene)`, impassable → `adapted` once gene ≥ `unlock_threshold` 0.5; cheapest trait wins). Coordinates moved to `GridCoords` (tile size + origin). `terrain_costs.tres` now holds the full GDD §4.2 table + adaptations (climber fence 2, swimmer shallow 1 / deep 2, crawler vent 1, toxin_resistance toxic_pool 2). 37 GUT tests pass | `ai/grid/grid_coords.gd`, `ai/grid/terrain_cost_profile.gd`, `ai/grid/terrain_grid.gd`, `ai/grid/terrain_costs.gd`, `tests/test_grid_coords.gd`, `tests/test_terrain_cost_profile.gd`, `tests/test_terrain_costs.gd`, `tests/test_terrain_grid.gd` |
 | 8 | Hand-written A* (learning-mode file, written on request): f = g + h, octile heuristic × `profile.get_min_cost()`, binary `MinHeap` open list with lazy deletion (stale entries skipped), dictionaries for g / came_from / closed, returns `Array[Vector2i]` start→goal or `[]`; `last_cost` / `last_expanded` stats for experiment N2. Optional profile (climber etc.). Not wired to enemies. 59 GUT tests pass incl. A* = brute-force Dijkstra on 40 random grids | `ai/nav/astar.gd`, `ai/util/min_heap.gd`, `tests/test_astar.gd`, `tests/test_min_heap.gd`, `TerrainCostProfile.get_min_cost()` |
+| 9 | Shared flow field (learning-mode file, written on request): Dijkstra/UCS outward from the player's cell; per cell integration cost (INF = unreachable) + next-cell index; step a→b pays cost of ENTERING b; same no-corner-cutting rule as TerrainGrid. Optimised: flat int indices + `TerrainGrid.build_cost_array(profile)` instead of `get_neighbors`, and MinHeap rewritten with "hole" sifting → rebuild ~7.5 ms (max ~9.5) on Maple Hollow in debug headless (was 46–73 ms). `main.gd` rebuilds it when the player enters a new walkable cell. F2 = arrow overlay (yellow near → blue far, magenta dot = walkable but unreachable). 75 GUT tests pass incl. field cost = A* cost from every cell on 15 random grids | `ai/nav/flow_field.gd`, `tests/test_flow_field.gd`, `ui/debug/flow_field_overlay.gd`, `world/main.gd/.tscn`, `ai/util/min_heap.gd` |
 
 ### Next recommended step
-**Flow field** — `ai/nav/flow_field.gd`: Dijkstra / Uniform Cost Search outward from the
-player's cell over `TerrainGrid` (reuse `MinHeap`, `get_neighbors`, `get_step_cost`); each cell
-stores the direction to its cheapest neighbour (GDD §6.2). Rebuild when the player changes cell.
-Take an optional `TerrainCostProfile`. `ai/nav/` is **learning mode** → explain + pseudocode
-first; code only when the user asks. Needs `tests/test_flow_field.gd`. Extend the F1 overlay
-to draw arrows. Then: a Runner enemy that follows the field (GDD §11.1 days 5–6), using A*
-only for non-player targets (noise, flank points).
+**Runner enemy (greybox) following the flow field + steering** (GDD §6.3, §11.1 days 5–8):
+`entities/enemies/` CharacterBody2D on layer 3, reads `main.flow_field.get_direction_at(pos)`,
+seek + separation + wall avoidance (`ai/steering/` — not learning mode, but keep it explainable),
+line-of-sight shortcut and pursuit later. Needs a way for enemies to get the field (e.g. main
+passes it on spawn). Then: utility AI (`ai/decision/`, learning mode), genome + GA (`ai/evolution/`, learning mode).
 
-Perf notes (headless debug build, Maple Hollow): `get_neighbors` over all 2040 cells ~36 ms;
-A* spawn→player 2–8 ms per search (15–173 cells expanded). GDD allows max 4 A* searches per
-frame — that could exceed a 16 ms frame, so a path queue / per-frame budget + caching is needed
-before many enemies use A*. Inlining the neighbour loop is the first optimisation to try.
+Perf notes (headless debug build, Maple Hollow): flow field rebuild ~7.5 ms median / 9.5 ms max.
+A* spawn→player 2–8 ms per search (measured before the MinHeap speed-up; likely faster now).
+GDD allows max 4 A* searches per frame — add a path queue / per-frame budget + caching before
+many enemies use A*. Flow rebuilds could move to `WorkerThreadPool` later if they spike (GDD §10.2).
+`TerrainGrid.get_neighbors` allocates per call; hot loops should use `build_cost_array` + indices.
 
 ## Current controls
-WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay (debug).
+WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay · F2 flow-field arrows (debug).
 
 ## Scene / code map
 - `world/main.tscn` (main scene, script `main.gd`): instances `MapleHollow`, `EnemyStandIn`
   (pink StaticBody2D on layer 3, no script — temporary target, replace with real enemies), `Player`.
   `main.gd` puts the player on the map spawn and sets camera limits to the map rect.
   `main.gd` also exposes `terrain_grid: TerrainGrid` (costs from `data/terrain_costs.tres`)
-  and feeds it to the `TerrainCostOverlay` node.
+  and feeds it to the `TerrainCostOverlay` node. It also owns `flow_field: FlowField` (target = player cell,
+  rebuilt in `_physics_process` when the player's cell changes; `last_flow_build_msec`) and the `FlowFieldOverlay`.
+- `FlowField` API: `build(target, profile)`, `target`, `profile`, `is_built`, `get_cost(cell)` (INF = unreachable),
+  `is_reachable`, `get_next_cell` (returns cell itself at target/unreachable), `get_direction(cell)`,
+  `get_direction_at(world_pos)`, `get_path_from(cell)`, `last_expanded`.
+- `AStar` API: `AStar.new(grid)`, `find_path(start, goal, profile) -> Array[Vector2i]` ([] = none), `last_cost`, `last_expanded`, static `octile(a, b)`.
 - `TerrainGrid` API: `from_rows(rows, rules: TerrainCosts, coords: GridCoords = null)`,
   `width/height`, `coords`, `base_profile`, `make_profile(genes, label)`, `in_bounds`,
   `get_terrain`, `set_terrain`, and with optional `profile` arg (null = base):
@@ -55,7 +60,7 @@ WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay (d
 - `ZoneMap` API: `get_grid_size()`, `get_terrain_at(cell)`, `get_terrain_rows()` (plain data for AI),
   `world_to_cell()`, `cell_to_world()`, `get_world_rect()`, `get_player_spawn()`, `get_enemy_spawns()`.
 - Tuning lives in Resources: `PlayerStats` (`data/player_stats.tres`), `WeaponStats` (`data/pistol.tres`).
-- Input actions in `project.godot`: `move_left/right/up/down`, `shoot`, `dodge`.
+- Input actions in `project.godot`: `move_left/right/up/down`, `shoot`, `dodge`, `debug_overlay` (F1), `debug_flow_field` (F2).
 - Physics layers: 1 world, 2 player, 3 enemies, 4 player_bullets, 5 enemy_attacks, 6 barricades.
   Player: layer 2, mask 1. Bullet: layer 4, mask 1+3. Solid tiles: layer 1.
 
