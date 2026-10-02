@@ -29,6 +29,8 @@ var _names: PackedStringArray = PackedStringArray()
 var _id_by_name: Dictionary[String, int] = {}
 ## Terrain id per cell; -1 = unknown terrain (impassable).
 var _terrain_ids: PackedInt32Array = PackedInt32Array()
+## Terrain id -> 1 if it blocks line of sight.
+var _blocks_vision_by_id: PackedByteArray = PackedByteArray()
 
 
 ## Builds a grid from terrain names row by row (rows[y][x]), e.g. ZoneMap.get_terrain_rows().
@@ -40,6 +42,9 @@ static func from_rows(rows: Array[PackedStringArray], rules: TerrainCosts, grid_
 	for id: int in grid._names.size():
 		grid._id_by_name[grid._names[id]] = id
 	grid.base_profile = TerrainCostProfile.create(rules)
+	grid._blocks_vision_by_id.resize(grid._names.size())
+	for id: int in grid._names.size():
+		grid._blocks_vision_by_id[id] = 1 if rules.blocks_vision.has(grid._names[id]) else 0
 
 	grid.height = rows.size()
 	grid.width = rows[0].size() if grid.height > 0 else 0
@@ -122,6 +127,52 @@ func build_cost_array(profile: TerrainCostProfile = null) -> PackedFloat32Array:
 	for i: int in _terrain_ids.size():
 		costs[i] = p.cost_of_id(_terrain_ids[i])
 	return costs
+
+
+## True if this cell blocks line of sight (vision-blocking terrain, unknown terrain, off the map).
+func blocks_vision(cell: Vector2i) -> bool:
+	if not in_bounds(cell):
+		return true
+	var id: int = _terrain_ids[_index(cell)]
+	return id < 0 or _blocks_vision_by_id[id] == 1
+
+
+## Line of sight between two world positions over the grid. Walks every cell the straight
+## line passes through (Amanatides & Woo grid traversal) and fails on the first cell that
+## blocks vision. The start cell is ignored (you can always see out of your own tile).
+func has_line_of_sight(from_world: Vector2, to_world: Vector2) -> bool:
+	var tile: float = float(coords.tile_size)
+	var a: Vector2 = (from_world - coords.origin) / tile  # positions in cell units
+	var b: Vector2 = (to_world - coords.origin) / tile
+	var cell: Vector2i = Vector2i(floori(a.x), floori(a.y))
+	var end: Vector2i = Vector2i(floori(b.x), floori(b.y))
+	var dir: Vector2 = b - a
+	var step: Vector2i = Vector2i(signi(int(signf(dir.x))), signi(int(signf(dir.y))))
+	# t_max: how far along the line (0..1) until the next vertical / horizontal cell border.
+	# t_delta: how far along the line one whole cell is, in x and in y.
+	var t_max: Vector2 = Vector2(INF, INF)
+	var t_delta: Vector2 = Vector2(INF, INF)
+	if dir.x != 0.0:
+		var next_x: float = cell.x + (1 if step.x > 0 else 0)
+		t_max.x = (next_x - a.x) / dir.x
+		t_delta.x = absf(1.0 / dir.x)
+	if dir.y != 0.0:
+		var next_y: float = cell.y + (1 if step.y > 0 else 0)
+		t_max.y = (next_y - a.y) / dir.y
+		t_delta.y = absf(1.0 / dir.y)
+	while cell != end:
+		# Step into whichever neighbouring cell the line reaches first.
+		if t_max.x < t_max.y:
+			cell.x += step.x
+			t_max.x += t_delta.x
+		else:
+			cell.y += step.y
+			t_max.y += t_delta.y
+		if blocks_vision(cell):
+			return false
+		if t_max.x > 1.0 and t_max.y > 1.0 and cell != end:
+			break  # numerical safety: the line has ended
+	return true
 
 
 func _profile_or_base(profile: TerrainCostProfile) -> TerrainCostProfile:

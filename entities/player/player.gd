@@ -111,3 +111,5 @@ func _shoot(delta: float) -> void:
 	bullet.global_position = _muzzle.global_position
 	# Bullets live in the level, not under the player, so they don't move with it.
 	get_parent().add_child(bullet)
+	# Gunshots are loud: enemies in range learn where the player WAS, not where they go next.
+	EventBus.noise_emitted.emit(global_position, weapon.noise_radius)

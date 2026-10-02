@@ -14,26 +14,25 @@ signal wave_cleared
 @export var spawn_scatter_tiles: int = 2
 ## Fixed seed for reproducible spawn positions (tests, experiments). 0 = random each run.
 @export var spawn_seed: int = 0
+## New enemies learn where the player was when they spawned ("the Pulse") and come to
+## investigate. Off = they stay idle until they see or hear the player.
+@export var alert_on_spawn: bool = true
 
 ## Living enemies. Shared with every enemy for separation, so only add/remove here.
 var alive: Array[Enemy] = []
 
-var _flow_field: FlowField
-var _target: Node2D
-var _ring: AttackRing
+var _context: EnemyContext
 var _spawn_points: Array[Vector2] = []
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 
-func setup(spawn_points: Array[Vector2], flow_field: FlowField, target: Node2D, ring: AttackRing = null) -> void:
+func setup(spawn_points: Array[Vector2], context: EnemyContext) -> void:
 	if spawn_seed != 0:
 		_rng.seed = spawn_seed
 	else:
 		_rng.randomize()
 	_spawn_points = spawn_points
-	_flow_field = flow_field
-	_target = target
-	_ring = ring
+	_context = context
 	if auto_start:
 		spawn_wave()
 
@@ -52,7 +51,9 @@ func spawn_wave(count: int = wave_size) -> void:
 func spawn_enemy(near: Vector2) -> Enemy:
 	var enemy: Enemy = enemy_scene.instantiate() as Enemy
 	enemy.global_position = _pick_spawn_position(near, enemy.stats)
-	enemy.setup(_flow_field, _target, alive, _ring)
+	enemy.setup(_context, alive)
+	if alert_on_spawn:
+		enemy.alert(_context.target.global_position)
 	enemy.died.connect(_on_enemy_died)
 	alive.append(enemy)
 	add_child(enemy)
@@ -62,7 +63,7 @@ func spawn_enemy(near: Vector2) -> Enemy:
 ## A random tile near `near` that the enemy can stand on (walkable and not a fence),
 ## jittered inside the tile so enemies don't spawn exactly on top of each other.
 func _pick_spawn_position(near: Vector2, stats: EnemyStats) -> Vector2:
-	var grid: TerrainGrid = _flow_field.grid
+	var grid: TerrainGrid = _context.flow_field.grid
 	var centre: Vector2i = grid.coords.world_to_cell(near)
 	for attempt: int in 20:
 		var cell: Vector2i = centre + Vector2i(

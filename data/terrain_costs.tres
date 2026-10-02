@@ -35,3 +35,4 @@ adaptations = Dictionary[String, Dictionary]({
 }
 })
 unlock_threshold = 0.5
+blocks_vision = PackedStringArray("wall", "house")

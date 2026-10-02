@@ -14,6 +14,9 @@ extends Resource
 ## For terrain that is normally impassable (deep water, vents): the gene value needed
 ## before a creature can enter it at all.
 @export_range(0.0, 1.0) var unlock_threshold: float = 0.5
+## Terrain that blocks line of sight (GDD 4.2 "Blocks vision"). Fences do NOT block vision.
+## Tall grass also blocks vision in the GDD - add it here when stealth is implemented.
+@export var blocks_vision: PackedStringArray = PackedStringArray(["wall", "house"])
 
 
 ## Every terrain name these rules know about, sorted. A terrain's position in this list is

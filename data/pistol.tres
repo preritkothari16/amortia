@@ -11,3 +11,4 @@ automatic = false
 projectile_speed = 320.0
 projectile_lifetime = 1.0
 damage = 10.0
+noise_radius = 192.0

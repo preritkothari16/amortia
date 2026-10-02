@@ -11,6 +11,8 @@ var terrain_grid: TerrainGrid
 var flow_field: FlowField
 ## Slots around the player that decide who surrounds and who attacks (GDD 6.4).
 var attack_ring: AttackRing
+## Budgeted, cached A* shared by all enemies for investigation paths.
+var path_queue: PathQueue
 ## How long the last flow field rebuild took, in milliseconds.
 var last_flow_build_msec: float = 0.0
 
@@ -20,6 +22,7 @@ var last_flow_build_msec: float = 0.0
 @onready var _flow_overlay: FlowFieldOverlay = $FlowFieldOverlay
 @onready var _wave_manager: WaveManager = $WaveManager
 @onready var _ring_overlay: AttackRingOverlay = $AttackRingOverlay
+@onready var _awareness_overlay: AwarenessOverlay = $AwarenessOverlay
 
 
 func _ready() -> void:
@@ -30,6 +33,9 @@ func _ready() -> void:
 	_flow_overlay.field = flow_field
 	attack_ring = AttackRing.new(flow_field, attack_ring_settings)
 	_ring_overlay.ring = attack_ring
+	path_queue = PathQueue.new(AStar.new(terrain_grid))
+	_awareness_overlay.wave_manager = _wave_manager
+	_awareness_overlay.grid = terrain_grid
 
 	_player.global_position = _map.get_player_spawn()
 	var bounds: Rect2 = _map.get_world_rect()
@@ -41,13 +47,19 @@ func _ready() -> void:
 	camera.reset_smoothing()
 	_update_flow_field()
 	attack_ring.update(_player.global_position, 0.0)
-	_wave_manager.setup(_map.get_enemy_spawns(), flow_field, _player, attack_ring)
+	var context: EnemyContext = EnemyContext.new()
+	context.flow_field = flow_field
+	context.attack_ring = attack_ring
+	context.path_queue = path_queue
+	context.target = _player
+	_wave_manager.setup(_map.get_enemy_spawns(), context)
 
 
 func _physics_process(delta: float) -> void:
 	_update_flow_field()
 	# Runs before the enemies (parents process first), so they read this frame's roles.
 	attack_ring.update(_player.global_position, delta)
+	path_queue.process()
 
 
 ## Rebuilds the field only when the player's cell changes (GDD 6.2).

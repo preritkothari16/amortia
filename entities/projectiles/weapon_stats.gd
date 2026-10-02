@@ -14,3 +14,5 @@ extends Resource
 @export var projectile_lifetime: float = 1.0
 ## Damage dealt to anything with a take_damage(amount: float) method.
 @export var damage: float = 10.0
+## Each shot is a noise heard by enemies within this many pixels (16 px = 1 tile).
+@export var noise_radius: float = 192.0

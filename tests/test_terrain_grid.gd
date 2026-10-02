@@ -140,3 +140,47 @@ func test_coords_are_attached() -> void:
 	var g: TerrainGrid = _grid(["...."])
 	assert_not_null(g.coords)
 	assert_eq(g.coords.tile_size, 16)
+
+
+# --- Line of sight -------------------------------------------------------------------
+
+func test_line_of_sight_open_and_blocked() -> void:
+	_rules.blocks_vision = PackedStringArray(["wall"])
+	var g: TerrainGrid = _grid([
+		".....",
+		"..#..",
+		".....",
+	])
+	var c: GridCoords = g.coords
+	assert_true(g.has_line_of_sight(c.cell_to_world(Vector2i(0, 0)), c.cell_to_world(Vector2i(4, 0))), "top row clear")
+	assert_false(g.has_line_of_sight(c.cell_to_world(Vector2i(0, 1)), c.cell_to_world(Vector2i(4, 1))), "wall in the middle")
+	assert_false(g.has_line_of_sight(c.cell_to_world(Vector2i(2, 0)), c.cell_to_world(Vector2i(2, 2))), "vertical through wall")
+	assert_true(g.has_line_of_sight(c.cell_to_world(Vector2i(1, 1)), c.cell_to_world(Vector2i(1, 1))), "same cell")
+
+
+func test_fences_do_not_block_vision() -> void:
+	_rules.blocks_vision = PackedStringArray(["wall"])
+	var g: TerrainGrid = _grid([".F."])
+	assert_true(g.has_line_of_sight(Vector2(8, 8), Vector2(40, 8)))
+
+
+func test_line_of_sight_diagonal_and_symmetric() -> void:
+	_rules.blocks_vision = PackedStringArray(["wall"])
+	var g: TerrainGrid = _grid([
+		"....",
+		".#..",
+		"....",
+		"....",
+	])
+	var a: Vector2 = g.coords.cell_to_world(Vector2i(0, 0))
+	var b: Vector2 = g.coords.cell_to_world(Vector2i(3, 3))
+	assert_false(g.has_line_of_sight(a, b), "diagonal passes the wall at (1,1)")
+	assert_false(g.has_line_of_sight(b, a), "same answer backwards")
+	var c: Vector2 = g.coords.cell_to_world(Vector2i(3, 0))
+	var d: Vector2 = g.coords.cell_to_world(Vector2i(0, 3))
+	assert_true(g.has_line_of_sight(c, d), "other diagonal is clear")
+
+
+func test_line_of_sight_off_map_blocked() -> void:
+	var g: TerrainGrid = _grid(["..."])
+	assert_false(g.has_line_of_sight(Vector2(8, 8), Vector2(8, -40)))
