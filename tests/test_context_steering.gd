@@ -191,3 +191,27 @@ func test_turn_limit_skipped_when_slow() -> void:
 	# Below turn_limit_speed the heading may change freely (only acceleration limits it).
 	var v: Vector2 = ContextSteering.smooth_velocity(Vector2(10, 0), Vector2(0, 10), 10000.0, 0.1, 0.0, 5.0, 35.0)
 	assert_almost_eq(v, Vector2(0, 10), EPS)
+
+
+# --- line of sight / pursuit ---------------------------------------------------------
+
+func test_predict_position() -> void:
+	assert_eq(ContextSteering.predict_position(Vector2(100, 50), Vector2(90, 0), 0.3), Vector2(127, 50))
+	assert_eq(ContextSteering.predict_position(Vector2(100, 50), Vector2.ZERO, 0.3), Vector2(100, 50), "standing still")
+	assert_eq(ContextSteering.predict_position(Vector2(100, 50), Vector2(90, 0), 0.0), Vector2(100, 50), "prediction off")
+
+
+func test_lane_offsets_are_perpendicular() -> void:
+	var o: PackedVector2Array = ContextSteering.lane_offsets(Vector2.ZERO, Vector2(10, 0), 5.0)
+	assert_eq(o.size(), 3)
+	assert_eq(o[0], Vector2.ZERO)
+	assert_almost_eq(absf(o[1].y), 5.0, 0.001)
+	assert_almost_eq(o[1].x, 0.0, 0.001)
+	assert_almost_eq(o[1] + o[2], Vector2.ZERO, EPS)
+	assert_eq(ContextSteering.lane_offsets(Vector2.ONE, Vector2.ONE, 5.0).size(), 1, "zero-length line")
+
+
+func test_choose_heading_prefers_sight() -> void:
+	assert_eq(ContextSteering.choose_heading(Vector2.DOWN, true, Vector2(30, 0)), Vector2.RIGHT, "visible: straight line")
+	assert_eq(ContextSteering.choose_heading(Vector2.DOWN, false, Vector2(30, 0)), Vector2.DOWN, "hidden: flow arrows")
+	assert_eq(ContextSteering.choose_heading(Vector2.DOWN, true, Vector2.ZERO), Vector2.DOWN, "on the target: keep flow")

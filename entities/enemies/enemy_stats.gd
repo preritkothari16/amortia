@@ -14,6 +14,12 @@ extends Resource
 ## The turn limit only applies above this speed (px/s). 0 = always.
 @export var turn_limit_min_speed: float = 0.0
 
+@export_group("Sight and pursuit")
+## How far (px) the enemy looks for a straight line to the player (10 tiles).
+@export var sight_range: float = 160.0
+## Pursuit: aim at player position + player velocity * this many seconds. 0 = no prediction.
+@export var prediction_time: float = 0.3
+
 @export_group("Steering weights")
 ## How strongly the enemy follows the flow field / heads for the player.
 @export var seek_weight: float = 1.0

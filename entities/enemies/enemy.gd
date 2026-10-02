@@ -12,6 +12,9 @@ signal died(enemy: Enemy)
 var health: float = 0.0
 ## True while crossing a climbable tile (fence) with world collision switched off.
 var is_climbing: bool = false
+## How the enemy chose its heading this frame: &"flow" (arrows), &"sight" (straight at the
+## player / predicted position), &"close" (arriving next to the player), &"climb".
+var nav_mode: StringName = &"flow"
 
 var _flow_field: FlowField
 var _grid: TerrainGrid
@@ -26,6 +29,8 @@ var _weights: ContextSteering.Weights = ContextSteering.Weights.new()
 ## Allies within the separation radius this frame (reused arrays, no per-frame allocation).
 var _near_positions: PackedVector2Array = PackedVector2Array()
 var _near_velocities: PackedVector2Array = PackedVector2Array()
+## Collision radius, used to make line-of-sight checks as wide as the body.
+var _body_radius: float = 5.0
 
 @onready var _body: Polygon2D = $Body
 
@@ -38,6 +43,9 @@ func _ready() -> void:
 	_weights.seek = stats.seek_weight
 	_weights.separation = stats.separation_weight
 	_weights.wall_avoidance = stats.wall_avoidance_weight
+	var shape: CircleShape2D = ($CollisionShape2D as CollisionShape2D).shape as CircleShape2D
+	if shape != null:
+		_body_radius = shape.radius
 
 
 ## Called by the spawner before the enemy starts moving.
@@ -53,17 +61,28 @@ func _physics_process(delta: float) -> void:
 		return
 	var cell: Vector2i = _grid.coords.world_to_cell(global_position)
 	var next: Vector2i = _flow_field.get_next_cell(cell)
-	if is_climbing or _is_climbable(next):
+	var close: bool = _flow_field.get_cost(cell) <= stats.close_in_cost
+	# Where to aim if the player is visible (INF = not visible). A clear straight line beats
+	# climbing a fence the arrows would have sent us over.
+	var sight_point: Vector2 = Vector2.INF if (close or is_climbing) else _sight_target()
+	if is_climbing or (sight_point == Vector2.INF and _is_climbable(next)):
+		nav_mode = &"climb"
 		_climb(cell, next, delta)
 		return
 
 	# Gather the context, let ContextSteering decide, then move.
 	var seek_velocity: Vector2
-	if _flow_field.get_cost(cell) <= stats.close_in_cost:
+	if close:
 		# Next to the player: close in directly and slow down instead of piling onto them.
+		nav_mode = &"close"
 		seek_velocity = ContextSteering.arrive(_target.global_position - global_position, stats.move_speed, stats.arrive_radius)
 	else:
-		seek_velocity = ContextSteering.seek(ContextSteering.sample_flow(_flow_field, global_position), stats.move_speed)
+		var in_sight: bool = sight_point != Vector2.INF
+		nav_mode = &"sight" if in_sight else &"flow"
+		var heading_dir: Vector2 = ContextSteering.choose_heading(
+				ContextSteering.sample_flow(_flow_field, global_position), in_sight,
+				(sight_point - global_position) if in_sight else Vector2.ZERO)
+		seek_velocity = ContextSteering.seek(heading_dir, stats.move_speed)
 	_gather_neighbours()
 	if _flow_field.get_cost(cell) <= stats.crowd_cost:
 		# Near the player a crowd forms: wait behind slower allies instead of shoving them.
@@ -76,6 +95,36 @@ func _physics_process(delta: float) -> void:
 	velocity = ContextSteering.smooth_velocity(velocity, desired, stats.acceleration, delta,
 			stats.dead_zone_speed, deg_to_rad(stats.max_turn_rate_degrees), stats.turn_limit_min_speed)
 	move_and_slide()
+
+
+## Line-of-sight shortcut + pursuit: the point to run straight at, or Vector2.INF if the
+## player is out of range or hidden behind the world. Tries the predicted position first
+## (cut the player off), then the player's current position.
+func _sight_target() -> Vector2:
+	var target_pos: Vector2 = _target.global_position
+	if global_position.distance_squared_to(target_pos) > stats.sight_range * stats.sight_range:
+		return Vector2.INF
+	var target_velocity: Vector2 = Vector2.ZERO
+	if _target is CharacterBody2D:
+		target_velocity = (_target as CharacterBody2D).velocity
+	var predicted: Vector2 = ContextSteering.predict_position(target_pos, target_velocity, stats.prediction_time)
+	if _clear_path_to(predicted):
+		return predicted
+	if predicted != target_pos and _clear_path_to(target_pos):
+		return target_pos
+	return Vector2.INF
+
+
+## True if a body of our radius could move in a straight line to `point` without hitting
+## the world (three parallel rays: centre and both sides).
+func _clear_path_to(point: Vector2) -> bool:
+	var space: PhysicsDirectSpaceState2D = get_world_2d().direct_space_state
+	for offset: Vector2 in ContextSteering.lane_offsets(global_position, point, _body_radius):
+		var query: PhysicsRayQueryParameters2D = PhysicsRayQueryParameters2D.create(
+				global_position + offset, point + offset, _world_mask)
+		if not space.intersect_ray(query).is_empty():
+			return false
+	return true
 
 
 ## Casts the feeler rays against the world layer and asks ContextSteering for a push.

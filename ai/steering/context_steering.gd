@@ -37,6 +37,31 @@ static func sample_flow(field: FlowField, world_pos: Vector2) -> Vector2:
 	return blended.normalized()
 
 
+## Pursuit prediction: where the target will be after `prediction_time` seconds if it keeps
+## its current velocity. Aiming here makes chasers cut the player off instead of trailing.
+static func predict_position(target_position: Vector2, target_velocity: Vector2, prediction_time: float) -> Vector2:
+	return target_position + target_velocity * prediction_time
+
+
+## Sideways offsets for a "fat" line-of-sight check: a centre ray plus one ray on each side,
+## `half_width` apart. If all three are clear, a body of that radius fits along the line
+## (a single thin ray can slip past a corner the body would hit).
+static func lane_offsets(from: Vector2, to: Vector2, half_width: float) -> PackedVector2Array:
+	var along: Vector2 = to - from
+	if along.length() < 0.001:
+		return PackedVector2Array([Vector2.ZERO])
+	var side: Vector2 = along.normalized().orthogonal() * half_width
+	return PackedVector2Array([Vector2.ZERO, side, -side])
+
+
+## Which way to head: straight at the target when it is in sight (line-of-sight shortcut),
+## otherwise along the flow field. `to_target` = sight target - own position.
+static func choose_heading(flow_direction: Vector2, target_in_sight: bool, to_target: Vector2) -> Vector2:
+	if target_in_sight and to_target.length() > 0.001:
+		return to_target.normalized()
+	return flow_direction
+
+
 # --- Behaviours (each returns a velocity or an unscaled push) ------------------------
 
 ## Full speed along `direction`. ZERO direction = stand still.

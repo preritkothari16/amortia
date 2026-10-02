@@ -21,14 +21,24 @@ prompt; the user says when to move on. Never start the next step automatically.
 | 9 | Shared flow field (learning-mode file, written on request): Dijkstra/UCS outward from the player's cell; per cell integration cost (INF = unreachable) + next-cell index; step a→b pays cost of ENTERING b; same no-corner-cutting rule as TerrainGrid. Optimised: flat int indices + `TerrainGrid.build_cost_array(profile)` instead of `get_neighbors`, and MinHeap rewritten with "hole" sifting → rebuild ~7.5 ms (max ~9.5) on Maple Hollow in debug headless (was 46–73 ms). `main.gd` rebuilds it when the player enters a new walkable cell. F2 = arrow overlay (yellow near → blue far, magenta dot = walkable but unreachable). 75 GUT tests pass incl. field cost = A* cost from every cell on 15 random grids | `ai/nav/flow_field.gd`, `tests/test_flow_field.gd`, `ui/debug/flow_field_overlay.gd`, `world/main.gd/.tscn`, `ai/util/min_heap.gd` |
 | 10 | Runner enemy + prototype WaveManager: `Enemy` (CharacterBody2D, layer 3, mask 1) is a thin shell — reads `FlowField.get_direction(cell)`, gets velocity from `Steering` (pure: seek, arrive, separation, blend), smooths with `acceleration`. In the player's tile it `arrive`s at the player. HP + `take_damage` (white flash, HP bar once hurt), `died` signal, clean `queue_free`. **Fence climbing**: flow field allows fences (cost 6) but tiles are solid, so when the next arrow is a fence the enemy turns world collision off and walks arrow-to-arrow at `move_speed / tile cost`, then restores collision. Runner = `base_enemy.tscn` + `data/runner.tres` (30 HP, 70 px/s, red). `WaveManager` spawns `wave_size` (20) round-robin over the 8 spawns with scatter, auto-starts, F3 = spawn another wave, emits `wave_cleared`. Old pink EnemyStandIn removed. 82 GUT tests | `ai/steering/steering.gd`, `tests/test_steering.gd`, `entities/enemies/enemy.gd`, `enemy_stats.gd`, `base_enemy.tscn`, `runner.tscn`, `data/runner.tres`, `world/wave_manager.gd`, `world/main.gd/.tscn` |
 | 11 | Hand-written steering: `ContextSteering` (replaces `Steering`) = weighted Reynolds behaviours. Enemy Node gathers context (bilinear-sampled flow direction, neighbours' positions/velocities, 3 feeler raycasts on world layer) → `combine(seek·w, separation·w, wall_avoidance·w)` → `smooth_velocity` (dead zone, turn-rate limit at all speeds with **brake-to-turn** cos(angle), acceleration limit). Close to the player (flow cost ≤ `close_in_cost` 1.5) seek = `arrive`. In the crowd zone (flow cost ≤ `crowd_cost` 5) **queuing**: match the pace of a slower ally ahead. Enemies now also collide with each other (mask 5 = world + enemies; climbing still masks 0, restores 5). WaveManager `spawn_seed` for reproducible runs. 97 GUT tests | `ai/steering/context_steering.gd`, `tests/test_context_steering.gd`, `entities/enemies/enemy.gd`, `enemy_stats.gd`, `base_enemy.tscn`, `data/runner.tres`, `world/wave_manager.gd` |
+| 12 | Line-of-sight shortcut + pursuit: within `sight_range` (160 px) the Enemy checks a **fat** line of sight (3 parallel rays one body-radius apart, world layer) to the predicted player position `pos + vel × prediction_time` (0.3 s), then to the actual position; if clear, seek goes straight there (`nav_mode` &"sight"), else flow arrows (&"flow"). A clear line also overrides a fence climb. Close-in (&"close") and climbing (&"climb") unchanged; all other steering (separation, queuing, feelers, smoothing) still applies. Pure parts in `ContextSteering` (`predict_position`, `lane_offsets`, `choose_heading`); rays in `enemy.gd` (`_sight_target`, `_clear_path_to`). 100 GUT tests | `ai/steering/context_steering.gd`, `entities/enemies/enemy.gd`, `enemy_stats.gd`, `data/runner.tres`, `tests/test_context_steering.gd` |
 
 ### Next recommended step
 **Runner attack + player HP + attack ring** (GDD §6.4, §7.1): player health (100), Runner melee
 contact attack with cooldown, respect `is_invulnerable` (then remove `debug_dodge`), attack ring
-(8 slots around the player, max 3 attackers, the rest hold/circle a free slot) — this also
-replaces today's "everyone crowds the player" end state. Optional before that: line-of-sight
-shortcut + pursuit prediction (GDD §6.1 items 3–4). Then utility AI (`ai/decision/`, learning
-mode), genome + GA (`ai/evolution/`, learning mode).
+(8 slots around the player, max 3 attackers, the rest hold/circle a free slot) — replaces the
+"everyone crowds the player" end state. Then utility AI (`ai/decision/`, learning mode),
+genome + GA (`ai/evolution/`, learning mode). Note: tall grass should block line of sight once
+stealth/vision exists (GDD §4.2) — today LOS only uses physics (world layer).
+
+LOS / pursuit measurements (step 12, scratch `los_scenarios.gd`, `pursuit.gd`):
+- Behind a house: flow around it → sight at the corner (cell 33,8) → close; 2 mode switches,
+  0 sharp turns, 0 wall-contact frames in sight mode.
+- Behind a fence: no LOS → flow → climb → close (climbing still preferred when hidden).
+- Player running past in the open (2.5 s): prediction 0 → closest 11.4 px, aims 0.3° ahead
+  (trails); 0.3 → closest 2.7 px, aims 9.7° ahead (cuts off); 0.6 overshoots (aim 105° off).
+- 40 Runners: still 0 sharp turns / 0 overlaps / stuck ≤ 17 frames; ~50 % of enemy-frames in
+  sight mode (player still), ~70 % (player walking). 50 Runners p95 4.57 ms physics.
 
 Steering measurements (step 11, 40 Runners, seeds 12345 & 777, phase A player still 12 s,
 phase B player walks a loop 12 s, scratch script `steer_metrics.gd`):
@@ -68,7 +78,10 @@ WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay ·
 - `EnemyStats` steering fields: `max_turn_rate_degrees` 360, `turn_limit_min_speed` 0, weights
   `seek_weight` 1.0 / `separation_weight` 1.6 / `wall_avoidance_weight` 1.2, `separation_radius` 14,
   `crowd_cost` 5, `queue_lane_width` 8, `feeler_length` 14, `feeler_angle_degrees` 35,
-  `close_in_cost` 1.5, `arrive_radius` 24, `dead_zone_speed` 6.
+  `close_in_cost` 1.5, `arrive_radius` 24, `dead_zone_speed` 6, `sight_range` 160, `prediction_time` 0.3.
+- `Enemy.nav_mode`: &"flow" / &"sight" / &"close" / &"climb" (read it in tests/debug).
+- `ContextSteering` also has `predict_position(pos, vel, t)`, `lane_offsets(from, to, half_width)`,
+  `choose_heading(flow_dir, in_sight, to_target)`.
   `main.gd` puts the player on the map spawn and sets camera limits to the map rect.
   `main.gd` also exposes `terrain_grid: TerrainGrid` (costs from `data/terrain_costs.tres`)
   and feeds it to the `TerrainCostOverlay` node. It also owns `flow_field: FlowField` (target = player cell,
@@ -119,6 +132,7 @@ Spawns are 15–32 tiles from the player; all 1383 walkable cells reachable (che
 - Godot 4.7.2: an `Area2D` with `monitorable = false` did **not** detect bodies in tests. Leave bullets monitorable.
 - Headless test scripts: wait 1–2 physics frames after adding a scene before querying physics.
 - Use `--fixed-fps 60` for headless simulation tests (runs faster than real time).
+- In SceneTree test scripts, read `main.terrain_grid` etc. after the first frame, not in `_initialize()`.
 - Don't `await` inside a SceneTree script's `_physics_process(delta) -> bool`: it turns into a coroutine and the tree quits.
 - Keep enemy colours distinct from terrain (pink enemies vanished against pink houses → Runners are red).
 - Hand-written `.tscn` files get `uid=` added by the editor on first open — commit that churn.
