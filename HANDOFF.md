@@ -7,6 +7,14 @@ It is updated at the end of every prompt. Last update: 2026-10-02.
 Phase 1 greybox prototype (GDD §11.1 calls it "Phase 0" — same thing). Work goes one step per
 prompt; the user says when to move on. Never start the next step automatically.
 
+### Design principle (from the user, step 18)
+Enemy differences come from genes and are intended (e.g. low-patience Runners stay at spawn until
+provoked; hungry ones roam). **Don't change enemy rules because of how one playtest felt.** Every
+player plays differently; difficulty must come from the GA adapting to *that* player through ONE
+master fitness formula (F = 0.4 D + 0.25 P + 0.15 S + 0.2 O) plus the stat-budget ramp per wave.
+When something looks odd, check if it's a gene effect first; flag formula problems instead
+(today D = 0 for all, so the formula would evolve passive, hiding Runners — attacks fix that).
+
 ### Done
 | # | Step | Key files |
 |---|---|---|
