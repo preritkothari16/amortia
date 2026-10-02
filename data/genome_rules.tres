@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="GenomeRules" format=3]
+
+[ext_resource type="Script" path="res://ai/evolution/genome_rules.gd" id="1_rules"]
+
+[resource]
+script = ExtResource("1_rules")
+stat_min = 1.0
+stat_max = 10.0
+stat_neutral = 5.0
+budget_start = 15
+budget_per_wave = 1
+budget_max = 24
+speed_per_point = 0.1
+health_per_point = 0.15
+vision_per_point = 0.1
+mutation_rate = 0.1
+stat_sigma = 1.0
+behaviour_sigma = 0.1

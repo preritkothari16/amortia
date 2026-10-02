@@ -7,7 +7,8 @@ extends CharacterBody2D
 ## decided at 5 Hz. This Node only gathers the inputs and executes the chosen action.
 ## Where to go comes from the FlowField (while it can see the player) or A* via the PathQueue
 ## (investigating a last known position). How to move comes from ContextSteering.
-## Archetype numbers come from an EnemyStats resource (e.g. data/runner.tres).
+## Archetype numbers come from an EnemyStats resource (e.g. data/runner.tres); a Genome then
+## scales them per enemy (speed, health, vision) and supplies the utility AI weights.
 
 signal died(enemy: Enemy)
 
@@ -16,6 +17,8 @@ signal died(enemy: Enemy)
 var health: float = 0.0
 ## True while crossing a climbable tile (fence) with world collision switched off.
 var is_climbing: bool = false
+## This enemy's genes (null = plain archetype values from `stats`).
+var genome: Genome
 ## What this enemy knows about the player.
 var awareness: Awareness = Awareness.new()
 ## Chooses the action (scores live in the AI layer; this Node executes them).
@@ -66,6 +69,8 @@ var _last_target_version: int = -1
 
 
 func _ready() -> void:
+	if genome != null and _ctx != null and _ctx.genome_rules != null:
+		_apply_genome(_ctx.genome_rules)
 	health = stats.max_health
 	_body.color = stats.color
 	_normal_mask = collision_mask
@@ -81,14 +86,29 @@ func _ready() -> void:
 	brain = UtilityAI.new(stats.utility_settings, stats.behaviour, fposmod(get_instance_id() * 0.618034, 1.0))
 
 
-## Called by the spawner before the enemy starts moving.
-func setup(context: EnemyContext, allies: Array[Enemy]) -> void:
+## Called by the spawner before the enemy enters the tree (so _ready can apply the genome).
+func setup(context: EnemyContext, allies: Array[Enemy], enemy_genome: Genome = null) -> void:
+	genome = enemy_genome
 	_ctx = context
 	_flow_field = context.flow_field
 	_grid = _flow_field.grid
 	_target = context.target
 	_ring = context.attack_ring
 	_allies = allies
+
+
+## Turns the genome into this enemy's own numbers. `stats` is copied first so the shared
+## archetype resource (data/runner.tres) is never changed.
+func _apply_genome(rules: GenomeRules) -> void:
+	var base: EnemyStats = stats
+	stats = base.duplicate() as EnemyStats
+	stats.move_speed = genome.move_speed(base.move_speed, rules)
+	stats.max_health = genome.max_health(base.max_health, rules)
+	stats.sight_range = genome.sight_range(base.sight_range, rules)
+	stats.behaviour = genome.to_behaviour_weights()
+	# Greybox "visible evolution" (GDD 5.4): more Health gene = bulkier body. Visual only.
+	var bulk: float = inverse_lerp(rules.stat_min, rules.stat_max, genome.health)
+	_body.scale = Vector2.ONE * lerpf(0.85, 1.25, bulk)
 
 
 ## Tell the enemy where the player was (e.g. when a wave spawns). Same as hearing a noise there.

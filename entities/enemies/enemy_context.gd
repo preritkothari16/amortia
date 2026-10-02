@@ -9,3 +9,5 @@ var attack_ring: AttackRing
 var path_queue: PathQueue
 ## The player node. Enemies may only read its position when they can perceive it.
 var target: Node2D
+## How genome genes turn into stats (null = enemies ignore genomes).
+var genome_rules: GenomeRules

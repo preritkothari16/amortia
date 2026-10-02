@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://world/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://world/zones/maple_hollow/maple_hollow.tscn" id="2_map"]
@@ -11,11 +11,14 @@
 [ext_resource type="Resource" path="res://data/attack_ring.tres" id="9_ring"]
 [ext_resource type="Script" path="res://ui/debug/attack_ring_overlay.gd" id="10_ring_overlay"]
 [ext_resource type="Script" path="res://ui/debug/awareness_overlay.gd" id="11_awareness"]
+[ext_resource type="Resource" path="res://data/genome_rules.tres" id="12_genome_rules"]
+[ext_resource type="Script" path="res://ui/debug/genome_overlay.gd" id="13_genome_overlay"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
 terrain_costs = ExtResource("4_costs")
 attack_ring_settings = ExtResource("9_ring")
+genome_rules = ExtResource("12_genome_rules")
 
 [node name="MapleHollow" parent="." instance=ExtResource("2_map")]
 
@@ -36,3 +39,6 @@ script = ExtResource("10_ring_overlay")
 
 [node name="AwarenessOverlay" type="Node2D" parent="."]
 script = ExtResource("11_awareness")
+
+[node name="GenomeOverlay" type="Node2D" parent="."]
+script = ExtResource("13_genome_overlay")

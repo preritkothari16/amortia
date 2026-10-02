@@ -4,6 +4,7 @@ extends Node2D
 
 @export var terrain_costs: TerrainCosts
 @export var attack_ring_settings: AttackRingSettings
+@export var genome_rules: GenomeRules
 
 ## Plain-data copy of the map for the AI. Rebuild or set_terrain() when terrain changes.
 var terrain_grid: TerrainGrid
@@ -23,6 +24,7 @@ var last_flow_build_msec: float = 0.0
 @onready var _wave_manager: WaveManager = $WaveManager
 @onready var _ring_overlay: AttackRingOverlay = $AttackRingOverlay
 @onready var _awareness_overlay: AwarenessOverlay = $AwarenessOverlay
+@onready var _genome_overlay: GenomeOverlay = $GenomeOverlay
 
 
 func _ready() -> void:
@@ -36,6 +38,7 @@ func _ready() -> void:
 	path_queue = PathQueue.new(AStar.new(terrain_grid))
 	_awareness_overlay.wave_manager = _wave_manager
 	_awareness_overlay.grid = terrain_grid
+	_genome_overlay.wave_manager = _wave_manager
 
 	_player.global_position = _map.get_player_spawn()
 	var bounds: Rect2 = _map.get_world_rect()
@@ -52,6 +55,7 @@ func _ready() -> void:
 	context.attack_ring = attack_ring
 	context.path_queue = path_queue
 	context.target = _player
+	context.genome_rules = genome_rules
 	_wave_manager.setup(_map.get_enemy_spawns(), context)
 
 
