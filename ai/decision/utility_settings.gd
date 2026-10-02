@@ -41,3 +41,8 @@ extends Resource
 @export var memory_time: float = 8.0
 ## Part of the investigate score even a stale lead keeps (0..1).
 @export var investigate_base: float = 0.4
+## How much a strong lead (e.g. a gunshot close by) makes up for low patience, 0..1.
+## drive = patience + (1 - patience) * lead_strength * provocation_weight. 0 = patience only.
+@export_range(0.0, 1.0) var provocation_weight: float = 1.0
+## Provocation of losing sight of a chased player (the lead is where they were last seen).
+@export_range(0.0, 1.0) var lost_sight_strength: float = 0.5

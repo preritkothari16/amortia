@@ -20,3 +20,5 @@ flank_max_tile_cost = 2.0
 flank_max_path_cost = 5.0
 memory_time = 8.0
 investigate_base = 0.4
+provocation_weight = 1.0
+lost_sight_strength = 0.5

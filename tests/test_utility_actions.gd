@@ -113,3 +113,43 @@ func test_data_files() -> void:
 	var runner: EnemyStats = load("res://data/runner.tres")
 	assert_eq(runner.behaviour, g)
 	assert_eq(runner.utility_settings, s)
+	assert_almost_eq(s.provocation_weight, 1.0, 0.0001)
+	assert_between(s.lost_sight_strength, 0.0, 1.0)
+
+
+# --- Provocation (lead strength) -----------------------------------------------------
+
+func _strong_lead(age: float, strength: float) -> DecisionInputs:
+	var i: DecisionInputs = _lead(age)
+	i.lead_strength = strength
+	return i
+
+
+func test_strong_provocation_raises_lazy_drive() -> void:
+	_g.patience = 0.05
+	var inv: InvestigateAction = InvestigateAction.new()
+	# drive = 0.05 + 0.95 * strength; fresh lead -> score = drive
+	assert_almost_eq(inv.score(_strong_lead(0.0, 0.0), _g, _s), 0.05, 0.0001, "no provocation: patience only")
+	assert_almost_eq(inv.score(_strong_lead(0.0, 1.0), _g, _s), 1.0, 0.0001, "point-blank: full drive")
+	assert_almost_eq(inv.score(_strong_lead(0.0, 0.5), _g, _s), 0.525, 0.0001)
+
+
+func test_provocation_matters_less_for_patient_enemies() -> void:
+	_g.patience = 0.9
+	var inv: InvestigateAction = InvestigateAction.new()
+	var faint: float = inv.score(_strong_lead(0.0, 0.0), _g, _s)
+	var loud: float = inv.score(_strong_lead(0.0, 1.0), _g, _s)
+	assert_almost_eq(faint, 0.9, 0.0001)
+	assert_almost_eq(loud - faint, 0.1, 0.0001, "already hungry: little left to add")
+
+
+func test_provocation_weight_zero_restores_patience_only() -> void:
+	_g.patience = 0.05
+	_s.provocation_weight = 0.0
+	assert_almost_eq(InvestigateAction.new().score(_strong_lead(0.0, 1.0), _g, _s), 0.05, 0.0001)
+
+
+func test_provoked_lead_still_goes_stale() -> void:
+	_g.patience = 0.05
+	var inv: InvestigateAction = InvestigateAction.new()
+	assert_almost_eq(inv.score(_strong_lead(100.0, 1.0), _g, _s), 0.4, 0.0001, "drive 1 x stale base 0.4")

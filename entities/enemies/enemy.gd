@@ -130,14 +130,20 @@ func record_damage_dealt(amount: float) -> void:
 		fitness_record.add_damage(amount)
 
 
-## Tell the enemy where the player was (e.g. when a wave spawns). Same as hearing a noise there.
+## Tell the enemy where the player was (e.g. the spawn Pulse). A distant order, not a
+## provocation: strength 0, so only patient (hungry) enemies act on it.
 func alert(position: Vector2) -> void:
-	awareness.hear(position)
+	awareness.hear(position, 0.0)
 
 
+## Every enemy within earshot learns where the noise was. How loud it was here (1 right next to
+## it, 0 at the edge of the radius) decides whether a lazy enemy bothers to react.
 func _on_noise_emitted(noise_position: Vector2, radius: float) -> void:
-	if not _dead and global_position.distance_squared_to(noise_position) <= radius * radius:
-		awareness.hear(noise_position)
+	if _dead or radius <= 0.0:
+		return
+	var distance: float = global_position.distance_to(noise_position)
+	if distance <= radius:
+		awareness.hear(noise_position, 1.0 - distance / radius)
 
 
 func _physics_process(delta: float) -> void:
@@ -196,7 +202,7 @@ func _update_awareness(delta: float) -> void:
 	if _can_perceive_player():
 		awareness.see(_target.global_position)
 	else:
-		awareness.lose_sight()
+		awareness.lose_sight(stats.utility_settings.lost_sight_strength)
 	awareness.tick(delta)
 
 
@@ -231,6 +237,7 @@ func _gather_inputs() -> DecisionInputs:
 	_inputs.player_visible = visible
 	_inputs.has_lead = awareness.has_lead()
 	_inputs.lead_age = awareness.lead_age
+	_inputs.lead_strength = awareness.lead_strength
 	_inputs.allies_chasing = 0
 	_inputs.flank_point_available = false
 	if visible:

@@ -18,6 +18,9 @@ var last_known: Vector2 = Vector2.INF
 var target_version: int = 0
 ## Seconds since last_known was last updated (by seeing or hearing). Old leads are worth less.
 var lead_age: float = 0.0
+## How provoking the current lead was, 0..1: a gunshot right next to us is 1, one at the edge
+## of earshot or a distant order (the spawn Pulse) is about 0. Lazy enemies only react to strong leads.
+var lead_strength: float = 0.0
 
 var _search_left: float = 0.0
 
@@ -31,21 +34,25 @@ func see(player_position: Vector2) -> void:
 
 ## Called every frame the player is NOT visible. A chase turns into an investigation of the
 ## spot where the player was last seen - the enemy does not get the new position.
-func lose_sight() -> void:
+## `strength` = how provoking losing the player is (only used on the frame the chase ends).
+func lose_sight(strength: float = 1.0) -> void:
 	if state == State.CHASE:
 		state = State.INVESTIGATE
 		target_version += 1
+		lead_strength = clampf(strength, 0.0, 1.0)
 
 
 ## A noise reached us. While chasing, sight is better information, so noises are ignored;
-## otherwise the newest noise becomes the place to investigate.
-func hear(noise_position: Vector2) -> void:
+## otherwise the newest noise becomes the place to investigate. `strength` 0..1 = how loud it
+## was where we stand (see Enemy._on_noise_emitted).
+func hear(noise_position: Vector2, strength: float = 0.0) -> void:
 	if state == State.CHASE:
 		return
 	last_known = noise_position
 	state = State.INVESTIGATE
 	target_version += 1
 	lead_age = 0.0
+	lead_strength = clampf(strength, 0.0, 1.0)
 
 
 ## Reached last_known (or found it unreachable): look around for a while.

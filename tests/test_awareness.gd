@@ -102,3 +102,18 @@ func test_lead_age_and_has_lead() -> void:
 	assert_false(a.has_lead(), "checked leads are not leads any more")
 	a.see(Vector2.ONE)
 	assert_false(a.has_lead(), "seeing is better than a lead")
+
+
+func test_lead_strength_from_noise_and_lost_sight() -> void:
+	var a: Awareness = Awareness.new()
+	a.hear(Vector2(5, 5), 0.8)
+	assert_almost_eq(a.lead_strength, 0.8, 0.0001)
+	a.hear(Vector2(6, 6))
+	assert_eq(a.lead_strength, 0.0, "default: a distant order (e.g. spawn Pulse) is no provocation")
+	a.hear(Vector2(6, 6), 3.0)
+	assert_eq(a.lead_strength, 1.0, "clamped")
+	a.see(Vector2.ONE)
+	a.lose_sight(0.5)
+	assert_almost_eq(a.lead_strength, 0.5, 0.0001, "losing sight sets the given strength")
+	a.lose_sight(0.9)
+	assert_almost_eq(a.lead_strength, 0.5, 0.0001, "only the frame the chase ends counts")

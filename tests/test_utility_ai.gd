@@ -145,3 +145,23 @@ func test_full_encounter_sequence() -> void:
 	var no_lead: DecisionInputs = DecisionInputs.new()
 	seq.append(ai.decide(no_lead))
 	assert_eq(seq, [T.INVESTIGATE, T.INVESTIGATE, T.CHASE, T.FLANK, T.CHASE, T.INVESTIGATE, T.IDLE])
+
+
+func _heard(strength: float) -> DecisionInputs:
+	var i: DecisionInputs = _lead(0.0)
+	i.lead_strength = strength
+	return i
+
+
+func test_lazy_enemy_reacts_to_close_shots_only() -> void:
+	# Patience 0.05 needs drive > idle 0.1 + idle momentum 0.1 = 0.2 to get up.
+	_g.patience = 0.05
+	assert_eq(UtilityAI.new(_s, _g).decide(_heard(0.0)), T.IDLE, "spawn Pulse / no provocation")
+	assert_eq(UtilityAI.new(_s, _g).decide(_heard(0.08)), T.IDLE, "shot at the edge of earshot")
+	assert_eq(UtilityAI.new(_s, _g).decide(_heard(0.5)), T.INVESTIGATE, "shot at half range")
+	assert_eq(UtilityAI.new(_s, _g).decide(_heard(0.9)), T.INVESTIGATE, "shot close by")
+
+
+func test_hungry_enemy_reacts_to_any_lead() -> void:
+	_g.patience = 0.7
+	assert_eq(UtilityAI.new(_s, _g).decide(_heard(0.0)), T.INVESTIGATE)

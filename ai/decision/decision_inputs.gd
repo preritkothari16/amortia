@@ -18,3 +18,5 @@ var flank_point_available: bool = false
 var has_lead: bool = false
 ## Seconds since that lead was updated.
 var lead_age: float = 0.0
+## How provoking that lead was, 0..1 (1 = gunshot right next to us).
+var lead_strength: float = 0.0
