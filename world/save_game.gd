@@ -125,8 +125,8 @@ static func _validate_evolution(e: Dictionary, rules: GenomeRules, warnings: Pac
 		if not Genome.PathMode.keys().has(g.get("path_mode")):
 			return {"error": "genome %d: unknown path_mode %s" % [i, g.get("path_mode")]}
 		var genome: Genome = Genome.from_dict(g)
-		if not genome.is_valid(rules, budget):
-			genome.repair(rules, budget)  # clamp genes, fit the stat budget
+		if not genome.is_valid(rules, budget) or not genome.spends_budget(rules, budget):
+			genome.repair(rules, budget)  # clamp genes, spend exactly the stat budget
 			warnings.append("genome %d repaired to fit wave %d (budget %d)" % [i, next_wave, budget])
 		population.append(genome.to_dict())
 

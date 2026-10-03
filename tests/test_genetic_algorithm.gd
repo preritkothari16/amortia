@@ -138,6 +138,7 @@ func test_all_genes_stay_in_range_over_many_generations() -> void:
 		pop = ga.next_generation(pop, fit, BUDGET)
 		for g: Genome in pop:
 			assert_true(g.is_valid(_rules, BUDGET), "gen %d: %s" % [gen, g.describe()])
+			assert_true(g.spends_budget(_rules, BUDGET), "gen %d spends the budget: %s" % [gen, g.describe()])
 			assert_true(g.path_mode in [Genome.PathMode.FLOW, Genome.PathMode.ASTAR, Genome.PathMode.GREEDY])
 
 
@@ -146,7 +147,7 @@ func test_budget_enforced_when_budget_shrinks() -> void:
 	var pop: Array[Genome] = _population(20, 7, 24)
 	var next: Array[Genome] = _ga().next_generation(pop, _fitness(20), 15)
 	for g: Genome in next:
-		assert_lte(g.stat_total(), 15.0 + 0.0001, g.describe())
+		assert_almost_eq(g.stat_total(), 15.0, 0.0001, g.describe())
 		assert_true(g.is_valid(_rules, 15))
 
 
@@ -174,10 +175,31 @@ func test_crossover_child_over_budget_is_repaired() -> void:
 
 
 func test_budget_grows_between_waves() -> void:
-	# A larger budget is allowed but not forced: valid parents stay valid.
-	var next: Array[Genome] = _ga().next_generation(_population(20), _fitness(20), 16)
+	# The budget is points to spend: every child and elite uses all 16 (and then all 24).
+	var pop: Array[Genome] = _population(20)
+	var next: Array[Genome] = _ga().next_generation(pop, _fitness(20), 16)
 	for g: Genome in next:
 		assert_true(g.is_valid(_rules, 16))
+		assert_almost_eq(g.stat_total(), 16.0, 0.0001, g.describe())
+	next = _ga().next_generation(next, _fitness(20), 24)
+	for g: Genome in next:
+		assert_almost_eq(g.stat_total(), 24.0, 0.0001, g.describe())
+
+
+func test_elite_keeps_its_proportions_when_budget_grows() -> void:
+	var pop: Array[Genome] = _population(20)
+	var fit: Array[float] = _fitness(20)
+	var best: Genome = pop[GeneticAlgorithm.rank(fit)[0]]
+	var next: Array[Genome] = _ga().next_generation(pop, fit, 16)  # small step: no stat hits 10
+	var elite: Genome = next[0]
+	assert_lt(elite.speed, 10.0)
+	assert_lt(elite.health, 10.0)
+	assert_lt(elite.vision, 10.0)
+	var old_extra: float = best.stat_total() - 3.0
+	var new_extra: float = elite.stat_total() - 3.0
+	for gene: StringName in Genome.STAT_GENES:
+		assert_almost_eq((elite.get(gene) - 1.0) / new_extra, (best.get(gene) - 1.0) / old_extra, 0.0001, String(gene))
+	assert_eq(elite.aggression, best.aggression, "behaviour genes untouched")
 
 
 # --- Crossover -----------------------------------------------------------------------

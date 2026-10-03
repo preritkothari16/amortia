@@ -16,7 +16,8 @@ extends Resource
 @export var pressure_radius: float = 64.0
 ## P = pressure seconds / this. 0 = use the wave's duration (fraction of the wave spent close).
 @export var pressure_cap_seconds: float = 0.0
-## S = seconds alive / this. 0 = use the wave's duration (survivors score 1).
+## S = seconds alive / this. Fixed evaluation length, so surviving a wave the player ended early
+## (by going down) doesn't give S = 1. 0 = use the wave's duration (survivors score 1).
 @export var survival_cap_seconds: float = 0.0
 ## O = objective points / this.
 @export var objective_cap: float = 1.0

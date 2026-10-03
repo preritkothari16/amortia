@@ -140,7 +140,7 @@ func test_repair_clamps_ranges() -> void:
 	var g: Genome = _genome(-3.0, 4.0, 4.0)
 	g.aggression = 1.7
 	g.patience = -0.2
-	g.repair(_rules, 24)
+	g.repair(_rules, 9)  # 1 + 4 + 4 after clamping = exactly the budget
 	assert_eq(g.speed, 1.0)
 	assert_eq(g.aggression, 1.0)
 	assert_eq(g.patience, 0.0)
@@ -156,10 +156,63 @@ func test_repair_scales_over_budget_keeping_ratios() -> void:
 	assert_almost_eq(g.vision, 3.0, 0.001)
 
 
-func test_repair_leaves_under_budget_alone() -> void:
-	var g: Genome = _genome(3.0, 3.0, 3.0)
+func test_repair_tops_up_under_budget_keeping_ratios() -> void:
+	# 3 + 5 + 2 = 10 < 16. Shares above the minimum 2, 4, 1 (sum 7) must grow to 13.
+	var g: Genome = _genome(3.0, 5.0, 2.0)
+	g.repair(_rules, 16)
+	assert_almost_eq(g.stat_total(), 16.0, 0.001, "the budget must be spent")
+	assert_almost_eq(g.speed - 1.0, 2.0 * 13.0 / 7.0, 0.001)
+	assert_almost_eq(g.health - 1.0, 4.0 * 13.0 / 7.0, 0.001)
+	assert_almost_eq(g.vision - 1.0, 1.0 * 13.0 / 7.0, 0.001)
+	assert_true(g.spends_budget(_rules, 16))
+
+
+func test_top_up_spreads_points_not_one_stat() -> void:
+	var g: Genome = _genome(6.0, 5.0, 4.0)  # 15 = wave 1 budget
+	g.repair(_rules, 24)
+	for gene: StringName in Genome.STAT_GENES:
+		assert_gt(g.get(gene), _genome(6.0, 5.0, 4.0).get(gene), "%s got some of the 9 new points" % gene)
+	assert_almost_eq(g.stat_total(), 24.0, 0.001)
+
+
+func test_top_up_caps_at_stat_max_and_passes_overflow_on() -> void:
+	var g: Genome = _genome(9.0, 2.0, 1.0)  # shares 8, 1, 0
+	g.repair(_rules, 24)
+	assert_eq(g.speed, 10.0)
+	assert_almost_eq(g.stat_total(), 24.0, 0.001)
+	assert_true(g.is_valid(_rules, 24))
+
+
+func test_top_up_overflow_to_zero_share_stat() -> void:
+	# speed and health fill to 10; the rest must go to vision even though its share is 0.
+	var g: Genome = _genome(9.0, 9.0, 1.0)
+	g.repair(_rules, 24)
+	assert_eq(g.speed, 10.0)
+	assert_eq(g.health, 10.0)
+	assert_almost_eq(g.vision, 4.0, 0.001)
+
+
+func test_all_at_minimum_split_evenly() -> void:
+	var g: Genome = _genome(1.0, 1.0, 1.0)
 	g.repair(_rules, 15)
-	assert_eq(g.stat_total(), 9.0, "spending less than the budget is allowed")
+	assert_almost_eq(g.speed, 5.0, 0.001)
+	assert_almost_eq(g.health, 5.0, 0.001)
+	assert_almost_eq(g.vision, 5.0, 0.001)
+
+
+func test_exact_genome_left_bit_identical() -> void:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 3
+	var g: Genome = Genome.random(rng, _rules, 17)
+	var before: Dictionary = g.to_dict()
+	g.repair(_rules, 17)
+	assert_eq(g.to_dict(), before)
+
+
+func test_spends_budget() -> void:
+	assert_true(_genome(5.0, 5.0, 5.0).spends_budget(_rules, 15))
+	assert_false(_genome(4.0, 5.0, 5.0).spends_budget(_rules, 15))
+	assert_true(_genome(10.0, 10.0, 10.0).spends_budget(_rules, 99), "budget above 30 -> 30 is the most possible")
 
 
 func test_is_valid() -> void:

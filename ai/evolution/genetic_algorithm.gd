@@ -8,7 +8,7 @@ extends RefCounted
 ##       parents A, B = tournament selection (size tournament_size)
 ##       child = uniform crossover of A and B (chance crossover_rate), else a copy of A
 ##       child.mutate(rate)   - Gaussian nudge for numbers, re-pick for path_mode
-##       child.repair(budget) - clamp ranges, enforce the stat budget
+##       child.repair(budget) - clamp ranges, spend exactly the stat budget
 ##   rate = mutation_rate, doubled for this generation if > diversity_threshold of the
 ##   population share one path_mode (diversity guard)
 ##
@@ -44,7 +44,8 @@ func next_generation(population: Array[Genome], fitness: Array[float], budget: i
 	var guard: bool = share > settings.diversity_threshold
 	var rate: float = settings.mutation_rate * (settings.diversity_mutation_multiplier if guard else 1.0)
 
-	# Elitism: the fittest genomes pass on unchanged (repair only matters if the budget shrank).
+	# Elitism: the fittest genomes pass on with their genes' proportions unchanged; repair only
+	# rescales their stats to this wave's budget (unchanged if the budget is the same).
 	var order: Array[int] = rank(fitness)
 	var next: Array[Genome] = []
 	var elite_count: int = mini(settings.elitism, mini(population.size(), settings.population_size))

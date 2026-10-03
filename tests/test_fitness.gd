@@ -162,3 +162,31 @@ func test_data_file_matches_gdd() -> void:
 	assert_almost_eq(s.weight_objective, 0.2, 0.0001)
 	assert_almost_eq(s.weight_damage + s.weight_pressure + s.weight_survival + s.weight_objective, 1.0, 0.0001)
 	assert_eq(s.pressure_radius, 64.0, "4 tiles")
+
+
+# --- Fixed survival evaluation length (data/fitness.tres) ------------------------------
+
+func test_data_survival_uses_fixed_45_second_evaluation() -> void:
+	var f: Fitness = Fitness.new(load("res://data/fitness.tres"))
+	var survivor: FitnessRecord = FitnessRecord.new()
+	survivor.tick(15.0, 999.0, 64.0)  # alive 15 s, wave ended at 15 s (player went down)
+	assert_almost_eq(f.components(survivor, 15.0)[Fitness.S], 15.0 / 45.0, 0.0001,
+		"surviving a short wave is not S = 1")
+	var long_survivor: FitnessRecord = FitnessRecord.new()
+	long_survivor.tick(60.0, 999.0, 64.0)
+	assert_eq(f.components(long_survivor, 60.0)[Fitness.S], 1.0, "capped at 1")
+
+
+func test_data_dead_runner_uses_its_alive_time() -> void:
+	var f: Fitness = Fitness.new(load("res://data/fitness.tres"))
+	var r: FitnessRecord = FitnessRecord.new()
+	r.tick(9.0, 999.0, 64.0)
+	r.mark_dead()
+	assert_almost_eq(f.components(r, 30.0)[Fitness.S], 9.0 / 45.0, 0.0001)
+
+
+func test_data_weights_unchanged() -> void:
+	var s: FitnessSettings = load("res://data/fitness.tres")
+	assert_eq([s.weight_damage, s.weight_pressure, s.weight_survival, s.weight_objective], [0.4, 0.25, 0.15, 0.2])
+	assert_eq(s.damage_cap, 50.0)
+	assert_eq(s.pressure_cap_seconds, 0.0, "P unchanged: fraction of the wave")

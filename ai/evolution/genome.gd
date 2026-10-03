@@ -77,29 +77,46 @@ func mutate(rng: RandomNumberGenerator, rules: GenomeRules, budget: int, rate: f
 	return changed
 
 
-## Makes the genome legal again (GDD "Repair: clamp to ranges, then enforce both budgets"):
+## Makes the genome legal again (GDD "Repair: clamp to ranges, then enforce both budgets").
+## The stat budget is points that MUST be spent, not just a ceiling (later waves get stronger):
 ##   1. clamp every gene to its range
-##   2. if the stats cost more than `budget`, shrink each stat's points above stat_min by the
-##      same factor - the ratios between stats stay the same, the total becomes the budget.
+##   2. the genome's allocation = each stat's points above stat_min (its "share")
+##   3. re-spend exactly `budget` in those proportions: over budget -> every share shrinks by
+##      the same factor, under budget -> every share grows by it. A stat that would pass
+##      stat_max is capped and its overflow goes to the others (water-filling).
+## So extra points follow the ratios evolution chose (via crossover and mutation), instead of
+## all going to one stat. All stats at stat_min (no allocation yet) -> split evenly.
 func repair(rules: GenomeRules, budget: int) -> void:
 	for gene: StringName in STAT_GENES:
 		set(gene, clampf(get(gene), rules.stat_min, rules.stat_max))
 	for gene: StringName in BEHAVIOUR_GENES:
 		set(gene, clampf(get(gene), 0.0, 1.0))
-	var floor_total: float = rules.stat_min * STAT_GENES.size()
-	var usable: float = maxf(float(budget) - floor_total, 0.0)  # points we may spend above the minimum
-	var above: float = stat_total() - floor_total                # points currently spent above it
-	if above > usable and above > 0.0:
-		var factor: float = usable / above
-		for gene: StringName in STAT_GENES:
-			set(gene, rules.stat_min + (get(gene) - rules.stat_min) * factor)
+	if spends_budget(rules, budget):
+		return  # already exact: leave the numbers untouched (elites stay bit-identical)
+	var shares: Array[float] = []
+	var share_sum: float = 0.0
+	for gene: StringName in STAT_GENES:
+		var share: float = get(gene) - rules.stat_min
+		shares.append(share)
+		share_sum += share
+	if share_sum <= 0.0:
+		shares = [1.0, 1.0, 1.0]
+	_spend_budget(shares, rules, budget)  # clamps the budget to what 3 stats can hold
 
 
 func stat_total() -> float:
 	return speed + health + vision
 
 
-## True if every gene is in range and the stats fit the budget.
+## True if the stats add up to exactly `budget` (or as close as the 1..10 ranges allow).
+## Every genome the GA or Genome.random produces does; is_valid only checks the ceiling.
+func spends_budget(rules: GenomeRules, budget: int) -> bool:
+	var n: float = STAT_GENES.size()
+	var target: float = clampf(float(budget), rules.stat_min * n, rules.stat_max * n)
+	return absf(stat_total() - target) <= 0.0001
+
+
+## True if every gene is in range and the stats don't exceed the budget (a legal genome).
 func is_valid(rules: GenomeRules, budget: int) -> bool:
 	for gene: StringName in STAT_GENES:
 		var v: float = get(gene)
@@ -185,7 +202,9 @@ func _spend_budget(weights: Array[float], rules: GenomeRules, budget: int) -> vo
 			weight_sum += weights[i]
 		var overflow: float = 0.0
 		for i: int in open.duplicate():
-			values[i] += left * weights[i] / weight_sum
+			# Only zero-weight stats left open (the others hit stat_max): split evenly.
+			var part: float = weights[i] / weight_sum if weight_sum > 0.0 else 1.0 / open.size()
+			values[i] += left * part
 			if values[i] >= rules.stat_max:
 				overflow += values[i] - rules.stat_max
 				values[i] = rules.stat_max
