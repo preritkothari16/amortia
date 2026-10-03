@@ -38,6 +38,7 @@ var last_flow_build_msec: float = 0.0
 @onready var _xp_bar: XpBar = $HUD/XpBar
 @onready var _player_status: PlayerStatus = $HUD/PlayerStatus
 @onready var _skill_menu: SkillTreeMenu = $HUD/SkillTreeMenu
+@onready var _pause_menu: PauseMenu = $HUD/PauseMenu
 
 
 func _ready() -> void:
@@ -58,6 +59,10 @@ func _ready() -> void:
 	_wave_report.wave_manager = _wave_manager
 	_xp_bar.progression = _player.progression
 	_skill_menu.player = _player
+	_pause_menu.wave_manager = _wave_manager
+	_pause_menu.skill_menu = _skill_menu
+	_wave_report.player = _player
+	_wave_report.skills_requested.connect(_skill_menu.open)
 	_player_status.player = _player
 
 	_player.global_position = _map.get_player_spawn()

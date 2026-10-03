@@ -32,8 +32,14 @@ var wave_manager: WaveManager:
 			wave_manager.generation_bred.connect(_on_generation_bred)
 			wave_manager.wave_started.connect(_on_wave_started)
 
+## Set by the level: for the unspent skill points shown on the Skills button.
+var player: Player
+## Opens the skill tree (connected by the level).
+signal skills_requested
+
 var _body: VBoxContainer
 var _continue_button: Button
+var _skills_button: Button
 
 
 func _ready() -> void:
@@ -57,6 +63,20 @@ func _ready() -> void:
 	_body.add_theme_constant_override("separation", 1)
 	panel.add_child(_body)
 	panel.resized.connect(func() -> void: panel.position = (size - panel.size) / 2.0)
+
+
+func _process(_delta: float) -> void:
+	if visible:
+		_update_skills_button()  # points change while the skill tree is open on top
+
+
+## "Skills (K)", highlighted with the count when there are points to spend.
+func _update_skills_button() -> void:
+	if _skills_button == null or player == null:
+		return
+	var points: int = player.progression.skill_points
+	_skills_button.text = "Skills (K)  -  %d point%s to spend" % [points, "" if points == 1 else "s"] if points > 0 else "Skills (K)"
+	_skills_button.add_theme_color_override("font_color", Color(1.0, 0.9, 0.4) if points > 0 else Color.WHITE)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -133,12 +153,21 @@ func _build(s: Dictionary) -> void:
 		"   (diversity guard ON: mutation x2)" if s["diversity_guard"] else ""])
 	_label("Best genome: " + s["best_genome"], FONT_SIZE, COLOR_SAME)
 	_spacer()
+	var buttons: HBoxContainer = HBoxContainer.new()
+	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	buttons.add_theme_constant_override("separation", 8)
+	_body.add_child(buttons)
+	_skills_button = Button.new()
+	_skills_button.add_theme_font_size_override("font_size", FONT_SIZE)
+	_skills_button.focus_mode = Control.FOCUS_NONE  # Enter stays on Continue
+	_skills_button.pressed.connect(skills_requested.emit)
+	buttons.add_child(_skills_button)
+	_update_skills_button()
 	_continue_button = Button.new()
 	_continue_button.text = "Continue  (Enter)"
 	_continue_button.add_theme_font_size_override("font_size", FONT_SIZE)
-	_continue_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_continue_button.pressed.connect(_on_continue)
-	_body.add_child(_continue_button)
+	buttons.add_child(_continue_button)
 
 
 ## The 3 gene averages furthest from "average" (5 for stats, 0.5 for behaviour), as words.

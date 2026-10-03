@@ -43,12 +43,18 @@ func _draw() -> void:
 		COLOR_FLASH if flashing else COLOR_FILL)
 
 	var xp_text: String = "MAX" if p.is_max_level() else "%d / %d XP" % [p.xp, p.xp_to_next()]
-	var text: String = "Lv %d   %s   skill points %d" % [p.level, xp_text, p.skill_points]
-	if p.skill_points > 0:
-		text += " (K)"
+	var text: String = "Lv %d   %s" % [p.level, xp_text]
 	if flashing:
 		text += "   LEVEL UP!"
 	var baseline: Vector2 = Vector2(MARGIN, bar.position.y - 3.0)
 	draw_string_outline(font, baseline, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, FONT_SIZE, 2, Color.BLACK)
 	draw_string(font, baseline, text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, FONT_SIZE,
 		COLOR_FLASH if flashing else Color.WHITE)
+
+	# Unspent points: right-aligned, yellow, with the key, so the skill tree is discoverable.
+	if p.skill_points > 0:
+		var hint: String = "%d skill point%s  -  press K" % [p.skill_points, "" if p.skill_points == 1 else "s"]
+		var hint_pos: Vector2 = Vector2(MARGIN, baseline.y)
+		var width: float = size.x - 2.0 * MARGIN
+		draw_string_outline(font, hint_pos, hint, HORIZONTAL_ALIGNMENT_RIGHT, width, FONT_SIZE, 2, Color.BLACK)
+		draw_string(font, hint_pos, hint, HORIZONTAL_ALIGNMENT_RIGHT, width, FONT_SIZE, COLOR_FLASH)
