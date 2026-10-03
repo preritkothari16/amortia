@@ -51,6 +51,13 @@ func unlock(id: StringName) -> bool:
 	return true
 
 
+## Sets the owned nodes from a validated save without spending points (the save's
+## skill_points already account for them).
+func restore(ids: Array[StringName]) -> void:
+	unlocked = ids.duplicate()
+	changed.emit()
+
+
 ## Copy of `base` with every unlocked node aimed at `target` applied (in purchase order).
 ## The base resource is never modified, so this can be rebuilt at any time.
 func apply(base: Resource, target: SkillNode.Target) -> Resource:

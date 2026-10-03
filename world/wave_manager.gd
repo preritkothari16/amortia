@@ -80,6 +80,8 @@ var _ga: GeneticAlgorithm
 var _context: EnemyContext
 var _spawn_points: Array[Vector2] = []
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+## Validated save "evolution" section to resume from in setup() (empty = new game).
+var _restore: Dictionary = {}
 
 
 func setup(spawn_points: Array[Vector2], context: EnemyContext) -> void:
@@ -96,6 +98,8 @@ func setup(spawn_points: Array[Vector2], context: EnemyContext) -> void:
 		_ga = GeneticAlgorithm.new(ga_settings, _context.genome_rules, ga_seed)
 		if log_waves and evolve:
 			print("[Evolution] GA seed %d (put it in evolution_seed to repeat this run)" % ga_seed)
+	if not _restore.is_empty():
+		_apply_restore()
 	if auto_start:
 		spawn_wave()
 
@@ -169,6 +173,60 @@ func restart_wave() -> void:
 	if log_waves:
 		print("[Wave %d] restarted with the same genomes" % (wave_number + 1))
 	spawn_wave(population.size() if not population.is_empty() else wave_size)
+
+
+# --- Save / load ---------------------------------------------------------------------
+
+## Plain-data snapshot for SaveGame: the population that will play `next_wave`.
+## Between waves that's the freshly bred generation for the next wave; during a wave it's the
+## current wave's population, so loading replays that wave.
+func get_save_state() -> Dictionary:
+	var genomes: Array[Dictionary] = []
+	for g: Genome in population:
+		genomes.append(g.to_dict())
+	var compact_history: Array[Dictionary] = []
+	for h: Dictionary in history:
+		compact_history.append({"from_wave": h["from_wave"], "best_fitness": h["best_fitness"],
+			"mean_fitness": h["mean_fitness"]})
+	var state: Dictionary = {
+		"next_wave": wave_number if _wave_open else wave_number + 1,
+		"generation": generation, "population": genomes, "history": compact_history,
+		"ga_seed": str(ga_seed), "spawn_rng_state": str(_rng.state),
+	}
+	if _ga != null:
+		state["ga_rng_state"] = str(_ga.rng.state)
+	return state
+
+
+## Call before setup() with a validated save's "evolution" section (SaveGame.validate).
+## setup() then starts `next_wave` from the saved population instead of wave 1.
+func load_state(evolution: Dictionary) -> void:
+	_restore = evolution
+
+
+func _apply_restore() -> void:
+	var e: Dictionary = _restore
+	_restore = {}
+	population.clear()
+	for d: Dictionary in e["population"]:
+		population.append(Genome.from_dict(d))
+	wave_size = population.size()
+	wave_number = e["next_wave"] - 1  # spawn_wave() adds 1
+	generation = e["generation"]
+	history.clear()
+	history.append_array(e["history"])
+	# Same seed + same RNG positions = evolution continues exactly as if never closed.
+	if e.has("ga_seed"):
+		ga_seed = e["ga_seed"].to_int()
+		if ga_settings != null:
+			_ga = GeneticAlgorithm.new(ga_settings, _context.genome_rules, ga_seed)
+	if e.has("ga_rng_state") and _ga != null:
+		_ga.rng.state = e["ga_rng_state"].to_int()
+	if e.has("spawn_rng_state"):
+		_rng.state = e["spawn_rng_state"].to_int()
+	if log_waves:
+		print("[Save] resumed at wave %d, generation %d, %d genomes, GA seed %d" % [
+			e["next_wave"], generation, population.size(), ga_seed])
 
 
 ## Mean of each gene over a list of genomes: gene name -> mean.

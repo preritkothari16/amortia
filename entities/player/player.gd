@@ -155,6 +155,15 @@ func _apply_skills() -> void:
 	health = minf(health + maxf(stats.max_health - old_max, 0.0), stats.max_health)
 
 
+# --- Save / load ---------------------------------------------------------------------
+
+## Restores XP, level and skills from a validated save's "player" section (SaveGame.validate).
+func apply_save(p: Dictionary) -> void:
+	progression.restore(p["level"], p["xp"], p["total_xp"], p["skill_points"])
+	skills.restore(p["unlocked"])
+	health = stats.max_health
+
+
 # --- XP ------------------------------------------------------------------------------
 
 ## Every kill gives XP; enemies with more stat points (later, more evolved waves) give a bit more.

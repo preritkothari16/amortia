@@ -6,6 +6,9 @@ extends Node2D
 @export var attack_ring_settings: AttackRingSettings
 @export var genome_rules: GenomeRules
 @export var fitness_settings: FitnessSettings
+## Save to user://save.json between waves (after each wave is bred, and when a skill is bought
+## between waves). Off for tests that shouldn't touch the save file.
+@export var autosave: bool = true
 
 ## Plain-data copy of the map for the AI. Rebuild or set_terrain() when terrain changes.
 var terrain_grid: TerrainGrid
@@ -68,7 +71,48 @@ func _ready() -> void:
 	context.target = _player
 	context.genome_rules = genome_rules
 	context.fitness = Fitness.new(fitness_settings)
+	_load_pending_save()
+	_wave_manager.generation_bred.connect(func(_summary: Dictionary) -> void: save_game())
+	_player.skills.changed.connect(_on_skills_changed)
 	_wave_manager.setup(_map.get_enemy_spawns(), context)
+
+
+# --- Save / load ---------------------------------------------------------------------
+
+## Writes the checkpoint: player XP/level/skills + the population for the next wave.
+func save_game() -> void:
+	if not autosave:
+		return
+	var data: Dictionary = SaveGame.capture(_player.progression, _player.skills, _wave_manager.get_save_state())
+	if SaveSystem.write_save(data) == OK:
+		print("[Save] saved: level %d, %d skills, next wave %d, generation %d" % [
+			_player.progression.level, _player.skills.unlocked.size(),
+			data["evolution"]["next_wave"], data["evolution"]["generation"]])
+
+
+## Skills bought between waves are saved right away; during a wave they are saved with the
+## next checkpoint (the save always describes the start of a wave).
+func _on_skills_changed() -> void:
+	if not _wave_manager.is_wave_running() and _wave_manager.wave_number > 0:
+		save_game()
+
+
+## Continue from the main menu: check the save, then hand its parts to the player and the
+## WaveManager (before the first wave spawns). A bad save is ignored -> new game.
+func _load_pending_save() -> void:
+	var pending: Dictionary = SaveSystem.pending_state
+	SaveSystem.pending_state = {}
+	if pending.is_empty():
+		return
+	var result: Dictionary = SaveGame.validate(pending, _player.progression_settings,
+		_player.skill_tree, genome_rules)
+	for w: String in result["warnings"]:
+		push_warning("Save: " + w)
+	if not result["ok"]:
+		push_error("Save could not be loaded (%s); starting a new game." % result["error"])
+		return
+	_player.apply_save(result["data"]["player"])
+	_wave_manager.load_state(result["data"]["evolution"])
 
 
 func _physics_process(delta: float) -> void:

@@ -11,6 +11,8 @@ var _menu: VBoxContainer
 var _settings: VBoxContainer
 var _new_game_button: Button
 var _continue_button: Button
+## Shown when Continue fails (unreadable save).
+var _message: Label
 
 
 func _ready() -> void:
@@ -38,8 +40,14 @@ func _ready() -> void:
 	_new_game_button = _add_button(_menu, "New Game", _on_new_game)
 	_continue_button = _add_button(_menu, "Continue", _on_continue)
 	_continue_button.visible = SaveSystem.has_save()
+	_message = Label.new()
+	_message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_message.add_theme_font_size_override("font_size", FONT_SIZE)
+	_message.add_theme_color_override("font_color", Color(1.0, 0.6, 0.4))
+	_message.visible = false
 	_add_button(_menu, "Settings", _show_settings.bind(true))
 	_add_button(_menu, "Quit", _on_quit)
+	_menu.add_child(_message)
 
 	_settings = VBoxContainer.new()
 	_settings.add_theme_constant_override("separation", 3)
@@ -58,12 +66,23 @@ func _unhandled_input(event: InputEvent) -> void:
 		_show_settings(false)
 
 
+## Fresh start. The old save stays until the new game's first checkpoint overwrites it.
 func _on_new_game() -> void:
+	SaveSystem.pending_state = {}
 	get_tree().change_scene_to_file(GAME_SCENE)
 
 
-## Loading isn't built yet; for now this starts the game like New Game.
+## Reads the save and hands it to the level (which validates it in detail).
 func _on_continue() -> void:
+	var result: Dictionary = SaveSystem.read_save()
+	if not result["ok"]:
+		_message.text = "Can't load the save: %s.
+New Game will replace it." % result["error"]
+		_message.visible = true
+		_continue_button.visible = false
+		_new_game_button.grab_focus()
+		return
+	SaveSystem.pending_state = result["data"]
 	get_tree().change_scene_to_file(GAME_SCENE)
 
 

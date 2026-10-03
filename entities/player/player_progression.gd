@@ -57,6 +57,15 @@ func progress() -> float:
 	return float(xp) / float(xp_to_next())
 
 
+## Sets the state from a validated save (SaveGame.validate). No signals for levels gained.
+func restore(p_level: int, p_xp: int, p_total_xp: int, p_skill_points: int) -> void:
+	level = p_level
+	xp = p_xp
+	total_xp = p_total_xp
+	skill_points = p_skill_points
+	xp_changed.emit()
+
+
 ## Spends one skill point if there is one. For the future skill tree.
 func spend_skill_point() -> bool:
 	if skill_points <= 0:
