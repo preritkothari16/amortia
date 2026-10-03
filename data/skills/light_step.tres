@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SkillNode" format=3]
+
+[ext_resource type="Script" path="res://entities/player/skills/skill_node.gd" id="1_node"]
+
+[resource]
+script = ExtResource("1_node")
+id = &"light_step"
+display_name = "Light Step"
+description = "+10% movement speed"
+branch = 2
+tier = 0
+cost = 1
+requires = Array[StringName]([])
+target = 0
+property = &"move_speed"
+mode = 0
+amount = 1.1

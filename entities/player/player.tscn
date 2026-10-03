@@ -1,9 +1,10 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://entities/player/player.gd" id="1_player"]
 [ext_resource type="Resource" path="res://data/player_stats.tres" id="2_stats"]
 [ext_resource type="Resource" path="res://data/pistol.tres" id="3_pistol"]
 [ext_resource type="Resource" path="res://data/progression.tres" id="4_progression"]
+[ext_resource type="Resource" path="res://data/skill_tree.tres" id="5_skills"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
 radius = 6.0
@@ -16,6 +17,7 @@ script = ExtResource("1_player")
 stats = ExtResource("2_stats")
 weapon = ExtResource("3_pistol")
 progression_settings = ExtResource("4_progression")
+skill_tree = ExtResource("5_skills")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_body")

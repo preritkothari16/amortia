@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SkillNode" format=3]
+
+[ext_resource type="Script" path="res://entities/player/skills/skill_node.gd" id="1_node"]
+
+[resource]
+script = ExtResource("1_node")
+id = &"quick_recovery"
+display_name = "Quick Recovery"
+description = "-25% dodge cooldown"
+branch = 2
+tier = 1
+cost = 2
+requires = Array[StringName]([&"light_step"])
+target = 0
+property = &"dodge_cooldown"
+mode = 0
+amount = 0.75

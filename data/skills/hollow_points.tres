@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SkillNode" format=3]
+
+[ext_resource type="Script" path="res://entities/player/skills/skill_node.gd" id="1_node"]
+
+[resource]
+script = ExtResource("1_node")
+id = &"hollow_points"
+display_name = "Hollow Points"
+description = "+25% bullet damage"
+branch = 0
+tier = 1
+cost = 2
+requires = Array[StringName]([&"rapid_fire"])
+target = 1
+property = &"damage"
+mode = 0
+amount = 1.25

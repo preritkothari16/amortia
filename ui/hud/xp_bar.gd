@@ -44,6 +44,8 @@ func _draw() -> void:
 
 	var xp_text: String = "MAX" if p.is_max_level() else "%d / %d XP" % [p.xp, p.xp_to_next()]
 	var text: String = "Lv %d   %s   skill points %d" % [p.level, xp_text, p.skill_points]
+	if p.skill_points > 0:
+		text += " (K)"
 	if flashing:
 		text += "   LEVEL UP!"
 	var baseline: Vector2 = Vector2(MARGIN, bar.position.y - 3.0)

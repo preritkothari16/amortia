@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SkillNode" format=3]
+
+[ext_resource type="Script" path="res://entities/player/skills/skill_node.gd" id="1_node"]
+
+[resource]
+script = ExtResource("1_node")
+id = &"safe_roll"
+display_name = "Safe Roll"
+description = "+0.2 s dodge invulnerability"
+branch = 1
+tier = 1
+cost = 2
+requires = Array[StringName]([&"thick_skin"])
+target = 0
+property = &"dodge_invulnerable_time"
+mode = 1
+amount = 0.2

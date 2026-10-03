@@ -7,11 +7,20 @@ extends CharacterBody2D
 @export var weapon: WeaponStats
 ## XP curve and enemy XP values (data/progression.tres).
 @export var progression_settings: ProgressionSettings
+## The skill nodes the player can buy (data/skill_tree.tres).
+@export var skill_tree: SkillTree
 ## Temporary: print dodge state changes and tint the body while invulnerable.
 @export var debug_dodge: bool = true
 
 ## XP, level and skill points. Lives on the player, so it carries over between waves.
 var progression: PlayerProgression
+## Bought skill nodes. `stats` and `weapon` are rebuilt from the base data whenever this changes.
+var skills: PlayerSkills
+## Current hit points. Nothing damages the player yet.
+var health: float = 0.0
+## The untouched data resources; skills are applied to copies of these.
+var _base_stats: PlayerStats
+var _base_weapon: WeaponStats
 ## Unit vector from the player towards the mouse.
 var aim_direction: Vector2 = Vector2.RIGHT
 ## True while the dodge's invulnerability window is open. Damage code will check this.
@@ -36,6 +45,11 @@ var _dodge_direction: Vector2 = Vector2.ZERO
 func _ready() -> void:
 	progression = PlayerProgression.new(progression_settings)
 	progression.leveled_up.connect(_on_leveled_up)
+	_base_stats = stats
+	_base_weapon = weapon
+	health = stats.max_health
+	skills = PlayerSkills.new(skill_tree, progression)
+	skills.changed.connect(_apply_skills)
 	EventBus.enemy_killed.connect(_on_enemy_killed)
 
 
@@ -123,6 +137,17 @@ func _shoot(delta: float) -> void:
 	get_parent().add_child(bullet)
 	# Gunshots are loud: enemies in range learn where the player WAS, not where they go next.
 	EventBus.noise_emitted.emit(global_position, weapon.noise_radius)
+
+
+# --- Skills --------------------------------------------------------------------------
+
+## Rebuilds stats and weapon from the base data + every owned skill, so a purchase takes
+## effect on the next frame. Extra max health is also added to current health.
+func _apply_skills() -> void:
+	var old_max: float = stats.max_health
+	stats = skills.apply(_base_stats, SkillNode.Target.PLAYER) as PlayerStats
+	weapon = skills.apply(_base_weapon, SkillNode.Target.WEAPON) as WeaponStats
+	health = minf(health + maxf(stats.max_health - old_max, 0.0), stats.max_health)
 
 
 # --- XP ------------------------------------------------------------------------------

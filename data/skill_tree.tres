@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="SkillTree" load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://entities/player/skills/skill_tree.gd" id="1_tree"]
+[ext_resource type="Script" path="res://entities/player/skills/skill_node.gd" id="8_node"]
+[ext_resource type="Resource" path="res://data/skills/rapid_fire.tres" id="2_rapid_fire"]
+[ext_resource type="Resource" path="res://data/skills/hollow_points.tres" id="3_hollow_points"]
+[ext_resource type="Resource" path="res://data/skills/thick_skin.tres" id="4_thick_skin"]
+[ext_resource type="Resource" path="res://data/skills/safe_roll.tres" id="5_safe_roll"]
+[ext_resource type="Resource" path="res://data/skills/light_step.tres" id="6_light_step"]
+[ext_resource type="Resource" path="res://data/skills/quick_recovery.tres" id="7_quick_recovery"]
+
+[resource]
+script = ExtResource("1_tree")
+nodes = Array[ExtResource("8_node")]([ExtResource("2_rapid_fire"), ExtResource("3_hollow_points"), ExtResource("4_thick_skin"), ExtResource("5_safe_roll"), ExtResource("6_light_step"), ExtResource("7_quick_recovery")])
