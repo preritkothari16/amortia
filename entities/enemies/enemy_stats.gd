@@ -10,6 +10,15 @@ extends Resource
 ## How fast velocity changes towards the desired velocity, in px/s². Lower = smoother, wider turns.
 @export var acceleration: float = 500.0
 
+@export_group("Attack")
+## HP removed from the player per hit.
+@export var attack_damage: float = 8.0
+## Max distance (px, centre to centre) for a hit. Attackers stand ~12-17 px out (attack ring);
+## bodies touch at 11 px (enemy 5 + player 6).
+@export var attack_range: float = 18.0
+## Seconds between swings (also after a dodged swing).
+@export var attack_cooldown: float = 1.2
+
 @export_group("Decisions")
 ## Behaviour genes (aggression, flanking, patience) that weight the utility AI.
 @export var behaviour: BehaviourWeights

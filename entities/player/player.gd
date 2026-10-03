@@ -1,7 +1,7 @@
 class_name Player
 extends CharacterBody2D
 ## Greybox player: WASD movement with acceleration, body turns to face the mouse,
-## LMB shoots, Space dodge-rolls (movement only, no damage).
+## LMB shoots, Space dodge-rolls (brief invulnerability). Runners hit it via take_damage().
 
 @export var stats: PlayerStats
 @export var weapon: WeaponStats
@@ -10,14 +10,21 @@ extends CharacterBody2D
 ## The skill nodes the player can buy (data/skill_tree.tres).
 @export var skill_tree: SkillTree
 ## Temporary: print dodge state changes and tint the body while invulnerable.
-@export var debug_dodge: bool = true
+@export var debug_dodge: bool = false
 
 ## XP, level and skill points. Lives on the player, so it carries over between waves.
 var progression: PlayerProgression
 ## Bought skill nodes. `stats` and `weapon` are rebuilt from the base data whenever this changes.
 var skills: PlayerSkills
-## Current hit points. Nothing damages the player yet.
+## Emitted when a hit removes HP (`amount` = HP actually lost).
+signal damaged(amount: float)
+## Emitted once when HP reaches 0. The level ends the wave; revive() brings the player back.
+signal died()
+
+## Current hit points.
 var health: float = 0.0
+## True from the killing hit until revive(): no moving, shooting or taking damage.
+var is_dead: bool = false
 ## The untouched data resources; skills are applied to copies of these.
 var _base_stats: PlayerStats
 var _base_weapon: WeaponStats
@@ -59,6 +66,8 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if is_dead:
+		return
 	_tick_dodge_timers(delta)
 	_move(delta)
 	_aim()
@@ -142,6 +151,35 @@ func _shoot(delta: float) -> void:
 	get_parent().add_child(bullet)
 	# Gunshots are loud: enemies in range learn where the player WAS, not where they go next.
 	EventBus.noise_emitted.emit(global_position, weapon.noise_radius)
+
+
+# --- Health --------------------------------------------------------------------------
+
+## Called by enemy attacks. Returns the HP actually removed: 0 while dodging (invulnerable)
+## or dead, and never more than the HP left (overkill doesn't count for enemy fitness).
+func take_damage(amount: float) -> float:
+	if is_dead or is_invulnerable or amount <= 0.0:
+		return 0.0
+	var dealt: float = minf(amount, health)
+	health -= dealt
+	_body.modulate = Color(1.0, 0.3, 0.3)
+	create_tween().tween_property(_body, "modulate", Color.WHITE, 0.15)
+	damaged.emit(dealt)
+	if health <= 0.0:
+		health = 0.0
+		is_dead = true
+		velocity = Vector2.ZERO
+		_body.modulate = Color(0.4, 0.4, 0.4, 0.6)
+		died.emit()
+	return dealt
+
+
+## Full HP and control again (called at the start of every wave).
+func revive() -> void:
+	is_dead = false
+	health = stats.max_health
+	_invuln_left = 0.0
+	_body.modulate = Color.WHITE
 
 
 # --- Skills --------------------------------------------------------------------------

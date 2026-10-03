@@ -74,7 +74,16 @@ func _ready() -> void:
 	_load_pending_save()
 	_wave_manager.generation_bred.connect(func(_summary: Dictionary) -> void: save_game())
 	_player.skills.changed.connect(_on_skills_changed)
+	# Player down -> the wave ends (scored and bred like any other). Deferred so the attack
+	# that killed the player finishes first. Every wave starts with full HP.
+	_player.died.connect(_on_player_died, CONNECT_DEFERRED)
+	_wave_manager.wave_started.connect(func(_wave: int) -> void: _player.revive())
 	_wave_manager.setup(_map.get_enemy_spawns(), context)
+
+
+func _on_player_died() -> void:
+	print("[Player] down in wave %d" % _wave_manager.wave_number)
+	_wave_manager.end_wave()
 
 
 # --- Save / load ---------------------------------------------------------------------

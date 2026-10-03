@@ -66,6 +66,8 @@ var _climb_cells: Array[Vector2i] = []
 var _inputs: DecisionInputs = DecisionInputs.new()
 var _last_awareness_state: int = -1
 var _last_target_version: int = -1
+## Close-range attack rules and cooldown (only used while holding an attack token).
+var _attack: MeleeAttack = MeleeAttack.new()
 
 @onready var _body: Polygon2D = $Body
 
@@ -123,11 +125,27 @@ func _record_fitness(delta: float) -> void:
 				_ctx.fitness.settings.pressure_radius)
 
 
-## Call when this enemy damages the player / an escort (fitness term D). Nothing calls it yet:
-## Runner attacks don't exist so far, so D stays 0.
+## Call when this enemy damages the player / an escort (fitness term D) by some other route
+## than _try_attack (which records its own hits).
 func record_damage_dealt(amount: float) -> void:
 	if fitness_record != null:
 		fitness_record.add_damage(amount)
+
+
+# --- Attack -------------------------------------------------------------------------
+
+## Hits the player when this enemy holds an attack token, is in range with nothing solid in
+## between, and its cooldown is over. Only the HP the player really lost counts for fitness D.
+func _try_attack(delta: float, role: AttackRing.Role) -> void:
+	_attack.tick(delta)
+	if _dead or role != AttackRing.Role.ATTACKING:
+		return
+	var distance: float = global_position.distance_to(_target.global_position)
+	if distance > stats.attack_range:
+		return  # cheap checks first; the line test only runs for attackers in range
+	var clear: bool = _grid.has_line_of_sight(global_position, _target.global_position)
+	if _attack.can_attack(true, distance, stats.attack_range, clear):
+		_attack.strike(_target, stats.attack_damage, stats.attack_cooldown, fitness_record)
 
 
 ## Tell the enemy where the player was (e.g. the spawn Pulse). A distant order, not a
@@ -155,6 +173,7 @@ func _physics_process(delta: float) -> void:
 	_update_decision(delta)
 	var cost: float = _flow_field.get_cost(cell)
 	var role: AttackRing.Role = _update_ring_membership(cost)
+	_try_attack(delta, role)
 	if is_climbing:
 		_climb_step(cell, delta)
 		return
