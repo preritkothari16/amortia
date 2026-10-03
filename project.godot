@@ -11,12 +11,13 @@ config_version=5
 [application]
 
 config/name="Amortia"
-run/main_scene="res://world/main.tscn"
+run/main_scene="res://ui/menus/main_menu.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [autoload]
 
 EventBus="*res://autoload/event_bus.gd"
+SaveSystem="*res://autoload/save_system.gd"
 
 [display]
 

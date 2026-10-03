@@ -105,7 +105,7 @@ func _build(s: Dictionary) -> void:
 	_label("Fitness  best %.3f   average %.3f      (avg  D %.2f  P %.2f  S %.2f  O %.2f)" % [
 		s["best_fitness"], s["mean_fitness"], c[Fitness.D], c[Fitness.P], c[Fitness.S], c[Fitness.O]])
 	_label("Fitness history (best / avg):  " + _history_text(), FONT_SIZE, COLOR_SAME)
-	_label("Dominant traits:  " + _dominant_traits(after), FONT_SIZE, Color(1, 0.9, 0.5))
+	_label("Dominant traits:  " + dominant_traits(after), FONT_SIZE, Color(1, 0.9, 0.5))
 	_spacer()
 
 	var grid: GridContainer = GridContainer.new()
@@ -142,7 +142,8 @@ func _build(s: Dictionary) -> void:
 
 
 ## The 3 gene averages furthest from "average" (5 for stats, 0.5 for behaviour), as words.
-func _dominant_traits(means: Dictionary) -> String:
+## Also used by the HUD (without the numbers).
+static func dominant_traits(means: Dictionary, show_values: bool = true) -> String:
 	var scored: Array = []
 	for gene: String in TRAIT_WORDS:
 		var is_stat: bool = Genome.STAT_GENES.has(StringName(gene))
@@ -156,8 +157,10 @@ func _dominant_traits(means: Dictionary) -> String:
 			break
 		var gene: String = entry[1]
 		var word: String = TRAIT_WORDS[gene][0 if entry[2] > 0.0 else 1]
-		words.append("%s (%s %.2f)" % [word, gene, means[gene]])
-	return ", ".join(words) if not words.is_empty() else "balanced (no gene far from average)"
+		words.append("%s (%s %.2f)" % [word, gene, means[gene]] if show_values else word)
+	if words.is_empty():
+		return "balanced (no gene far from average)" if show_values else "balanced"
+	return ", ".join(words)
 
 
 func _history_text() -> String:

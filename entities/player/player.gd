@@ -28,6 +28,11 @@ var is_invulnerable: bool:
 	get:
 		return _invuln_left > 0.0
 
+## Seconds until the next dodge is allowed (0 = ready). For the HUD.
+var dodge_cooldown_left: float:
+	get:
+		return _dodge_cooldown_left
+
 ## Seconds until the weapon can fire again.
 var _cooldown_left: float = 0.0
 ## Seconds left in the current dodge's movement burst (0 = not dodging).
