@@ -9,6 +9,10 @@ extends Node2D
 ## Save to user://save.json between waves (after each wave is bred, and when a skill is bought
 ## between waves). Off for tests that shouldn't touch the save file.
 @export var autosave: bool = true
+## Experiments / tests: make runs repeatable. The PathQueue normally stops after 2 ms of A*
+## per frame, so how many paths finish each frame depends on CPU speed -> same seed, different
+## run. On = only the per-frame search count limits it (frame time may spike, results repeat).
+@export var deterministic_ai: bool = false
 
 ## Plain-data copy of the map for the AI. Rebuild or set_terrain() when terrain changes.
 var terrain_grid: TerrainGrid
@@ -45,6 +49,8 @@ func _ready() -> void:
 	attack_ring = AttackRing.new(flow_field, attack_ring_settings)
 	_ring_overlay.ring = attack_ring
 	path_queue = PathQueue.new(AStar.new(terrain_grid))
+	if deterministic_ai:
+		path_queue.budget_usec = 1 << 40  # effectively no time limit; max_per_frame still applies
 	_awareness_overlay.wave_manager = _wave_manager
 	_awareness_overlay.grid = terrain_grid
 	_genome_overlay.wave_manager = _wave_manager
