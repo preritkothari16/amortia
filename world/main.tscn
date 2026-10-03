@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="Script" path="res://world/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://world/zones/maple_hollow/maple_hollow.tscn" id="2_map"]
@@ -17,6 +17,7 @@
 [ext_resource type="Resource" path="res://data/ga.tres" id="15_ga"]
 [ext_resource type="Script" path="res://ui/hud/wave_hud.gd" id="16_hud"]
 [ext_resource type="Script" path="res://ui/menus/wave_report.gd" id="17_report"]
+[ext_resource type="Script" path="res://ui/hud/xp_bar.gd" id="18_xp_bar"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -60,6 +61,16 @@ theme_override_font_sizes/font_size = 8
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 2
 script = ExtResource("16_hud")
+
+[node name="XpBar" type="Control" parent="HUD"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("18_xp_bar")
 
 [node name="WaveReport" type="Control" parent="HUD"]
 process_mode = 3

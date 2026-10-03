@@ -1,12 +1,12 @@
 # Amortia — session handoff
 
 Read this first in a new session, together with `CLAUDE.md` and `Game Design Document.md`.
-It is updated at the end of every prompt. Last update: 2026-10-02.
+It is updated at the end of every prompt. Last update: 2026-10-03.
 
-> **Resume here (end of session 1):** steps 1–21 done and pushed to `main`. 248 GUT tests pass.
-> Full loop works: Maple Hollow greybox → Runners (flow field, A*, steering, attack ring, noise,
-> utility AI) with per-enemy genomes → fitness → GA between waves → Wave Report screen.
-> **Next: Runner attack + player HP** (makes fitness term D real; see "Next recommended step").
+> **Resume here:** steps 1–22 done on `main`. 263 GUT tests pass. Latest: XP + player levels (step 22).
+> **Workflow (user, 2026-10-03):** the user sends one prompt per step in their own order. Do only
+> that prompt (check first if it is already built), stop when it works, note gaps under
+> "Open items" instead of acting on them. Don't push the old "next recommended step".
 > Keep the design principle below in mind before changing any enemy rule.
 
 ## Where we are
@@ -45,8 +45,9 @@ When something looks odd, check if it's a gene effect first; flag formula proble
 | 19 | Range-based provocation (user request): perception is unchanged (line of sight within the vision-gene range 6–15 tiles, plus a 2-tile "through walls" sense). Noises now carry a strength = 1 − distance/radius at the listener (`Awareness.hear(pos, strength)`, `lead_strength`); the spawn Pulse has strength 0; losing sight of a chased player has `lost_sight_strength` 0.5. Investigate drive = patience + (1 − patience) × lead_strength × `provocation_weight` (1.0), score = drive × (0.4 + 0.6 freshness). So lazy Runners ignore the Pulse and distant shots but react to shots close by; hungry ones react to anything. In-game: lazy at 9 tiles (strength 0.21–0.25) came, lazy at 11 tiles (0.07) stayed, hungry at 11 tiles came. 248 GUT tests | `ai/decision/awareness.gd`, `decision_inputs.gd`, `utility_settings.gd`, `actions/investigate_action.gd`, `data/utility_ai.tres`, `entities/enemies/enemy.gd`, tests |
 | 20 | Evolution loop: WaveManager keeps a persistent `population` (20) + seeded `GeneticAlgorithm` (`ga_settings` = data/ga.tres; seed = `evolution_seed`, else `spawn_seed`, else random — logged). Wave 1 random; on wave end (all dead / F8): score → `_evolve` → `ga.next_generation_from_results(results, budget_for_wave(next))` → `history`, `generation_bred` signal, `[Evolution]` log (fitness best/mean, biggest gene shifts, gene means, path modes, guard, best genome) → `intermission_seconds` 3 → next wave from the population. Leftovers despawned (`Enemy.despawn()`: no death, leaves ring, cancels paths). F3 next wave now, F8 end wave, F9 restart wave (same genomes, no scoring). HUD (`ui/hud/wave_hud.gd`, CanvasLayer `HUD/WaveHud`): wave, generation, alive / countdown, last fitness, average genes. 248 GUT tests | `world/wave_manager.gd`, `entities/enemies/enemy.gd`, `ui/hud/wave_hud.gd`, `world/main.gd/.tscn`, `project.godot` |
 | 21 | Wave Report screen (`ui/menus/wave_report.gd`, `HUD/WaveReport`, built in code, greybox, `process_mode` ALWAYS): opens on `generation_bred` after every wave. Shows wave number, kills/survivors/time, next wave = generation N + budget, fitness best/average + average D/P/S/O, fitness history (last 6 waves), 3 dominant traits (gene averages furthest from average, as words: fast/slow, tough/fragile, sharp-eyed/short-sighted, aggressive/timid, cautious/reckless, flankers/head-on, pack hunters/loners, patient hunters/lazy), table Speed/Health/Vision/Aggression/Flanking/Patience: this wave avg → next wave avg → change (^ +x orange / v -x blue / = grey), path-mode counts before → after (+ diversity-guard note), best genome, Continue button (Enter/Space). WaveManager `pause_between_waves` (default on): game pauses, `waiting_for_continue`, `continue_to_next_wave()`; off = old 3 s countdown and the report stays unpaused until the next wave. New signal `wave_started(wave)` closes the report on any new wave (Continue, F3). GA summary now also has `wave_seconds`, `killed`, `survived`, `component_means`, `fitness_values`, `path_modes_before`. | `ui/menus/wave_report.gd`, `world/wave_manager.gd`, `ui/hud/wave_hud.gd`, `world/main.gd/.tscn` |
+| 22 | XP + player levels (prototype, GDD 7.2): `PlayerProgression` (RefCounted on the Player, so it persists across waves): level, xp towards next, total_xp, skill_points; `add_xp` handles multi-level gains, signals `leveled_up(level)` / `xp_changed`; stops at the cap (xp 0, bar full); `spend_skill_point()` for the future tree. `ProgressionSettings` / `data/progression.tres`: level_cap 30, 1 skill point per level, linear curve 40 XP then +20 per level (L29→30 = 600, 9 280 total to cap), enemy XP = round(10 × (1 + 0.05 × (genome stat total − 15))) → 10 at budget 15, 15 at budget 24. `Enemy._die` emits `EventBus.enemy_killed(enemy)` (despawn doesn't); Player awards XP from the enemy's genome. `XpBar` (HUD bottom, drawn in code): `Lv N  xp / next XP  skill points N`, bar fill, 1.5 s yellow LEVEL UP flash. No skill tree, no 5th-level perks. 263 GUT tests | `entities/player/player_progression.gd`, `progression_settings.gd`, `player.gd/.tscn`, `data/progression.tres`, `entities/enemies/enemy.gd`, `autoload/event_bus.gd`, `ui/hud/xp_bar.gd`, `world/main.gd/.tscn`, `tests/test_player_progression.gd` |
 
-### Next recommended step
+### Next recommended step (old plan; user now drives the order)
 **Runner attack + player HP → fitness term D.** Evolution-loop test (scratch `evolution_loop.gd`,
 bot player stands at the crossroads shooting the nearest visible Runner, 45 s wave timeout):
 lifecycle 0 problems over 8 waves, deterministic (same seed → identical runs), but with D = 0 the
@@ -139,7 +140,7 @@ many enemies use A*. Flow rebuilds could move to `WorkerThreadPool` later if the
 `TerrainGrid.get_neighbors` allocates per call; hot loops should use `build_cost_array` + indices.
 
 ## Current controls
-WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay · F2 flow-field arrows · F3 spawn a wave · F4 attack-ring overlay · F6 noise / awareness / utility-action overlay · F7 genome + live fitness overlay · F8 end wave and print the fitness report · F9 restart current wave (debug). HUD top-left: wave / generation / gene averages.
+WASD move · mouse aim · LMB shoot · Space dodge · F1 terrain-cost overlay · F2 flow-field arrows · F3 spawn a wave · F4 attack-ring overlay · F6 noise / awareness / utility-action overlay · F7 genome + live fitness overlay · F8 end wave and print the fitness report · F9 restart current wave (debug). HUD top-left: wave / generation / gene averages. HUD bottom: level, XP bar, skill points.
 
 ## Scene / code map
 - `world/main.tscn` (main scene, script `main.gd`): `MapleHollow`, `WaveManager` (enemies are its
@@ -253,6 +254,7 @@ Spawns are 15–32 tiles from the player; all 1383 walkable cells reachable (che
   (that compiles game scripts early → "Identifier not found: EventBus"). Use untyped vars.
 - `Performance.TIME_PHYSICS_PROCESS` is coarse/stale headless; measure frame time with
   `Time.get_ticks_usec()` between consecutive frames instead.
+- XP/leveling lives in `entities/player/` (not graded `ai/`), so it was written directly.
 - Learning-mode files written on request so far: astar.gd, flow_field.gd, path_queue.gd (ai/nav),
   awareness.gd, utility_ai.gd, utility_action.gd, actions/*.gd, flank_planner.gd, decision_inputs.gd,
   behaviour_weights.gd, utility_settings.gd (ai/decision), genome.gd, genome_rules.gd, fitness*.gd,
@@ -276,4 +278,11 @@ Spawns are 15–32 tiles from the player; all 1383 walkable cells reachable (che
 - Tall grass has no gameplay effect yet (vision hiding, 80% player speed per GDD §4.2).
 - Fences block bullets; fence HP (40) comes later.
 - Not added yet on purpose: GameState / SaveSystem / AudioDirector autoloads, HUD.
+- XP bonus for evolved enemies uses the genome's *stat total*. Measured (step 22, 9 waves, all 20
+  killed each wave): budget rose 15 → 23 but XP per kill only 10 → 10–13, ~200–211 XP per wave,
+  because GA children are only repaired *down* when over budget and never fill a bigger budget, so
+  stat totals stay near wave-1 values (and D = 0 gives no pressure). Gene/GA fact, not an XP bug —
+  decide later whether XP should follow the wave budget/generation instead.
+- Pace at the current curve: level 13 after 9 full waves; level 30 needs 9 280 XP (~45 waves).
+- 5th-level bonus perk choice (GDD 7.2), skill tree, XP pickups/popups, saving XP: not built.
 - Terrain cost profiles exist; wiring genes → profiles happens with the genome (GDD §5.3). Adaptation budget (sum ≤ 1.5) is the genome's job, not the grid's.

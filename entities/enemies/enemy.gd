@@ -567,6 +567,7 @@ func _die() -> void:
 	collision_mask = 0
 	set_physics_process(false)
 	died.emit(self)
+	EventBus.enemy_killed.emit(self)
 	queue_free()
 
 

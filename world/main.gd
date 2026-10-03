@@ -28,6 +28,7 @@ var last_flow_build_msec: float = 0.0
 @onready var _genome_overlay: GenomeOverlay = $GenomeOverlay
 @onready var _wave_hud: WaveHud = $HUD/WaveHud
 @onready var _wave_report: WaveReport = $HUD/WaveReport
+@onready var _xp_bar: XpBar = $HUD/XpBar
 
 
 func _ready() -> void:
@@ -44,6 +45,7 @@ func _ready() -> void:
 	_genome_overlay.wave_manager = _wave_manager
 	_wave_hud.wave_manager = _wave_manager
 	_wave_report.wave_manager = _wave_manager
+	_xp_bar.progression = _player.progression
 
 	_player.global_position = _map.get_player_spawn()
 	var bounds: Rect2 = _map.get_world_rect()

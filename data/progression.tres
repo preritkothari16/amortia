@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ProgressionSettings" format=3]
+
+[ext_resource type="Script" path="res://entities/player/progression_settings.gd" id="1_prog"]
+
+[resource]
+script = ExtResource("1_prog")
+level_cap = 30
+skill_points_per_level = 1
+xp_first_level = 40
+xp_per_level = 20
+enemy_base_xp = 10.0
+reference_stat_total = 15.0
+xp_bonus_per_stat_point = 0.05

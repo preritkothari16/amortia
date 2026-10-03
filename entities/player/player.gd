@@ -5,9 +5,13 @@ extends CharacterBody2D
 
 @export var stats: PlayerStats
 @export var weapon: WeaponStats
+## XP curve and enemy XP values (data/progression.tres).
+@export var progression_settings: ProgressionSettings
 ## Temporary: print dodge state changes and tint the body while invulnerable.
 @export var debug_dodge: bool = true
 
+## XP, level and skill points. Lives on the player, so it carries over between waves.
+var progression: PlayerProgression
 ## Unit vector from the player towards the mouse.
 var aim_direction: Vector2 = Vector2.RIGHT
 ## True while the dodge's invulnerability window is open. Damage code will check this.
@@ -27,6 +31,12 @@ var _dodge_direction: Vector2 = Vector2.ZERO
 
 @onready var _body: Node2D = $Body
 @onready var _muzzle: Marker2D = $Body/Muzzle
+
+
+func _ready() -> void:
+	progression = PlayerProgression.new(progression_settings)
+	progression.leveled_up.connect(_on_leveled_up)
+	EventBus.enemy_killed.connect(_on_enemy_killed)
 
 
 func _physics_process(delta: float) -> void:
@@ -113,3 +123,17 @@ func _shoot(delta: float) -> void:
 	get_parent().add_child(bullet)
 	# Gunshots are loud: enemies in range learn where the player WAS, not where they go next.
 	EventBus.noise_emitted.emit(global_position, weapon.noise_radius)
+
+
+# --- XP ------------------------------------------------------------------------------
+
+## Every kill gives XP; enemies with more stat points (later, more evolved waves) give a bit more.
+func _on_enemy_killed(enemy: Node2D) -> void:
+	var genome: Genome = enemy.get("genome") as Genome
+	var stat_total: float = genome.stat_total() if genome != null else progression_settings.reference_stat_total
+	progression.add_xp(progression_settings.enemy_xp(stat_total))
+
+
+func _on_leveled_up(new_level: int) -> void:
+	print("[XP] level up -> %d  (skill points %d, total XP %d)" % [
+		new_level, progression.skill_points, progression.total_xp])
