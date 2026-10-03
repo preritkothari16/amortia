@@ -16,6 +16,7 @@ signal generation_bred(summary: Dictionary)
 signal wave_started(wave: int)
 
 @export var enemy_scene: PackedScene
+## Enemies per wave. With evolution on, this follows ga_settings.population_size.
 @export var wave_size: int = 20
 ## Spawn the first wave as soon as the level starts.
 @export var auto_start: bool = true
@@ -96,6 +97,12 @@ func setup(spawn_points: Array[Vector2], context: EnemyContext) -> void:
 		if ga_seed == 0:
 			ga_seed = randi()
 		_ga = GeneticAlgorithm.new(ga_settings, _context.genome_rules, ga_seed)
+		# The GA always breeds ga_settings.population_size children, so that is the wave size.
+		# A different wave_size would only last one wave and then silently shrink or grow.
+		if evolve and wave_size != ga_settings.population_size:
+			push_warning("WaveManager: wave_size %d != GA population_size %d; using %d (set it in data/ga.tres)" % [
+				wave_size, ga_settings.population_size, ga_settings.population_size])
+			wave_size = ga_settings.population_size
 		if log_waves and evolve:
 			print("[Evolution] GA seed %d (put it in evolution_seed to repeat this run)" % ga_seed)
 	if not _restore.is_empty():
@@ -128,9 +135,13 @@ func is_wave_running() -> bool:
 
 ## Starts the next wave: `count` enemies made from the population (cycling through the spawn
 ## markers). If the population doesn't have `count` genomes (first wave, or a different size
-## was asked for) a new random population is made.
-func spawn_wave(count: int = wave_size) -> void:
+## was asked for) a new random population is made. count < 0 = the bred population's size
+## (decided AFTER the previous wave is scored and evolved, so F3 / the intermission never
+## throw the new generation away), or wave_size if there is none yet.
+func spawn_wave(count: int = -1) -> void:
 	end_wave()  # close, score and evolve the previous wave first, if it is still open
+	if count < 0:
+		count = population.size() if evolve and not population.is_empty() else wave_size
 	intermission_left = -1.0
 	waiting_for_continue = false
 	if despawn_leftovers:
@@ -157,7 +168,7 @@ func spawn_wave(count: int = wave_size) -> void:
 ## Starts the next wave after a wave ended (the Wave Report's Continue button).
 func continue_to_next_wave() -> void:
 	if not _wave_open:
-		spawn_wave(population.size() if not population.is_empty() else wave_size)
+		spawn_wave()
 
 
 ## Ends the current wave WITHOUT scoring or evolving, removes its enemies and spawns the same
@@ -172,7 +183,7 @@ func restart_wave() -> void:
 	wave_number -= 1
 	if log_waves:
 		print("[Wave %d] restarted with the same genomes" % (wave_number + 1))
-	spawn_wave(population.size() if not population.is_empty() else wave_size)
+	spawn_wave()
 
 
 # --- Save / load ---------------------------------------------------------------------
