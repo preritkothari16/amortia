@@ -1,0 +1,138 @@
+[gd_resource type="Resource" script_class="RoomChunkLibrary" format=3]
+
+[ext_resource type="Script" path="res://ai/levelgen/room_chunk.gd" id="1_01gs1"]
+[ext_resource type="Script" path="res://ai/levelgen/room_chunk_library.gd" id="2_07j76"]
+
+[sub_resource type="Resource" id="Resource_6ot64"]
+script = ExtResource("1_01gs1")
+id = "crossroads"
+cells = PackedStringArray("#######..#######", "#,,,,,,..,,,,,,#", "#,HHHH,..,HHHH,#", "#,HHHH,..,HHHH,#", "#,HHHH,..,HHHH,#", "#,,,,,,..,,,,,,#", "#,,,,,,..,,***,#", "................", "................", "#,,,,,,..,,,,,,#", "#,,,,,,..,,,,,,#", "#,HHHH,..,HHHH,#", "#,HHHH,..,HHHH,#", "#,HHHH,..,HHHH,#", "#,,,,,,..,,,,,,#", "#######..#######")
+exits = 15
+spawn_cells = Array[Vector2i]([Vector2i(1, 6), Vector2i(14, 9)])
+
+[sub_resource type="Resource" id="Resource_m4rsx"]
+script = ExtResource("1_01gs1")
+id = "main_street"
+cells = PackedStringArray("################", "#,,,,,,,,,,,,,,#", "#,HHHHH,,HHHHH,#", "#,HHHHH,,HHHHH,#", "#,HHHHH,,HHHHH,#", "#,HHHHH,,HHHHH,#", "#FFFFF,,,,,,,,,#", "................", "................", "#,,,,,,,,,,,,,,#", "#,HHHHH,,HHHHH,#", "#,HHHHH,,HHHHH,#", "#,HHHHH,,HHHHH,#", "#,HHHHH,,HHHHH,#", "#,,,,,,,,,,,,,,#", "################")
+exits = 10
+spawn_cells = Array[Vector2i]([Vector2i(7, 3), Vector2i(8, 12)])
+
+[sub_resource type="Resource" id="Resource_5guuv"]
+script = ExtResource("1_01gs1")
+id = "avenue"
+cells = PackedStringArray("#######..#######", "#,,,,,,..,,,,,,#", "#,HHHH,..,HHHH,#", "#,HHHH,..,HHHH,#", "#,HHHH,..,HHHH,#", "#,HHHH,..,HHHH,#", "#,HHHH,..,HHHH,#", "#,,,,,,..,,,,,,#", "#,,,,,,..,,,,,,#", "#,HHHH,..,HHHH,#", "#,HHHH,..,HHHH,#", "#,HHHH,..,HHHH,#", "#,HHHH,..,HHHH,#", "#,HHHH,..,HHHH,#", "#,,,,,,..,,,,,,#", "#######..#######")
+exits = 5
+spawn_cells = Array[Vector2i]([Vector2i(3, 8), Vector2i(12, 7)])
+
+[sub_resource type="Resource" id="Resource_seybe"]
+script = ExtResource("1_01gs1")
+id = "corner_ne"
+cells = PackedStringArray("#######..#######", "#,,,,,,..,,,,,,#", "#,HHHH,..,****,#", "#,HHHH,..,****,#", "#,HHHH,..,****,#", "#,HHHH,..,,,,,,#", "#,,,,,,..,,,,,,#", "#,,,,,,.........", "#,,,,,,.........", "#,,,,,,,,,,,,,,#", "#,HHHHH,,,HHHH,#", "#,HHHHH,,,HHHH,#", "#,HHHHH,,,HHHH,#", "#,HHHHH,,,HHHH,#", "#,,,,,,,,,,,,,,#", "################")
+exits = 3
+spawn_cells = Array[Vector2i]([Vector2i(3, 8), Vector2i(12, 4)])
+
+[sub_resource type="Resource" id="Resource_kwgln"]
+script = ExtResource("1_01gs1")
+id = "corner_es"
+cells = PackedStringArray("################", "#,,,,,,,,,,,,,,#", "#,HHHHH,,,HHHH,#", "#,HHHHH,,,HHHH,#", "#,HHHHH,,,HHHH,#", "#,HHHHH,,,HHHH,#", "#,,,,,,,,,,,,,,#", "#,,,,,,.........", "#,,,,,,.........", "#,,,,,,..,,,,,,#", "#,HHHH,..,,,,,,#", "#,HHHH,..,,TTT,#", "#,HHHH,..,,TTT,#", "#,HHHH,..,,TTT,#", "#,,,,,,..,,,,,,#", "#######..#######")
+exits = 6
+spawn_cells = Array[Vector2i]([Vector2i(3, 8), Vector2i(12, 6)])
+
+[sub_resource type="Resource" id="Resource_dpeem"]
+script = ExtResource("1_01gs1")
+id = "corner_sw"
+cells = PackedStringArray("################", "#,,,,,,,,,,,,,,#", "#,HHHH,,,,HHHH,#", "#,HHHH,,,,HHHH,#", "#,HHHH,,,,HHHH,#", "#,HHHH,,,,HHHH,#", "#,,,,,,,,,,,,,,#", ".........,,,,,,#", ".........,,,,,,#", "#,,,,,,..,,,,,,#", "#,,,,,,..,HHHH,#", "#,***,,..,HHHH,#", "#,***,,..,HHHH,#", "#,***,,..,HHHH,#", "#,,,,,,..,,,,,,#", "#######..#######")
+exits = 12
+spawn_cells = Array[Vector2i]([Vector2i(3, 12), Vector2i(12, 7)])
+
+[sub_resource type="Resource" id="Resource_ujpkc"]
+script = ExtResource("1_01gs1")
+id = "corner_wn"
+cells = PackedStringArray("#######..#######", "#,,,,,,..,,,,,,#", "#,TTT,,..,HHHH,#", "#,TTT,,..,HHHH,#", "#,TTT,,..,HHHH,#", "#,,,,,,..,HHHH,#", "#,,,,,,..,,,,,,#", ".........,,,,,,#", ".........,,,,,,#", "#,,,,,,,,,,,,,,#", "#,HHHH,,,,HHHH,#", "#,HHHH,,,,HHHH,#", "#,HHHH,,,,HHHH,#", "#,HHHH,,,,HHHH,#", "#,,,,,,,,,,,,,,#", "################")
+exits = 9
+spawn_cells = Array[Vector2i]([Vector2i(2, 6), Vector2i(12, 8)])
+
+[sub_resource type="Resource" id="Resource_dijrt"]
+script = ExtResource("1_01gs1")
+id = "t_new"
+cells = PackedStringArray("#######..#######", "#,,,,,,..,,,,,,#", "#,HHHH,..,,***,#", "#,HHHH,..,,***,#", "#,HHHH,..,,***,#", "#,HHHH,..,,,,,,#", "#,,,,,,..,,,,,,#", "................", "................", "#,,,,,,,,,,,,,,#", "#,HHHH,,,,HHHH,#", "#,HHHH,,,,HHHH,#", "#,HHHH,,,,HHHH,#", "#,HHHH,,,,HHHH,#", "#,,,,,,,,,,,,,,#", "################")
+exits = 11
+spawn_cells = Array[Vector2i]([Vector2i(12, 3), Vector2i(7, 12)])
+
+[sub_resource type="Resource" id="Resource_x6bvt"]
+script = ExtResource("1_01gs1")
+id = "t_esw"
+cells = PackedStringArray("################", "#,,,,,,,,,,,,,,#", "#,HHHH,,,,HHHH,#", "#,HHHH,,,,HHHH,#", "#,HHHH,,,,HHHH,#", "#,HHHH,,,,HHHH,#", "#,,,,,,,,,,,,,,#", "................", "................", "#,,,,,,..,,,,,,#", "#,HHHH,..,,,,,,#", "#,HHHH,..,,***,#", "#,HHHH,..,,***,#", "#,HHHH,..,,***,#", "#,,,,,,..,,,,,,#", "#######..#######")
+exits = 14
+spawn_cells = Array[Vector2i]([Vector2i(7, 3), Vector2i(12, 12)])
+
+[sub_resource type="Resource" id="Resource_ytyk6"]
+script = ExtResource("1_01gs1")
+id = "t_nes"
+cells = PackedStringArray("#######..#######", "#,,,,,,..,,,,,,#", "#,HHHH,..,TTTT,#", "#,HHHH,..,TTTT,#", "#,HHHH,..,TTTT,#", "#,HHHH,..,,,,,,#", "#,,,,,,..,,,,,,#", "#,,,,,,.........", "#,,,,,,.........", "#,,,,,,..,,,,,,#", "#,HHHH,..,HHHH,#", "#,HHHH,..,HHHH,#", "#,HHHH,..,HHHH,#", "#,HHHH,..,HHHH,#", "#,,,,,,..,,,,,,#", "#######..#######")
+exits = 7
+spawn_cells = Array[Vector2i]([Vector2i(12, 6), Vector2i(3, 8)])
+
+[sub_resource type="Resource" id="Resource_u2s12"]
+script = ExtResource("1_01gs1")
+id = "t_nsw"
+cells = PackedStringArray("#######..#######", "#,,,,,,..,,,,,,#", "#,HHHH,..,HHHH,#", "#,HHHH,..,HHHH,#", "#,HHHH,..,HHHH,#", "#,HHHH,..,HHHH,#", "#,,,,,,..,,,,,,#", ".........,,,,,,#", ".........,,,,,,#", "#,,,,,,..,,,,,,#", "#,,,,,,..,HHHH,#", "#,***,,..,HHHH,#", "#,***,,..,HHHH,#", "#,***,,..,HHHH,#", "#,,,,,,..,,,,,,#", "#######..#######")
+exits = 13
+spawn_cells = Array[Vector2i]([Vector2i(3, 12), Vector2i(12, 8)])
+
+[sub_resource type="Resource" id="Resource_6d5bb"]
+script = ExtResource("1_01gs1")
+id = "fenced_pass_ew"
+cells = PackedStringArray("################", "#***,F,,,,F,,,,#", "#***,F,,,,F,,,,#", "#***,F,,,,F,,,,#", "#,,,,F,,,,F,,,,#", "#,,,,F,,,,F,,,,#", "#,,,,F,,,,F,,,,#", "................", "................", "#,,,,F,,,,F,,,,#", "#,,,,F,,,,F,,,,#", "#,,,,F,,,,F,,,,#", "#,,,,F,,,,F,***#", "#,,,,F,,,,F,***#", "#,,,,F,,,,F,***#", "################")
+exits = 10
+spawn_cells = Array[Vector2i]([Vector2i(2, 2), Vector2i(13, 13)])
+chokepoint = true
+
+[sub_resource type="Resource" id="Resource_rw5kr"]
+script = ExtResource("1_01gs1")
+id = "fenced_pass_ns"
+cells = PackedStringArray("#######..#######", "#***,,,..,,,,,,#", "#***,,,..,,,,,,#", "#***,,,..,,,,,,#", "#,,,,,,..,,,,,,#", "#FFFFFF..FFFFFF#", "#,,,,,,..,,,,,,#", "#,,,,,,..,,,,,,#", "#,,,,,,..,,,,,,#", "#,,,,,,..,,,,,,#", "#FFFFFF..FFFFFF#", "#,,,,,,..,,,,,,#", "#,,,,,,..,,,***#", "#,,,,,,..,,,***#", "#,,,,,,..,,,***#", "#######..#######")
+exits = 5
+spawn_cells = Array[Vector2i]([Vector2i(2, 2), Vector2i(13, 13)])
+chokepoint = true
+
+[sub_resource type="Resource" id="Resource_5vd04"]
+script = ExtResource("1_01gs1")
+id = "pond_ew"
+cells = PackedStringArray("################", "#,,,,,,,,,,,,,,#", "#,,ssssssssss,,#", "#,,ss~~~~~~ss,,#", "#,,ss~~~~~~ss,,#", "#,,ssssssssss,,#", "#,,,,,,,,,,,,,,#", "................", "................", "#,,,,,,,,,,,,,,#", "#,,,,,,,,,,,,,,#", "#,,,,,,,,,xxx,,#", "#,,,,,,,,,xxx,,#", "#,,,,,,,,,,,,,,#", "#,,,,,,,,,,,,,,#", "################")
+exits = 10
+spawn_cells = Array[Vector2i]([Vector2i(2, 12), Vector2i(13, 12)])
+hazard = true
+
+[sub_resource type="Resource" id="Resource_73c2m"]
+script = ExtResource("1_01gs1")
+id = "spill_ns"
+cells = PackedStringArray("#######..#######", "#,,,,,,..,,,,,,#", "#,,,,,,..,,,,,,#", "#,xxxx,..,,,,,,#", "#,xxxx,..,,,,,,#", "#,xxxx,..,,,,,,#", "#,,,,,,..,,,,,,#", "#,,,,,,..,,,,,,#", "#,,,,,,..,,,,,,#", "#,,,,,,..,ssss,#", "#,,,,,,..,s~~s,#", "#,,,,,,..,s~~s,#", "#,,,,,,..,ssss,#", "#,,,,,,..,,,,,,#", "#,,,,,,..,,,,,,#", "#######..#######")
+exits = 5
+spawn_cells = Array[Vector2i]([Vector2i(3, 12), Vector2i(12, 3)])
+hazard = true
+
+[sub_resource type="Resource" id="Resource_0x6xf"]
+script = ExtResource("1_01gs1")
+id = "spill_plaza"
+cells = PackedStringArray("#######..#######", "#,,,,,,..,,,,,,#", "#,xxx,,..,,***,#", "#,xxx,,..,,***,#", "#,xxx,,..,,***,#", "#,,,,,,..,,,,,,#", "#,,,,,,..,,,,,,#", "................", "................", "#,,,,,,..,,,,,,#", "#,,,,,,..,,,,,,#", "#,***,,..,,xxx,#", "#,***,,..,,xxx,#", "#,***,,..,,xxx,#", "#,,,,,,..,,,,,,#", "#######..#######")
+exits = 15
+spawn_cells = Array[Vector2i]([Vector2i(12, 4), Vector2i(4, 12)])
+hazard = true
+
+[resource]
+script = ExtResource("2_07j76")
+chunks = Array[ExtResource("1_01gs1")]([SubResource("Resource_6ot64"), SubResource("Resource_m4rsx"), SubResource("Resource_5guuv"), SubResource("Resource_seybe"), SubResource("Resource_kwgln"), SubResource("Resource_dpeem"), SubResource("Resource_ujpkc"), SubResource("Resource_dijrt"), SubResource("Resource_x6bvt"), SubResource("Resource_ytyk6"), SubResource("Resource_u2s12"), SubResource("Resource_6d5bb"), SubResource("Resource_rw5kr"), SubResource("Resource_5vd04"), SubResource("Resource_73c2m"), SubResource("Resource_0x6xf")])
+legend = Dictionary[String, String]({
+"#": "wall",
+"*": "tall_grass",
+",": "grass",
+".": "road",
+"F": "fence",
+"H": "house",
+"T": "tree",
+"m": "mud",
+"s": "shallow_water",
+"x": "toxic_pool",
+"~": "deep_water"
+})

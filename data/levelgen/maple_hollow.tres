@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="LevelGenSettings" format=3]
+
+[ext_resource type="Script" path="res://ai/levelgen/level_gen_settings.gd" id="1_settings"]
+[ext_resource type="Resource" path="res://data/chunks/maple_hollow_chunks.tres" id="2_chunks"]
+
+[resource]
+script = ExtResource("1_settings")
+library = ExtResource("2_chunks")
+columns = 4
+rows = 2
+entry_row = -1
+exit_row = -1
+min_spawn_distance = 15.0
+min_spawns = 4
+max_consecutive_chokepoints = 2
+require_hazard = true
+max_nodes = 20000

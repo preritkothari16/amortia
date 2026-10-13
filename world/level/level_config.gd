@@ -10,12 +10,30 @@ extends Resource
 @export_range(1, 4) var zone: int = 1
 ## Area variants; wave n is fought in areas[(n - 1) % size]. Must have Exit / BehindSpawns markers.
 @export var areas: Array[PackedScene] = []
+## Generate the areas with the CSP generator instead (GDD 4.6). Area n uses seed
+## generator_seed + n * 7919, so a level always plays the same layouts. Falls back to `areas`
+## if generation fails.
+@export var generator: LevelGenSettings
+@export var generator_seed: int = 1
 ## Waves in this level (an Apex boss level has 1).
 @export var waves: int = 3
 ## What the player has to do (null = survive the waves). See world/objectives.
 @export var objective: ObjectiveConfig
 ## Dynamic terrain for this level (fire, tide, fog, day/night...).
 @export var events: Array[TerrainEvent] = []
+
+## The scene for area `index` (0-based): generated, or areas[index % size]. null if none.
+func area_scene(index: int) -> PackedScene:
+	if generator != null:
+		var scene: PackedScene = GeneratedArea.build_scene(generator, generator_seed + index * 7919)
+		if scene != null:
+			return scene
+	return areas[index % areas.size()] if not areas.is_empty() else null
+
+
+func has_areas() -> bool:
+	return generator != null or not areas.is_empty()
+
 
 @export_group("Pacing")
 ## Seconds from entering an area until enemies arrive (barricade building time).

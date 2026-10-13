@@ -108,3 +108,62 @@ line, hearing still needs a noise event. A heard noise only sets `last_known` on
 The two-tile exception is measured from the enemy to the concealed player.
 Player noise: every 0.5 s of walking, a noise with the tile's loudness (grass 24 px, road 48,
 mud / shallow water 96); a dodge roll 64 px; shots as before (weapon radius).
+
+---
+
+## Phase 7 — CSP level generator (`ai/levelgen/`)
+
+**Problem.** Build a level from hand-made 16 × 16 room chunks so that exits line up, the player
+can walk from the entry to the exit, enemy spawns are far from the player, there is at least one
+hazard and no long runs of chokepoints — reproducibly from a seed.
+
+**Model (Unit 4 CSP).**
+- *Variables*: the chunk slots of a `cols × rows` grid (default 4 × 2 → 64 × 32 tiles).
+- *Domains*: every chunk in the library, after unary pruning: a slot on the map edge may not
+  have an exit pointing outside, except the entry slot (must open West) and the exit slot (must
+  open East).
+- *Binary constraints*: neighbours agree on their shared edge —
+  `left.E == right.W`, `top.S == bottom.N` (an exit is a 2-tile opening in the middle of an edge,
+  so "both open" or "both closed" is exactly "the boundary is valid").
+- *Run constraint*: in any row or column, no 3 consecutive chokepoint chunks.
+- *Global constraints* (checked when everything is assigned):
+  hazard ≥ 1, BFS entry → exit over player-walkable tiles, ≥ `min_spawns` enemy spawn
+  cells reachable by enemies and ≥ 15 tiles from the player spawn.
+
+**Search: backtracking + MRV + forward checking.**
+```
+solve(seed):
+    rng = seeded RNG
+    domains[slot] = chunks passing the unary edge rules        # node consistency
+    if some domain is empty: fail "no chunk fits slot ..."
+    return backtrack({})
+
+backtrack(assignment):
+    if nodes > max_nodes: fail "search budget exhausted"
+    if every slot assigned:
+        return assignment if global_constraints_ok(assignment) else FAIL
+    slot = unassigned slot with the FEWEST values left (MRV; ties -> lowest index)
+    for chunk in shuffled(domains[slot], rng):                 # seed decides the layout
+        nodes += 1
+        if not run_constraint_ok(slot, chunk): continue
+        saved = copy of the neighbours' domains
+        assignment[slot] = chunk
+        # forward checking: drop neighbour values that can't sit next to `chunk`
+        prune neighbours of slot to chunks with a matching shared edge
+        if no neighbour domain is empty:
+            result = backtrack(assignment)
+            if result: return result
+        undo: assignment.erase(slot), restore saved domains      # backtrack
+    return FAIL
+```
+MRV picks the most constrained slot first, so dead ends show up early; forward checking turns
+an impossible neighbour into an immediate backtrack instead of a deep failed search. The global
+BFS checks only run on complete layouts, which are few because the local constraints already
+guarantee matching exits.
+
+**Reachability for different movers.** The player uses `TerrainDefinition.player_passable`
+(fences, water, walls block). Enemy spawns only need to reach the player for *enemies*: base
+enemy cost < INF (they climb fences). Both BFS's are 4-way.
+
+**Determinism.** All randomness is the shuffle of domain order from one seeded RNG; the slot order
+(MRV with index tie-break) is deterministic, so a seed always gives the same layout.

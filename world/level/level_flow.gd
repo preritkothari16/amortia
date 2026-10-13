@@ -160,7 +160,7 @@ func _on_report_continue() -> void:
 	if phase != Phase.EXITED:
 		return
 	area_index += 1
-	main.load_area(config.areas[area_index % config.areas.size()])
+	main.load_area(config.area_scene(area_index))
 	if objective != null:
 		objective.area_loaded(main.current_map())
 	wave_manager.use_behind_spawns = true
@@ -169,7 +169,7 @@ func _on_report_continue() -> void:
 
 ## Retry: the same area again, fresh (no barricades, no burnt grass), same wave.
 func _on_wave_restarting(_wave: int) -> void:
-	main.load_area(config.areas[area_index % config.areas.size()])
+	main.load_area(config.area_scene(area_index))
 	if objective != null:
 		objective.retry()
 		objective.area_loaded(main.current_map())

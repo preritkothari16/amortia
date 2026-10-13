@@ -65,8 +65,8 @@ func _ready() -> void:
 	if level_config == null and GameState.pending_level != null:
 		level_config = GameState.pending_level
 		GameState.pending_level = null
-	if level_config != null and not level_config.areas.is_empty():
-		_swap_map_node(level_config.areas[0])
+	if level_config != null and level_config.has_areas():
+		_swap_map_node(level_config.area_scene(0))
 	var coords: GridCoords = GridCoords.new(_map.terrain_layer.tile_set.tile_size.x, _map.get_world_rect().position)
 	terrain_grid = TerrainGrid.from_rows(_map.get_terrain_rows(), terrain_costs, coords)
 	_cost_overlay.grid = terrain_grid
