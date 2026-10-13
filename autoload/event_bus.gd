@@ -7,3 +7,7 @@ signal noise_emitted(pos: Vector2, radius: float)
 ## An enemy was killed (not despawned). Listeners read what they need from it (e.g. its genome
 ## for XP). It is still valid during this signal; it frees at the end of the frame.
 signal enemy_killed(enemy: Node2D)
+
+## A player bullet hit a solid tile at `pos` (just inside the tile). Destructible tiles
+## (fences, barricades, doors) lose `damage` HP.
+signal terrain_hit(pos: Vector2, damage: float)

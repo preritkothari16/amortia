@@ -19,3 +19,5 @@ var fitness: Fitness
 ## no night, no concealment.
 var perception: PerceptionSettings
 var conditions: WorldConditions
+## Destructible tiles: enemies break barricades and open doors through it (null = they can't).
+var terrain_health: TerrainHealth

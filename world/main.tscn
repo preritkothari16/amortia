@@ -1,4 +1,4 @@
-[gd_scene load_steps=24 format=3]
+[gd_scene load_steps=28 format=3]
 
 [ext_resource type="Script" path="res://world/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://world/zones/maple_hollow/maple_hollow.tscn" id="2_map"]
@@ -23,6 +23,12 @@
 [ext_resource type="Script" path="res://ui/menus/pause_menu.gd" id="21_pause"]
 [ext_resource type="Script" path="res://ui/menus/game_over_screen.gd" id="22_game_over"]
 [ext_resource type="Resource" path="res://data/perception.tres" id="23_perception"]
+[ext_resource type="Script" path="res://world/terrain/terrain_view.gd" id="24_terrain_view"]
+[ext_resource type="Script" path="res://world/terrain/terrain_events.gd" id="25_terrain_events"]
+[ext_resource type="Script" path="res://world/events/fire_spread.gd" id="26_fire"]
+
+[sub_resource type="Resource" id="Resource_fire"]
+script = ExtResource("26_fire")
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -40,6 +46,13 @@ enemy_scene = ExtResource("8_runner")
 ga_settings = ExtResource("15_ga")
 
 [node name="Player" parent="." instance=ExtResource("3_player")]
+
+[node name="TerrainView" type="Node2D" parent="."]
+script = ExtResource("24_terrain_view")
+
+[node name="TerrainEvents" type="Node" parent="."]
+script = ExtResource("25_terrain_events")
+events = Array[Object]([SubResource("Resource_fire")])
 
 [node name="TerrainCostOverlay" type="Node2D" parent="."]
 script = ExtResource("5_overlay")

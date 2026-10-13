@@ -35,6 +35,8 @@ var aim_direction: Vector2 = Vector2.RIGHT
 ## The level's terrain (set by the level). Walking speed x the tile's player speed multiplier
 ## (mud 0.6, tall grass 0.8). null = full speed everywhere.
 var terrain_grid: TerrainGrid
+## Doors (F) and barricades: set by the level. null = no interaction.
+var terrain_health: TerrainHealth
 ## Seconds since the last shot (stealth: shooting gives you away for a moment).
 var seconds_since_shot: float = INF
 ## Seconds until the next footstep noise.
@@ -83,6 +85,33 @@ func _physics_process(delta: float) -> void:
 	_footsteps(delta)
 	_aim()
 	_shoot(delta)
+	if Input.is_action_just_pressed("interact"):
+		interact()
+
+
+## F: opens or closes the nearest door within one tile (ranged-only rule untouched: doors are
+## not attacks). Returns true if something happened.
+func interact() -> bool:
+	if terrain_health == null or terrain_grid == null:
+		return false
+	var here: Vector2i = terrain_grid.coords.world_to_cell(global_position)
+	var best: Vector2i = Vector2i(-1, -1)
+	var best_dist: float = INF
+	for dy: int in range(-1, 2):
+		for dx: int in range(-1, 2):
+			var c: Vector2i = here + Vector2i(dx, dy)
+			var t: String = terrain_grid.get_terrain(c)
+			if t != "door" and t != "door_open":
+				continue
+			var d: float = (terrain_grid.coords.cell_to_world(c) - (global_position + aim_direction * 8.0)).length()
+			if d < best_dist:
+				best_dist = d
+				best = c
+	if best_dist == INF:
+		return false
+	if terrain_grid.get_terrain(best) == "door":
+		return terrain_health.open_door(best)
+	return terrain_health.close_door(best)
 
 
 ## True while the player is hidden from enemies beyond their sense radius (GDD 4.3: walking,

@@ -29,6 +29,10 @@ var attack_ring: AttackRing
 var path_queue: PathQueue
 ## Level-wide sense conditions (night...), shared with every enemy.
 var conditions: WorldConditions = WorldConditions.new()
+## HP / state of destructible tiles (fences, barricades, doors).
+var terrain_health: TerrainHealth
+## True when terrain costs changed this frame: flow fields and cached paths are rebuilt once.
+var _nav_dirty: bool = false
 ## How long the last flow field rebuild took, in milliseconds.
 var last_flow_build_msec: float = 0.0
 
@@ -47,6 +51,8 @@ var last_flow_build_msec: float = 0.0
 @onready var _skill_menu: SkillTreeMenu = $HUD/SkillTreeMenu
 @onready var _pause_menu: PauseMenu = $HUD/PauseMenu
 @onready var _game_over: GameOverScreen = $HUD/GameOverScreen
+@onready var _terrain_view: TerrainView = $TerrainView
+@onready var _terrain_events: TerrainEvents = $TerrainEvents
 
 
 func _ready() -> void:
@@ -54,6 +60,11 @@ func _ready() -> void:
 	terrain_grid = TerrainGrid.from_rows(_map.get_terrain_rows(), terrain_costs, coords)
 	_cost_overlay.grid = terrain_grid
 	_player.terrain_grid = terrain_grid
+	terrain_health = TerrainHealth.new(terrain_grid)
+	_player.terrain_health = terrain_health
+	terrain_grid.terrain_changed.connect(_on_terrain_changed)
+	EventBus.terrain_hit.connect(func(pos: Vector2, damage: float) -> void:
+		terrain_health.damage(terrain_grid.coords.world_to_cell(pos), damage))
 	flow_fields = FlowFieldSet.new(terrain_grid)
 	flow_field = flow_fields.base_field
 	_cost_overlay.flow_fields = flow_fields
@@ -99,6 +110,7 @@ func _ready() -> void:
 	context.fitness = Fitness.new(fitness_settings)
 	context.perception = perception_settings
 	context.conditions = conditions
+	context.terrain_health = terrain_health
 	_load_pending_save()
 	_wave_manager.generation_bred.connect(func(_summary: Dictionary) -> void: save_game())
 	# A lost wave is saved too (XP from the attempt kept, the save replays that wave).
@@ -110,6 +122,14 @@ func _ready() -> void:
 	_player.died.connect(_on_player_died, CONNECT_DEFERRED)
 	_wave_manager.wave_restarting.connect(func(_wave: int) -> void: _put_player_on_spawn())
 	_wave_manager.wave_started.connect(func(_wave: int) -> void: _player.revive())
+	_terrain_view.grid = terrain_grid
+	_terrain_view.layer = _map.terrain_layer
+	_terrain_view.rules = terrain_costs
+	_terrain_view.events = _terrain_events
+	_terrain_view.health = terrain_health
+	_terrain_events.setup(terrain_grid, terrain_costs, _player, _wave_manager, conditions,
+			_wave_manager.spawn_seed if _wave_manager.spawn_seed != 0 else randi())
+	terrain_health.is_occupied = _terrain_events.is_occupied
 	_wave_manager.setup(_map.get_enemy_spawns(), context)
 
 
@@ -170,7 +190,20 @@ func _load_pending_save() -> void:
 	_wave_manager.load_state(result["data"]["evolution"])
 
 
+## Terrain changed at runtime (fire, broken fence, collapse...): rebuild navigation once.
+func _on_terrain_changed(cells: Array[Vector2i], affects_cost: bool) -> void:
+	if cells.is_empty():
+		flow_fields.refresh_terrain()
+	if affects_cost:
+		_nav_dirty = true
+
+
 func _physics_process(delta: float) -> void:
+	if _nav_dirty:
+		_nav_dirty = false
+		path_queue.clear_cache()
+		flow_fields.invalidate_all()  # base field now, the other buckets over the next frames
+		_flow_overlay.refresh()
 	_update_flow_field()
 	# Runs before the enemies (parents process first), so they read this frame's roles.
 	attack_ring.update(_player.global_position, delta)

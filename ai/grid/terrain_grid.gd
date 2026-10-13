@@ -46,6 +46,8 @@ var _terrain_ids: PackedInt32Array = PackedInt32Array()
 var _blocks_vision_by_id: PackedByteArray = PackedByteArray()
 ## Bumped by every runtime change; navigation compares it to know when it is out of date.
 var version: int = 0
+## Bumped only when a movement cost changed (fog moving doesn't count): cached paths compare it.
+var cost_version: int = 0
 ## Overlay terrain id per cell; -1 = none.
 var _overlay_ids: PackedInt32Array = PackedInt32Array()
 ## Terrain id -> vision multiplier (1 = clear; fog 0.5) and TerrainDefinition.Vision value.
@@ -102,6 +104,7 @@ func load_rows(rows: Array[PackedStringArray]) -> void:
 			set_terrain(Vector2i(x, y), rows[y][x])
 	_loading = false
 	version += 1
+	cost_version += 1
 	terrain_changed.emit([] as Array[Vector2i], true)
 
 
@@ -158,7 +161,10 @@ func get_overlay(cell: Vector2i) -> String:
 
 func _notify(cell: Vector2i, cost_before: float) -> void:
 	version += 1
-	terrain_changed.emit([cell] as Array[Vector2i], get_cost(cell) != cost_before)
+	var affects_cost: bool = get_cost(cell) != cost_before
+	if affects_cost:
+		cost_version += 1
+	terrain_changed.emit([cell] as Array[Vector2i], affects_cost)
 
 
 ## Cost of stepping into this cell. INF = cannot enter (wall, house, outside the map).

@@ -7,10 +7,10 @@ const T: GDScript = preload("res://ai/grid/terrain_definition.gd")
 const RULES_PATH: String = "res://data/terrain_costs.tres"
 const TILESET_PATH: String = "res://world/tilesets/greybox_tileset.tres"
 const WATER_LAYER_BIT: int = 1 << 6
-## Traversals the Enemy node can actually perform today. SWIM / CRAWL reuse the climb code
-## (collision off) but only become reachable once terrain genes feed profiles (Phase 2);
-## BREAK / OPEN need destructible terrain (Phase 4).
-const IMPLEMENTED_TRAVERSALS: Array[int] = [T.Traversal.WALK, T.Traversal.CLIMB, T.Traversal.NONE]
+## Traversals the Enemy node can perform: WALK, CLIMB / SWIM / CRAWL (collision off, tile to
+## tile), BREAK (hit a barricade until it breaks), OPEN (open a door), NONE.
+const IMPLEMENTED_TRAVERSALS: Array[int] = [T.Traversal.WALK, T.Traversal.CLIMB, T.Traversal.SWIM,
+	T.Traversal.CRAWL, T.Traversal.BREAK, T.Traversal.OPEN, T.Traversal.NONE]
 
 var _rules: TerrainCosts
 
@@ -33,7 +33,8 @@ func test_every_required_terrain_is_defined_once() -> void:
 		assert_false(ids.has(d.id), "duplicate " + d.id)
 		ids.append(d.id)
 	for id: String in ["road", "grass", "mud", "shallow_water", "deep_water", "tall_grass", "fence",
-			"tree", "wall", "house", "barricade", "door", "vent", "bridge", "fog", "toxic_pool", "fire"]:
+			"tree", "wall", "house", "barricade", "door", "vent", "bridge", "fog", "toxic_pool", "fire",
+			"ash", "door_open", "living_wall"]:
 		assert_true(ids.has(id), id)
 
 
@@ -106,12 +107,12 @@ func test_vision_noise_and_state_columns() -> void:
 func test_compiled_view_comes_from_the_definitions() -> void:
 	var blocks: PackedStringArray = _rules.blocks_vision.duplicate()
 	blocks.sort()
-	assert_eq(blocks, PackedStringArray(["barricade", "door", "house", "tree", "vent", "wall"]))
+	assert_eq(blocks, PackedStringArray(["barricade", "door", "house", "living_wall", "tree", "vent", "wall"]))
 	assert_false(_rules.blocks_vision.has("fence"), "fences don't block vision")
 	assert_false(_rules.blocks_vision.has("tall_grass"), "tall grass conceals, it doesn't block lines")
 	var impassable: PackedStringArray = _rules.impassable.duplicate()
 	impassable.sort()
-	assert_eq(impassable, PackedStringArray(["deep_water", "house", "tree", "vent", "wall"]))
+	assert_eq(impassable, PackedStringArray(["deep_water", "house", "living_wall", "tree", "vent", "wall"]))
 	assert_eq(_rules.adaptations["swimmer"], {"shallow_water": 1.0, "deep_water": 2.0})
 	assert_eq(_rules.get_terrain_names().size(), _rules.definitions.size())
 

@@ -68,6 +68,11 @@ enum Pattern { FLAT, SPECKLE, BLADES, PICKETS, BRICK, OUTLINE, WAVES, RIPPLES, P
 @export var collision: Collision = Collision.NONE
 ## Hit points if destructible (fence 40, barricade 50, door 60); 0 = indestructible.
 @export var max_health: float = 0.0
+## What the tile becomes when destroyed (fence -> grass, door -> door_open). "" = whatever was
+## under it (player-built barricades remember the tile they were placed on).
+@export var destroyed_into: String = ""
+## What the tile becomes after burning (grass / tall grass -> ash, GDD 4.4).
+@export var burns_into: String = ""
 ## Fire can spread into it (tall grass / bushes).
 @export var burnable: bool = false
 ## Collapses after crossings / explosions (bridge). Event logic is Phase 4.

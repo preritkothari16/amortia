@@ -69,6 +69,10 @@ var _body_radius: float = 5.0
 var _path: Array[Vector2i] = []
 var _path_index: int = 0
 var _path_version: int = -1
+## TerrainGrid.cost_version the path was planned with: terrain changed -> plan again.
+var _path_cost_version: int = -1
+## Cooldown between blows at a barricade / tries at a door.
+var _obstacle_cooldown: float = 0.0
 var _waiting_for_path: bool = false
 ## Remaining tile centres of the current fence climb (last entry = first tile past the fence).
 var _climb_cells: Array[Vector2i] = []
@@ -187,6 +191,7 @@ func _physics_process(delta: float) -> void:
 	if _ctx == null or not _flow_field.is_built():
 		return
 	_record_fitness(delta)
+	_obstacle_cooldown = maxf(_obstacle_cooldown - delta, 0.0)
 	var cell: Vector2i = _grid.coords.world_to_cell(global_position)
 	_update_awareness(delta)
 	_update_decision(delta)
@@ -331,6 +336,8 @@ func _flank_seek(cell: Vector2i, cost: float, role: AttackRing.Role) -> Vector2:
 	# Way to the flank point blocked: the flow field gets us round the obstacle towards the
 	# player (fair, the player is in view), and the straight line opens up on the way.
 	var next: Vector2i = _nav_field.get_next_cell(cell)
+	if _handle_obstacle(next):
+		return Vector2.ZERO
 	if _is_climbable(next):
 		_start_climb(_flow_climb_cells(next))
 		return Vector2.ZERO
@@ -355,6 +362,8 @@ func _chase_seek(cell: Vector2i, cost: float, role: AttackRing.Role) -> Vector2:
 	# Can see the player but can't run straight at them (a fence or corner in the way):
 	# the flow field knows the way, and using it is fair because the player is in view.
 	var next: Vector2i = _nav_field.get_next_cell(cell)
+	if _handle_obstacle(next):
+		return Vector2.ZERO
 	if _is_climbable(next):
 		_start_climb(_flow_climb_cells(next))
 		return Vector2.ZERO
@@ -426,9 +435,12 @@ func _investigate_seek(cell: Vector2i) -> Vector2:
 		return ContextSteering.arrive(goal - global_position, stats.move_speed, stats.arrive_radius)
 
 	var id: int = get_instance_id()
+	if _path_cost_version != _grid.cost_version and not _waiting_for_path:
+		_path_version = -1  # terrain changed since planning (fire, collapse, wall...): plan again
 	if _path_version != awareness.target_version:
 		# New target (or no plan yet): ask the shared queue for an A* path.
 		_path_version = awareness.target_version
+		_path_cost_version = _grid.cost_version
 		_path.clear()
 		_ctx.path_queue.request(id, cell, _grid.coords.world_to_cell(goal), nav_profile)
 		_waiting_for_path = true
@@ -453,6 +465,8 @@ func _investigate_seek(cell: Vector2i) -> Vector2:
 	var waypoint: Vector2 = _grid.coords.cell_to_world(_path[_path_index])
 	if global_position.distance_to(waypoint) > stats.off_path_distance:
 		_path_version = -1  # pushed off the path by the crowd: re-plan from here next frame
+	if _handle_obstacle(_path[_path_index]):
+		return Vector2.ZERO
 	if _is_climbable(_path[_path_index]):
 		_start_climb(_path_climb_cells())
 		return Vector2.ZERO
@@ -520,6 +534,29 @@ func _climb_step(cell: Vector2i, delta: float) -> void:
 	global_position = global_position.move_toward(goal, speed * delta)
 	if global_position.distance_to(goal) < 0.5:
 		_climb_cells.pop_front()
+
+
+## Barricades (BREAK) and closed doors (OPEN) on the route: walk up to the tile, then hit it
+## (attack_damage every attack_cooldown) or open it. Returns true while busy with it, so the
+## caller stands still. The route goes through such tiles because their cost includes this.
+func _handle_obstacle(next: Vector2i) -> bool:
+	var traversal: TerrainDefinition.Traversal = _grid.enemy_traversal(next)
+	if traversal != TerrainDefinition.Traversal.BREAK and traversal != TerrainDefinition.Traversal.OPEN:
+		return false
+	if _ctx == null or _ctx.terrain_health == null:
+		return false
+	var at: Vector2 = _grid.coords.cell_to_world(next)
+	if global_position.distance_to(at) > _grid.coords.tile_size + _body_radius + 2.0:
+		return false  # not there yet: keep following the route into it
+	nav_mode = &"break"
+	current_target = at
+	if _obstacle_cooldown <= 0.0:
+		_obstacle_cooldown = stats.attack_cooldown
+		if traversal == TerrainDefinition.Traversal.OPEN:
+			_ctx.terrain_health.open_door(next)
+		else:
+			_ctx.terrain_health.damage(next, stats.attack_damage)
+	return true
 
 
 ## True for tiles that are solid for physics but crossed with collision off (fence climbing;

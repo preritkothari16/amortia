@@ -31,7 +31,10 @@ func _on_body_entered(body: Node2D) -> void:
 	if _spent:
 		return
 	_spent = true
-	# Enemies will implement take_damage; walls just stop the bullet.
+	# Enemies (and anything else with take_damage) get hurt; tiles report the hit so
+	# destructible ones (fences, barricades, doors) can break.
 	if body.has_method("take_damage"):
 		body.take_damage(_damage)
+	elif body is TileMapLayer:
+		EventBus.terrain_hit.emit(global_position + _velocity.normalized() * 4.0, _damage)
 	queue_free()
