@@ -31,6 +31,10 @@ var _id_by_name: Dictionary[String, int] = {}
 var _terrain_ids: PackedInt32Array = PackedInt32Array()
 ## Terrain id -> 1 if it blocks line of sight.
 var _blocks_vision_by_id: PackedByteArray = PackedByteArray()
+## Terrain id -> player speed multiplier / enemy traversal (from the TerrainDefinitions;
+## 1.0 / WALK for rules without definitions).
+var _player_speed_by_id: PackedFloat32Array = PackedFloat32Array()
+var _traversal_by_id: PackedInt32Array = PackedInt32Array()
 
 
 ## Builds a grid from terrain names row by row (rows[y][x]), e.g. ZoneMap.get_terrain_rows().
@@ -43,8 +47,13 @@ static func from_rows(rows: Array[PackedStringArray], rules: TerrainCosts, grid_
 		grid._id_by_name[grid._names[id]] = id
 	grid.base_profile = TerrainCostProfile.create(rules)
 	grid._blocks_vision_by_id.resize(grid._names.size())
+	grid._player_speed_by_id.resize(grid._names.size())
+	grid._traversal_by_id.resize(grid._names.size())
 	for id: int in grid._names.size():
 		grid._blocks_vision_by_id[id] = 1 if rules.blocks_vision.has(grid._names[id]) else 0
+		var definition: TerrainDefinition = rules.get_definition(grid._names[id])
+		grid._player_speed_by_id[id] = definition.player_speed_multiplier if definition != null else 1.0
+		grid._traversal_by_id[id] = definition.enemy_traversal if definition != null else TerrainDefinition.Traversal.WALK
 
 	grid.height = rows.size()
 	grid.width = rows[0].size() if grid.height > 0 else 0
@@ -127,6 +136,30 @@ func build_cost_array(profile: TerrainCostProfile = null) -> PackedFloat32Array:
 	for i: int in _terrain_ids.size():
 		costs[i] = p.cost_of_id(_terrain_ids[i])
 	return costs
+
+
+## The cell's full terrain definition (null outside the map, unknown terrain, or rules
+## without definitions). For per-frame lookups prefer the dedicated getters below.
+func get_definition(cell: Vector2i) -> TerrainDefinition:
+	return _rules.get_definition(get_terrain(cell))
+
+
+## Player walking speed factor on this cell (mud 0.6, tall grass 0.8). 1.0 off the map or on
+## unknown terrain: collision, not this, keeps the player out of solid tiles.
+func player_speed_multiplier(cell: Vector2i) -> float:
+	if not in_bounds(cell):
+		return 1.0
+	var id: int = _terrain_ids[_index(cell)]
+	return _player_speed_by_id[id] if id >= 0 else 1.0
+
+
+## How an enemy physically gets through this cell when its profile lets it path in
+## (WALK, CLIMB a fence, ...). NONE off the map or on unknown terrain.
+func enemy_traversal(cell: Vector2i) -> TerrainDefinition.Traversal:
+	if not in_bounds(cell):
+		return TerrainDefinition.Traversal.NONE
+	var id: int = _terrain_ids[_index(cell)]
+	return _traversal_by_id[id] if id >= 0 else TerrainDefinition.Traversal.NONE
 
 
 ## True if this cell blocks line of sight (vision-blocking terrain, unknown terrain, off the map).

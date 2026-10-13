@@ -118,6 +118,7 @@ skill_tree={
 2d_physics/layer_4="player_bullets"
 2d_physics/layer_5="enemy_attacks"
 2d_physics/layer_6="barricades"
+2d_physics/layer_7="water"
 
 [rendering]
 

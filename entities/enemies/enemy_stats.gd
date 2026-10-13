@@ -76,10 +76,5 @@ extends Resource
 ## Desired speeds below this (px/s) count as "stand still" - stops shivering in crowds.
 @export var dead_zone_speed: float = 6.0
 
-@export_group("Terrain")
-## Terrain the enemy crosses by climbing: walkable in the flow field but solid for physics.
-## While climbing, speed = move_speed / tile cost (fence cost 6 -> 6x slower).
-@export var climbable_terrains: PackedStringArray = PackedStringArray(["fence"])
-
 @export_group("Greybox")
 @export var color: Color = Color(0.9, 0.15, 0.2)

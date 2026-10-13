@@ -374,7 +374,7 @@ func spawn_enemy(near: Vector2, genome: Genome = null, record: FitnessRecord = n
 	return enemy
 
 
-## A random tile near `near` that the enemy can stand on (walkable and not a fence),
+## A random tile near `near` that the enemy can stand on (walkable ground, not a fence),
 ## jittered inside the tile so enemies don't spawn exactly on top of each other.
 func _pick_spawn_position(near: Vector2, stats: EnemyStats) -> Vector2:
 	var grid: TerrainGrid = _context.flow_field.grid
@@ -383,7 +383,7 @@ func _pick_spawn_position(near: Vector2, stats: EnemyStats) -> Vector2:
 		var cell: Vector2i = centre + Vector2i(
 			_rng.randi_range(-spawn_scatter_tiles, spawn_scatter_tiles),
 			_rng.randi_range(-spawn_scatter_tiles, spawn_scatter_tiles))
-		if grid.is_walkable(cell) and not stats.climbable_terrains.has(grid.get_terrain(cell)):
+		if grid.is_walkable(cell) and grid.enemy_traversal(cell) == TerrainDefinition.Traversal.WALK:
 			var jitter: Vector2 = Vector2(_rng.randf_range(-3, 3), _rng.randf_range(-3, 3))
 			return grid.coords.cell_to_world(cell) + jitter
 	return near

@@ -49,7 +49,8 @@ res://
 - Files and folders: `snake_case`. Classes: `class_name PascalCase`. Constants: `UPPER_SNAKE`.
 - Signals go through `EventBus` when more than one system cares (e.g. `noise_emitted(pos: Vector2, radius: float)`).
 - Viewport 480 × 270, scaled to 1080p; tiles are 16 px; texture filter Nearest.
-- Physics layers: 1 world, 2 player, 3 enemies, 4 player_bullets, 5 enemy_attacks, 6 barricades.
+- Physics layers: 1 world, 2 player, 3 enemies, 4 player_bullets, 5 enemy_attacks, 6 barricades, 7 water (blocks walking, not bullets).
+- Terrain rules live in ONE place: the TerrainDefinitions in `data/terrain_costs.tres` (player, enemies, vision, tileset all read them).
 - Every new file in `ai/` gets a matching GUT test in `tests/`.
 
 ## Useful commands

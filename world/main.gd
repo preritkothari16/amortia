@@ -46,6 +46,7 @@ func _ready() -> void:
 	var coords: GridCoords = GridCoords.new(_map.terrain_layer.tile_set.tile_size.x, _map.get_world_rect().position)
 	terrain_grid = TerrainGrid.from_rows(_map.get_terrain_rows(), terrain_costs, coords)
 	_cost_overlay.grid = terrain_grid
+	_player.terrain_grid = terrain_grid
 	flow_field = FlowField.new(terrain_grid)
 	_flow_overlay.field = flow_field
 	attack_ring = AttackRing.new(flow_field, attack_ring_settings)

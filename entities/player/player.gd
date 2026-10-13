@@ -30,6 +30,9 @@ var _base_stats: PlayerStats
 var _base_weapon: WeaponStats
 ## Unit vector from the player towards the mouse.
 var aim_direction: Vector2 = Vector2.RIGHT
+## The level's terrain (set by the level). Walking speed x the tile's player speed multiplier
+## (mud 0.6, tall grass 0.8). null = full speed everywhere.
+var terrain_grid: TerrainGrid
 ## True while the dodge's invulnerability window is open. Damage code will check this.
 var is_invulnerable: bool:
 	get:
@@ -84,10 +87,17 @@ func _move(delta: float) -> void:
 		# During the roll, input is ignored and speed is fixed.
 		velocity = _dodge_direction * stats.dodge_speed
 	elif input_dir != Vector2.ZERO:
-		velocity = velocity.move_toward(input_dir * stats.move_speed, stats.acceleration * delta)
+		velocity = velocity.move_toward(input_dir * walk_speed(), stats.acceleration * delta)
 	else:
 		velocity = velocity.move_toward(Vector2.ZERO, stats.friction * delta)
 	move_and_slide()
+
+
+## Top walking speed on the current tile (the dodge roll is not slowed by terrain).
+func walk_speed() -> float:
+	if terrain_grid == null:
+		return stats.move_speed
+	return stats.move_speed * terrain_grid.player_speed_multiplier(terrain_grid.coords.world_to_cell(global_position))
 
 
 func _try_dodge(input_dir: Vector2) -> void:
@@ -107,7 +117,7 @@ func _tick_dodge_timers(delta: float) -> void:
 		_dodge_left = maxf(_dodge_left - delta, 0.0)
 		if _dodge_left == 0.0:
 			# Leave the roll at walking speed so the player doesn't overshoot.
-			velocity = velocity.limit_length(stats.move_speed)
+			velocity = velocity.limit_length(walk_speed())
 	if _invuln_left > 0.0:
 		_invuln_left = maxf(_invuln_left - delta, 0.0)
 		if _invuln_left == 0.0:

@@ -36,5 +36,4 @@ feeler_angle_degrees = 35.0
 close_in_cost = 1.5
 arrive_radius = 24.0
 dead_zone_speed = 6.0
-climbable_terrains = PackedStringArray("fence")
 color = Color(0.9, 0.15, 0.2, 1)

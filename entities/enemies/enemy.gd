@@ -45,6 +45,9 @@ var _allies: Array[Enemy] = []
 ## Collision mask while walking (world + other enemies), and the world-only part of it.
 var _normal_mask: int = 0
 var _world_mask: int = 0
+## Physics layers 1 "world" (solid tiles) and 7 "water" (deep water: blocks walking only).
+const WORLD_LAYER_BIT: int = 1
+const WATER_LAYER_BIT: int = 1 << 6
 var _dead: bool = false
 var _weights: ContextSteering.Weights = ContextSteering.Weights.new()
 ## Allies within the separation radius this frame (reused arrays, no per-frame allocation).
@@ -78,7 +81,8 @@ func _ready() -> void:
 	health = stats.max_health
 	_body.color = stats.color
 	_normal_mask = collision_mask
-	_world_mask = collision_mask & 1  # feelers and climbing only care about the world layer
+	# Feelers and clear-path rays care about everything that blocks walking: world + water.
+	_world_mask = collision_mask & (WORLD_LAYER_BIT | WATER_LAYER_BIT)
 	_weights.seek = stats.seek_weight
 	_weights.separation = stats.separation_weight
 	_weights.wall_avoidance = stats.wall_avoidance_weight
@@ -489,8 +493,10 @@ func _climb_step(cell: Vector2i, delta: float) -> void:
 		_climb_cells.pop_front()
 
 
+## True for tiles that are solid for physics but crossed with collision off (fence climbing;
+## later swimming / crawling). Comes from the shared terrain rulebook (TerrainDefinition).
 func _is_climbable(cell: Vector2i) -> bool:
-	return stats.climbable_terrains.has(_grid.get_terrain(cell))
+	return TerrainDefinition.crosses_solid(_grid.enemy_traversal(cell))
 
 
 # --- World queries (physics) ---------------------------------------------------------
