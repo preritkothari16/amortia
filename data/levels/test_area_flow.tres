@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="LevelConfig" format=3]
+
+[ext_resource type="Script" path="res://world/level/level_config.gd" id="1_level"]
+[ext_resource type="PackedScene" path="res://world/zones/maple_hollow/areas/area_1.tscn" id="2_a1"]
+[ext_resource type="PackedScene" path="res://world/zones/maple_hollow/areas/area_2.tscn" id="3_a2"]
+[ext_resource type="PackedScene" path="res://world/zones/maple_hollow/areas/area_3.tscn" id="4_a3"]
+
+[resource]
+script = ExtResource("1_level")
+id = "test_area_flow"
+title = "Area flow test (3 areas, 3 waves, survive)"
+zone = 1
+areas = Array[PackedScene]([ExtResource("2_a1"), ExtResource("3_a2"), ExtResource("4_a3")])
+waves = 3

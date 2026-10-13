@@ -19,8 +19,10 @@ signal wave_failed(summary: Dictionary)
 ## The current wave is about to be replayed with the same genomes (Retry or F9). The
 ## enemies spawn right after this, so listeners can move the player first.
 signal wave_restarting(wave: int)
-## A wave just spawned.
+## A wave just spawned (its enemies may still be on their way: see spawn_delay_seconds).
 signal wave_started(wave: int)
+## The wave's enemies actually appeared (right after wave_started when there is no delay).
+signal enemies_arrived(wave: int)
 
 @export var enemy_scene: PackedScene
 ## Enemies per wave. With evolution on, this follows ga_settings.population_size.
@@ -57,6 +59,15 @@ signal wave_started(wave: int)
 ## Remove survivors of an ended wave when the next one spawns (they were already scored).
 @export var despawn_leftovers: bool = true
 
+@export_group("Area progression")
+## Seconds between a wave starting and its enemies appearing (campaign: barricade time).
+## 0 = at once (prototype). wave_seconds only counts once they are there.
+@export var spawn_delay_seconds: float = 0.0
+## Share of the wave that spawns at the behind points when use_behind_spawns is on.
+@export_range(0.0, 1.0) var behind_fraction: float = 0.0
+## Set by the level for waves 2+ of a level: part of the wave comes from behind the player.
+var use_behind_spawns: bool = false
+
 ## Waves spawned so far in this zone (the first wave is 1). Sets the stat budget.
 var wave_number: int = 0
 
@@ -90,6 +101,9 @@ var _ga: GeneticAlgorithm
 
 var _context: EnemyContext
 var _spawn_points: Array[Vector2] = []
+var _behind_points: Array[Vector2] = []
+## Seconds until the current wave's enemies appear (< 0 = already there / nothing pending).
+var _arrival_left: float = -1.0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 ## Validated save "evolution" section to resume from in setup() (empty = new game).
 var _restore: Dictionary = {}
@@ -122,7 +136,11 @@ func setup(spawn_points: Array[Vector2], context: EnemyContext) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if _wave_open:
+	if _arrival_left >= 0.0:
+		_arrival_left -= delta
+		if _arrival_left < 0.0:
+			_spawn_entries()
+	elif _wave_open:
 		wave_seconds += delta
 	if intermission_left >= 0.0:
 		intermission_left -= delta
@@ -173,10 +191,59 @@ func spawn_wave(count: int = -1) -> void:
 		var record: FitnessRecord = FitnessRecord.new()
 		record.wave = wave_number
 		_wave_entries.append({"genome": genome, "record": record})
-		spawn_enemy(_spawn_points[i % _spawn_points.size()], genome, record)
 	wave_started.emit(wave_number)
+	if spawn_delay_seconds > 0.0:
+		_arrival_left = spawn_delay_seconds
+	else:
+		_spawn_entries()
 	if log_waves and not genomes.is_empty() and genomes[0] != null:
 		print(_wave_summary(genomes))
+
+
+## Puts the current wave's enemies on the map: round-robin over the spawn points, or for the
+## first behind_fraction of them the behind points when use_behind_spawns is on.
+func _spawn_entries() -> void:
+	_arrival_left = -1.0
+	var behind: int = 0
+	if use_behind_spawns and not _behind_points.is_empty():
+		behind = roundi(_wave_entries.size() * behind_fraction)
+	for i: int in _wave_entries.size():
+		var e: Dictionary = _wave_entries[i]
+		var at: Vector2 = _behind_points[i % _behind_points.size()] if i < behind \
+				else _spawn_points[i % _spawn_points.size()]
+		spawn_enemy(at, e["genome"], e["record"])
+	enemies_arrived.emit(wave_number)
+
+
+## True while a started wave's enemies haven't appeared yet.
+func is_arriving() -> bool:
+	return _arrival_left >= 0.0
+
+
+## Seconds until the current wave's enemies appear (0 if they are here).
+func arrival_seconds_left() -> float:
+	return maxf(_arrival_left, 0.0)
+
+
+## New spawn points for the next waves (a new area was loaded).
+func set_spawn_points(points: Array[Vector2], behind: Array[Vector2] = []) -> void:
+	_spawn_points = points
+	_behind_points = behind
+
+
+## A straggler (after the wave is done, the player lingering): an enemy from the current
+## population at a random spawn point, NOT scored - no FitnessRecord, never bred from - so
+## lingering can't distort evolution. Returns the enemy.
+func spawn_straggler() -> Enemy:
+	if _spawn_points.is_empty() or population.is_empty():
+		return null
+	var genome: Genome = population[_rng.randi_range(0, population.size() - 1)]
+	return spawn_enemy(_spawn_points[_rng.randi_range(0, _spawn_points.size() - 1)], genome, null)
+
+
+## Removes every living enemy without scoring (area change).
+func clear_enemies() -> void:
+	_despawn_all()
 
 
 ## Starts the next wave after a wave ended (the Wave Report's Continue button), or replays
@@ -199,6 +266,7 @@ func restart_wave() -> void:
 	intermission_left = -1.0
 	waiting_for_continue = false
 	failed = false
+	_arrival_left = -1.0
 	_despawn_all()
 	if log_waves:
 		print("[Wave %d] restarted with the same genomes" % wave_number)
@@ -417,6 +485,7 @@ func end_wave() -> void:
 	if not _wave_open:
 		return
 	_wave_open = false
+	_arrival_left = -1.0  # ended before its enemies arrived (debug keys): they never come
 	var results: Array[Dictionary] = _score_wave()
 	wave_ended.emit(results)
 	if evolve:
@@ -433,6 +502,7 @@ func fail_wave() -> void:
 	if not _wave_open:
 		return
 	_wave_open = false
+	_arrival_left = -1.0
 	failed = true
 	var results: Array[Dictionary] = _score_wave()
 	var killed: int = 0

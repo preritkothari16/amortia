@@ -58,3 +58,33 @@ func get_enemy_spawns() -> Array[Vector2]:
 	for marker: Node in $EnemySpawns.get_children():
 		spawns.append((marker as Marker2D).global_position)
 	return spawns
+
+
+# --- Area markers (wave-to-wave progression) ------------------------------------------
+
+## Where the player enters the area (left side). Same as the player spawn.
+func get_entry() -> Vector2:
+	return get_player_spawn()
+
+
+## Centre of the exit (right side), or the player spawn if the map has no exit marker.
+func get_exit() -> Vector2:
+	return ($Exit as Marker2D).global_position if has_node("Exit") else get_player_spawn()
+
+
+## Spawns behind the player's entry (left edge). Part of later waves arrives from here.
+func get_behind_spawns() -> Array[Vector2]:
+	var spawns: Array[Vector2] = []
+	if has_node("BehindSpawns"):
+		for marker: Node in $BehindSpawns.get_children():
+			spawns.append((marker as Marker2D).global_position)
+	return spawns
+
+
+## Cells of the closed exit gate ("gate" terrain), opened when the wave is done.
+func get_gate_cells() -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	for cell: Vector2i in terrain_layer.get_used_cells():
+		if get_terrain_at(cell) == "gate":
+			cells.append(cell)
+	return cells

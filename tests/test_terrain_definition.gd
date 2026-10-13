@@ -34,7 +34,7 @@ func test_every_required_terrain_is_defined_once() -> void:
 		ids.append(d.id)
 	for id: String in ["road", "grass", "mud", "shallow_water", "deep_water", "tall_grass", "fence",
 			"tree", "wall", "house", "barricade", "door", "vent", "bridge", "fog", "toxic_pool", "fire",
-			"ash", "door_open", "living_wall"]:
+			"ash", "door_open", "living_wall", "gate"]:
 		assert_true(ids.has(id), id)
 
 
@@ -107,12 +107,12 @@ func test_vision_noise_and_state_columns() -> void:
 func test_compiled_view_comes_from_the_definitions() -> void:
 	var blocks: PackedStringArray = _rules.blocks_vision.duplicate()
 	blocks.sort()
-	assert_eq(blocks, PackedStringArray(["barricade", "door", "house", "living_wall", "tree", "vent", "wall"]))
+	assert_eq(blocks, PackedStringArray(["barricade", "door", "gate", "house", "living_wall", "tree", "vent", "wall"]))
 	assert_false(_rules.blocks_vision.has("fence"), "fences don't block vision")
 	assert_false(_rules.blocks_vision.has("tall_grass"), "tall grass conceals, it doesn't block lines")
 	var impassable: PackedStringArray = _rules.impassable.duplicate()
 	impassable.sort()
-	assert_eq(impassable, PackedStringArray(["deep_water", "house", "living_wall", "tree", "vent", "wall"]))
+	assert_eq(impassable, PackedStringArray(["deep_water", "gate", "house", "living_wall", "tree", "vent", "wall"]))
 	assert_eq(_rules.adaptations["swimmer"], {"shallow_water": 1.0, "deep_water": 2.0})
 	assert_eq(_rules.get_terrain_names().size(), _rules.definitions.size())
 

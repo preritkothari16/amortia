@@ -22,6 +22,8 @@ var skills: PlayerSkills
 signal damaged(amount: float)
 ## Emitted once when HP reaches 0. The level ends the wave; revive() brings the player back.
 signal died()
+## B pressed: the player wants a barricade on `cell` (the tile it is facing). The level decides.
+signal build_requested(cell: Vector2i)
 
 ## Current hit points.
 var health: float = 0.0
@@ -87,6 +89,8 @@ func _physics_process(delta: float) -> void:
 	_shoot(delta)
 	if Input.is_action_just_pressed("interact"):
 		interact()
+	if Input.is_action_just_pressed("build") and terrain_grid != null:
+		build_requested.emit(terrain_grid.coords.world_to_cell(global_position + aim_direction * 16.0))
 
 
 ## F: opens or closes the nearest door within one tile (ranged-only rule untouched: doors are

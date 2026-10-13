@@ -36,6 +36,17 @@ var wave_manager: WaveManager:
 var player: Player
 ## Opens the skill tree (connected by the level).
 signal skills_requested
+## Continue pressed (button, Enter or Space).
+signal continue_pressed
+
+## Open as soon as a generation is bred (prototype). Off: the level opens it later with
+## open_last() (campaign: when the player walks out of the area).
+var auto_open: bool = true
+## Continue also starts the next wave on the WaveManager (prototype). Off: whoever listens
+## to continue_pressed decides (campaign: load the next area first).
+var drives_wave_manager: bool = true
+## The latest bred-generation summary (for open_last()).
+var last_summary: Dictionary = {}
 
 var _body: VBoxContainer
 var _continue_button: Button
@@ -86,12 +97,26 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _on_generation_bred(summary: Dictionary) -> void:
+	last_summary = summary
+	if not auto_open:
+		return
 	_build(summary)
 	visible = true
 	# Pause only when the game waits for Continue; with the intermission countdown the report
 	# just stays up until the next wave starts.
 	if wave_manager.pause_between_waves:
 		get_tree().paused = true
+	_continue_button.grab_focus()
+
+
+## Shows the report of the last bred generation and pauses until Continue.
+func open_last() -> void:
+	if last_summary.is_empty():
+		continue_pressed.emit()
+		return
+	_build(last_summary)
+	visible = true
+	get_tree().paused = true
 	_continue_button.grab_focus()
 
 
@@ -105,7 +130,8 @@ func _on_wave_started(_wave: int) -> void:
 func _on_continue() -> void:
 	visible = false
 	get_tree().paused = false
-	if wave_manager != null:
+	continue_pressed.emit()
+	if drives_wave_manager and wave_manager != null:
 		wave_manager.continue_to_next_wave()
 
 

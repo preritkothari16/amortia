@@ -11,3 +11,9 @@ signal enemy_killed(enemy: Node2D)
 ## A player bullet hit a solid tile at `pos` (just inside the tile). Destructible tiles
 ## (fences, barricades, doors) lose `damage` HP.
 signal terrain_hit(pos: Vector2, damage: float)
+
+## A campaign level was finished (all its waves done). The campaign moves on.
+signal level_completed(level: Resource)
+
+## The player picked something up (sample, scrap, supply) at `pos`.
+signal pickup_collected(kind: StringName, amount: int, pos: Vector2)

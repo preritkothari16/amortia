@@ -243,6 +243,19 @@ zones = PackedInt32Array(4)
 color = Color(0.62, 0.24, 0.34, 1)
 pattern = 11
 
+[sub_resource type="Resource" id="Resource_xv3rq"]
+script = ExtResource("1_smmvp")
+id = "gate"
+impassable = true
+enemy_traversal = 6
+player_passable = false
+vision = 1
+noise = 0
+collision = 1
+zones = PackedInt32Array(1, 2, 3, 4)
+color = Color(0.95, 0.8, 0.2, 1)
+pattern = 9
+
 [resource]
 script = ExtResource("2_fpjm4")
-definitions = Array[ExtResource("1_smmvp")]([SubResource("Resource_ejv2d"), SubResource("Resource_jvbg7"), SubResource("Resource_w18g0"), SubResource("Resource_dap7u"), SubResource("Resource_ervlb"), SubResource("Resource_khx18"), SubResource("Resource_4ylc8"), SubResource("Resource_6lw7s"), SubResource("Resource_clpli"), SubResource("Resource_sw7pr"), SubResource("Resource_nio05"), SubResource("Resource_t3oc7"), SubResource("Resource_re0ov"), SubResource("Resource_m7llc"), SubResource("Resource_56lpb"), SubResource("Resource_tflx1"), SubResource("Resource_r03at"), SubResource("Resource_c3a4b"), SubResource("Resource_cunag"), SubResource("Resource_jhp1m")])
+definitions = Array[ExtResource("1_smmvp")]([SubResource("Resource_ejv2d"), SubResource("Resource_jvbg7"), SubResource("Resource_w18g0"), SubResource("Resource_dap7u"), SubResource("Resource_ervlb"), SubResource("Resource_khx18"), SubResource("Resource_4ylc8"), SubResource("Resource_6lw7s"), SubResource("Resource_clpli"), SubResource("Resource_sw7pr"), SubResource("Resource_nio05"), SubResource("Resource_t3oc7"), SubResource("Resource_re0ov"), SubResource("Resource_m7llc"), SubResource("Resource_56lpb"), SubResource("Resource_tflx1"), SubResource("Resource_r03at"), SubResource("Resource_c3a4b"), SubResource("Resource_cunag"), SubResource("Resource_jhp1m"), SubResource("Resource_xv3rq")])

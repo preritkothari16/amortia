@@ -9,6 +9,10 @@ const COLOR_TRAITS: Color = Color(1.0, 0.9, 0.5)
 const COLOR_STATUS: Color = Color(0.8, 0.8, 0.8)
 
 var wave_manager: WaveManager
+## Campaign: the area sequencer supplies the status line (null in the prototype).
+var level_flow: LevelFlow
+## Optional: terrain event messages ("Night falls in 5 s").
+var terrain_events: TerrainEvents
 
 var _left: Label
 var _right: Label
@@ -44,6 +48,11 @@ func _process(_delta: float) -> void:
 func _status(wm: WaveManager) -> String:
 	if wm.failed:
 		return "You were downed - retry the wave"
+	var event_text: String = terrain_events.status_text() if terrain_events != null else ""
+	if level_flow != null:
+		return level_flow.status_text() + ("   [%s]" % event_text if event_text != "" else "")
+	if event_text != "":
+		return event_text
 	if wm.waiting_for_continue:
 		return "Wave cleared - read the report, then Continue"
 	if wm.intermission_left >= 0.0:

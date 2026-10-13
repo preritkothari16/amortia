@@ -8,6 +8,9 @@ extends Node2D
 @export var fitness_settings: FitnessSettings
 ## Sense rules for enemies (night, stealth). The player has its own reference to the same file.
 @export var perception_settings: PerceptionSettings
+## Campaign level to play (areas, waves, objective, events). null = the prototype loop on
+## Maple Hollow; GameState.pending_level fills it when a menu starts a level.
+@export var level_config: LevelConfig
 ## Save to user://save.json between waves (after each wave is bred, and when a skill is bought
 ## between waves). Off for tests that shouldn't touch the save file.
 @export var autosave: bool = true
@@ -33,10 +36,13 @@ var conditions: WorldConditions = WorldConditions.new()
 var terrain_health: TerrainHealth
 ## True when terrain costs changed this frame: flow fields and cached paths are rebuilt once.
 var _nav_dirty: bool = false
+## Campaign: the area sequencer and the level's objective (null in the prototype).
+var level_flow: LevelFlow
+var objective: Objective
 ## How long the last flow field rebuild took, in milliseconds.
 var last_flow_build_msec: float = 0.0
 
-@onready var _map: ZoneMap = $MapleHollow
+@onready var _map: ZoneMap = _find_map()
 @onready var _player: Player = $Player
 @onready var _cost_overlay: TerrainCostOverlay = $TerrainCostOverlay
 @onready var _flow_overlay: FlowFieldOverlay = $FlowFieldOverlay
@@ -56,6 +62,11 @@ var last_flow_build_msec: float = 0.0
 
 
 func _ready() -> void:
+	if level_config == null and GameState.pending_level != null:
+		level_config = GameState.pending_level
+		GameState.pending_level = null
+	if level_config != null and not level_config.areas.is_empty():
+		_swap_map_node(level_config.areas[0])
 	var coords: GridCoords = GridCoords.new(_map.terrain_layer.tile_set.tile_size.x, _map.get_world_rect().position)
 	terrain_grid = TerrainGrid.from_rows(_map.get_terrain_rows(), terrain_costs, coords)
 	_cost_overlay.grid = terrain_grid
@@ -78,6 +89,7 @@ func _ready() -> void:
 	_awareness_overlay.grid = terrain_grid
 	_genome_overlay.wave_manager = _wave_manager
 	_wave_hud.wave_manager = _wave_manager
+	_wave_hud.terrain_events = _terrain_events
 	_wave_report.wave_manager = _wave_manager
 	_xp_bar.progression = _player.progression
 	_skill_menu.player = _player
@@ -92,12 +104,7 @@ func _ready() -> void:
 	_game_over.main_menu_requested.connect(_on_main_menu)
 	_player_status.player = _player
 
-	var bounds: Rect2 = _map.get_world_rect()
-	var camera: Camera2D = _player.get_node("Camera2D")
-	camera.limit_left = int(bounds.position.x)
-	camera.limit_top = int(bounds.position.y)
-	camera.limit_right = int(bounds.end.x)
-	camera.limit_bottom = int(bounds.end.y)
+	_set_camera_limits()
 	_put_player_on_spawn()
 	attack_ring.update(_player.global_position, 0.0)
 	var context: EnemyContext = EnemyContext.new()
@@ -130,12 +137,108 @@ func _ready() -> void:
 	_terrain_events.setup(terrain_grid, terrain_costs, _player, _wave_manager, conditions,
 			_wave_manager.spawn_seed if _wave_manager.spawn_seed != 0 else randi())
 	terrain_health.is_occupied = _terrain_events.is_occupied
+	if level_config != null:
+		_setup_level()
 	_wave_manager.setup(_map.get_enemy_spawns(), context)
+	if level_config != null:
+		_wave_manager.set_spawn_points(_map.get_enemy_spawns(), _map.get_behind_spawns())
+
+
+## The level's first map: the first ZoneMap child (Maple Hollow in the prototype scene).
+func _find_map() -> ZoneMap:
+	for child: Node in get_children():
+		if child is ZoneMap:
+			return child
+	return null
+
+
+## The ZoneMap currently played.
+func current_map() -> ZoneMap:
+	return _map
+
+
+## Replaces the map node (before or after _ready) with a new instance of `scene`.
+func _swap_map_node(scene: PackedScene) -> void:
+	var old: ZoneMap = _find_map()
+	var new_map: ZoneMap = scene.instantiate() as ZoneMap
+	new_map.name = "Map"
+	add_child(new_map)
+	move_child(new_map, 0)
+	if old != null:
+		remove_child(old)
+		old.queue_free()
+	_map = new_map
+
+
+## Campaign level: pacing on the WaveManager, terrain events, objective and the area sequencer.
+func _setup_level() -> void:
+	var c: LevelConfig = level_config
+	_wave_manager.spawn_delay_seconds = c.spawn_delay_seconds
+	_wave_manager.behind_fraction = c.behind_fraction
+	_wave_manager.auto_next_wave = false
+	_terrain_events.events = c.events.duplicate()
+	_terrain_events.setup(terrain_grid, terrain_costs, _player, _wave_manager, conditions, _event_seed())
+	if c.objective != null:
+		objective = ObjectiveFactory.create(c.objective)
+		objective.name = "Objective"
+		add_child(objective)
+		objective.setup(c.objective, terrain_grid, _player, _wave_manager, terrain_health)
+	level_flow = LevelFlow.new()
+	level_flow.name = "LevelFlow"
+	add_child(level_flow)
+	level_flow.setup(c, self, _wave_manager, _player, _wave_report, objective, _event_seed())
+	_wave_hud.level_flow = level_flow
+	level_flow.level_completed.connect(_on_level_completed)
+
+
+func _event_seed() -> int:
+	return _wave_manager.spawn_seed if _wave_manager.spawn_seed != 0 else 1
+
+
+## Loads another area (next wave, or the same one again on Retry): new map, same grid object
+## (load_rows), navigation, camera limits, spawns, fresh terrain events, player at the entry.
+## Enemies and pickups of the old area are removed; barricades don't carry over.
+func load_area(scene: PackedScene) -> void:
+	_wave_manager.clear_enemies()
+	for child: Node in get_children():
+		if child is Pickup:
+			child.queue_free()
+	_swap_map_node(scene)
+	terrain_grid.load_rows(_map.get_terrain_rows())
+	_terrain_view.layer = _map.terrain_layer
+	_cost_overlay.queue_redraw()
+	_set_camera_limits()
+	_wave_manager.set_spawn_points(_map.get_enemy_spawns(), _map.get_behind_spawns())
+	_terrain_events.restart(_event_seed() + _wave_manager.wave_number * 101)
+	_put_player_on_spawn()
+	flow_fields.invalidate_all()
+	flow_fields.flush()
+
+
+## Opens the exit gate (gate tiles -> road).
+func open_exit() -> void:
+	for cell: Vector2i in _map.get_gate_cells():
+		if terrain_grid.get_terrain(cell) == "gate":
+			terrain_grid.set_terrain(cell, "road")
+
+
+func _on_level_completed() -> void:
+	print("[Level] %s complete" % level_config.id)
+	EventBus.level_completed.emit(level_config)
 
 
 func _on_player_died() -> void:
 	print("[Player] down in wave %d" % _wave_manager.wave_number)
 	_wave_manager.fail_wave()
+
+
+func _set_camera_limits() -> void:
+	var bounds: Rect2 = _map.get_world_rect()
+	var camera: Camera2D = _player.get_node("Camera2D")
+	camera.limit_left = int(bounds.position.x)
+	camera.limit_top = int(bounds.position.y)
+	camera.limit_right = int(bounds.end.x)
+	camera.limit_bottom = int(bounds.end.y)
 
 
 ## Moves the player to the map's spawn and points the flow field and camera there, before
