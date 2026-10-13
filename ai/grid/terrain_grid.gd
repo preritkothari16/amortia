@@ -9,6 +9,19 @@ extends RefCounted
 ## answers "what does this cost a normal Runner?" and "...a climber?" without copying.
 ## Every query takes an optional profile; leaving it out uses base_profile.
 ## World <-> cell conversion lives in `coords` (GridCoords), not here.
+##
+## Overlays: a cell can also carry an overlay terrain (fog, fire - TerrainDefinition.is_overlay)
+## on top of its base terrain, so the tile underneath is never lost. Combined rules:
+##   cost      = INF if the base is impassable, else max(base cost, overlay cost)
+##   vision    = blocked if either blocks; fog-like multipliers take the smaller one
+##   player    = slower of the two speed multipliers
+##   traversal = the base terrain's (overlays are walked through)
+## Changes (set_terrain / set_overlay at runtime) bump `version` and emit terrain_changed, so
+## flow fields, cached A* paths and the TileMap view can update.
+
+## Cells changed at runtime. `affects_cost` = some cell's movement cost changed (navigation must
+## be rebuilt); false = only vision changed (e.g. fog moved over road).
+signal terrain_changed(cells: Array[Vector2i], affects_cost: bool)
 
 ## Moving diagonally covers sqrt(2) times the distance of a straight step.
 const DIAGONAL_FACTOR: float = 1.41421356
@@ -31,6 +44,15 @@ var _id_by_name: Dictionary[String, int] = {}
 var _terrain_ids: PackedInt32Array = PackedInt32Array()
 ## Terrain id -> 1 if it blocks line of sight.
 var _blocks_vision_by_id: PackedByteArray = PackedByteArray()
+## Bumped by every runtime change; navigation compares it to know when it is out of date.
+var version: int = 0
+## Overlay terrain id per cell; -1 = none.
+var _overlay_ids: PackedInt32Array = PackedInt32Array()
+## Terrain id -> vision multiplier (1 = clear; fog 0.5) and TerrainDefinition.Vision value.
+var _vision_mult_by_id: PackedFloat32Array = PackedFloat32Array()
+var _vision_by_id: PackedInt32Array = PackedInt32Array()
+## True while from_rows fills the grid (no change signals during construction).
+var _loading: bool = false
 ## Terrain id -> player speed multiplier / enemy traversal (from the TerrainDefinitions;
 ## 1.0 / WALK for rules without definitions).
 var _player_speed_by_id: PackedFloat32Array = PackedFloat32Array()
@@ -49,20 +71,38 @@ static func from_rows(rows: Array[PackedStringArray], rules: TerrainCosts, grid_
 	grid._blocks_vision_by_id.resize(grid._names.size())
 	grid._player_speed_by_id.resize(grid._names.size())
 	grid._traversal_by_id.resize(grid._names.size())
+	grid._vision_mult_by_id.resize(grid._names.size())
+	grid._vision_by_id.resize(grid._names.size())
 	for id: int in grid._names.size():
 		grid._blocks_vision_by_id[id] = 1 if rules.blocks_vision.has(grid._names[id]) else 0
 		var definition: TerrainDefinition = rules.get_definition(grid._names[id])
 		grid._player_speed_by_id[id] = definition.player_speed_multiplier if definition != null else 1.0
 		grid._traversal_by_id[id] = definition.enemy_traversal if definition != null else TerrainDefinition.Traversal.WALK
+		grid._vision_by_id[id] = definition.vision if definition != null else TerrainDefinition.Vision.CLEAR
+		grid._vision_mult_by_id[id] = definition.vision_multiplier \
+				if definition != null and definition.vision == TerrainDefinition.Vision.REDUCES else 1.0
 
-	grid.height = rows.size()
-	grid.width = rows[0].size() if grid.height > 0 else 0
-	grid._terrain_ids.resize(grid.width * grid.height)
-	for y: int in grid.height:
-		assert(rows[y].size() == grid.width, "TerrainGrid: row %d has the wrong length" % y)
-		for x: int in grid.width:
-			grid.set_terrain(Vector2i(x, y), rows[y][x])
+	grid.load_rows(rows)
 	return grid
+
+
+## Replaces the whole map (same rules), e.g. when the next area variant loads. Keeps this
+## object, so everything holding a reference (A*, flow fields, enemies) sees the new map.
+## Bumps `version` and emits terrain_changed with no cells (= "everything").
+func load_rows(rows: Array[PackedStringArray]) -> void:
+	_loading = true
+	height = rows.size()
+	width = rows[0].size() if height > 0 else 0
+	_terrain_ids.resize(width * height)
+	_overlay_ids.resize(width * height)
+	_overlay_ids.fill(-1)
+	for y: int in height:
+		assert(rows[y].size() == width, "TerrainGrid: row %d has the wrong length" % y)
+		for x: int in width:
+			set_terrain(Vector2i(x, y), rows[y][x])
+	_loading = false
+	version += 1
+	terrain_changed.emit([] as Array[Vector2i], true)
 
 
 ## Convenience: a cost profile for these terrain genes, e.g. {"climber": 0.8}.
@@ -82,19 +122,60 @@ func get_terrain(cell: Vector2i) -> String:
 	return _names[id] if id >= 0 else ""
 
 
-## Changes one cell at runtime (later: fire, broken fences, barricades).
+## Changes one cell's base terrain at runtime (burnt grass, broken fence, collapsed bridge...).
 func set_terrain(cell: Vector2i, terrain: String) -> void:
 	assert(in_bounds(cell), "TerrainGrid: set_terrain outside the map %s" % cell)
 	if not _id_by_name.has(terrain):
 		push_warning("TerrainGrid: unknown terrain '%s' at %s, treated as impassable" % [terrain, cell])
+	var before: float = get_cost(cell) if not _loading else 0.0
 	_terrain_ids[_index(cell)] = _id_by_name.get(terrain, -1)
+	if not _loading:
+		_notify(cell, before)
+
+
+## Puts an overlay terrain (fog, fire) on a cell, or clears it with "". The base tile stays.
+func set_overlay(cell: Vector2i, terrain: String) -> void:
+	assert(in_bounds(cell), "TerrainGrid: set_overlay outside the map %s" % cell)
+	var id: int = -1 if terrain == "" else _id_by_name.get(terrain, -1)
+	if terrain != "" and id < 0:
+		push_warning("TerrainGrid: unknown overlay '%s' at %s ignored" % [terrain, cell])
+		return
+	var i: int = _index(cell)
+	if _overlay_ids[i] == id:
+		return
+	var before: float = get_cost(cell)
+	_overlay_ids[i] = id
+	_notify(cell, before)
+
+
+## Overlay terrain name of the cell, "" = none.
+func get_overlay(cell: Vector2i) -> String:
+	if not in_bounds(cell):
+		return ""
+	var id: int = _overlay_ids[_index(cell)]
+	return _names[id] if id >= 0 else ""
+
+
+func _notify(cell: Vector2i, cost_before: float) -> void:
+	version += 1
+	terrain_changed.emit([cell] as Array[Vector2i], get_cost(cell) != cost_before)
 
 
 ## Cost of stepping into this cell. INF = cannot enter (wall, house, outside the map).
 func get_cost(cell: Vector2i, profile: TerrainCostProfile = null) -> float:
 	if not in_bounds(cell):
 		return INF
-	return _profile_or_base(profile).cost_of_id(_terrain_ids[_index(cell)])
+	var i: int = _index(cell)
+	return _combined_cost(_profile_or_base(profile), _terrain_ids[i], _overlay_ids[i])
+
+
+## Base cost, raised by an overlay (fire 20 on grass 1 -> 20; fog 1 on mud 3 -> 3).
+## Impassable base stays impassable.
+static func _combined_cost(p: TerrainCostProfile, base_id: int, overlay_id: int) -> float:
+	var cost: float = p.cost_of_id(base_id)
+	if overlay_id < 0 or cost == INF:
+		return cost
+	return maxf(cost, p.cost_of_id(overlay_id))
 
 
 func is_walkable(cell: Vector2i, profile: TerrainCostProfile = null) -> bool:
@@ -134,7 +215,7 @@ func build_cost_array(profile: TerrainCostProfile = null) -> PackedFloat32Array:
 	var costs: PackedFloat32Array = PackedFloat32Array()
 	costs.resize(_terrain_ids.size())
 	for i: int in _terrain_ids.size():
-		costs[i] = p.cost_of_id(_terrain_ids[i])
+		costs[i] = _combined_cost(p, _terrain_ids[i], _overlay_ids[i])
 	return costs
 
 
@@ -164,7 +245,31 @@ func player_speed_multiplier(cell: Vector2i) -> float:
 	if not in_bounds(cell):
 		return 1.0
 	var id: int = _terrain_ids[_index(cell)]
-	return _player_speed_by_id[id] if id >= 0 else 1.0
+	var speed: float = _player_speed_by_id[id] if id >= 0 else 1.0
+	var overlay: int = _overlay_ids[_index(cell)]
+	return minf(speed, _player_speed_by_id[overlay]) if overlay >= 0 else speed
+
+
+## Vision range multiplier for looking from / into this cell (fog 0.5, else 1). Base and
+## overlay: the smaller one.
+func vision_multiplier(cell: Vector2i) -> float:
+	if not in_bounds(cell):
+		return 1.0
+	var i: int = _index(cell)
+	var mult: float = _vision_mult_by_id[_terrain_ids[i]] if _terrain_ids[i] >= 0 else 1.0
+	if _overlay_ids[i] >= 0:
+		mult = minf(mult, _vision_mult_by_id[_overlay_ids[i]])
+	return mult
+
+
+## True if units standing in this cell are hidden from view beyond the sense radius
+## (tall grass / bushes: TerrainDefinition.Vision.CONCEALS).
+func conceals(cell: Vector2i) -> bool:
+	if not in_bounds(cell):
+		return false
+	var i: int = _index(cell)
+	return (_terrain_ids[i] >= 0 and _vision_by_id[_terrain_ids[i]] == TerrainDefinition.Vision.CONCEALS) \
+			or (_overlay_ids[i] >= 0 and _vision_by_id[_overlay_ids[i]] == TerrainDefinition.Vision.CONCEALS)
 
 
 ## How an enemy physically gets through this cell when its profile lets it path in
@@ -180,8 +285,11 @@ func enemy_traversal(cell: Vector2i) -> TerrainDefinition.Traversal:
 func blocks_vision(cell: Vector2i) -> bool:
 	if not in_bounds(cell):
 		return true
-	var id: int = _terrain_ids[_index(cell)]
-	return id < 0 or _blocks_vision_by_id[id] == 1
+	var i: int = _index(cell)
+	var id: int = _terrain_ids[i]
+	if id < 0 or _blocks_vision_by_id[id] == 1:
+		return true
+	return _overlay_ids[i] >= 0 and _blocks_vision_by_id[_overlay_ids[i]] == 1
 
 
 ## Line of sight between two world positions over the grid. Walks every cell the straight

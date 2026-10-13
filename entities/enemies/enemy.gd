@@ -34,6 +34,8 @@ var current_target: Vector2 = Vector2.INF
 ## &"close" (no ring), &"investigate" (straight to last known), &"astar" (A* path to it),
 ## &"wait_path" (A* result not ready yet), &"flank" (heading for a flank point), &"climb", &"idle".
 var nav_mode: StringName = &"idle"
+## Sight range after fog and night this frame (for the F6 overlay).
+var effective_sight_range: float = 0.0
 
 var _ctx: EnemyContext
 ## Base-profile field: attack-ring engagement and the "close to the player" checks use it so
@@ -174,6 +176,8 @@ func alert(position: Vector2) -> void:
 func _on_noise_emitted(noise_position: Vector2, radius: float) -> void:
 	if _dead or radius <= 0.0:
 		return
+	if _ctx != null and _ctx.perception != null and _ctx.conditions != null:
+		radius = Perception.hearing_radius(radius, _ctx.conditions.is_night, _night_sense(), _ctx.perception)
 	var distance: float = global_position.distance_to(noise_position)
 	if distance <= radius:
 		awareness.hear(noise_position, 1.0 - distance / radius)
@@ -241,15 +245,29 @@ func _update_awareness(delta: float) -> void:
 
 
 ## Within sense_radius the enemy always notices the player (GDD 4.3: even stealth only hides
-## you beyond 2 tiles). Further out it needs a clear line of sight over the grid, within range.
+## you beyond 2 tiles). Further out the player must not be concealed (tall grass) and needs a
+## clear line of sight over the grid within the sight range after fog and night (Perception).
 func _can_perceive_player() -> bool:
 	var player_pos: Vector2 = _target.global_position
-	var dist_sq: float = global_position.distance_squared_to(player_pos)
-	if dist_sq <= stats.sense_radius * stats.sense_radius:
+	var distance: float = global_position.distance_to(player_pos)
+	effective_sight_range = stats.sight_range
+	var concealed: bool = false
+	if _ctx != null and _ctx.perception != null:
+		var fog: float = minf(_grid.vision_multiplier(_grid.coords.world_to_cell(global_position)),
+				_grid.vision_multiplier(_grid.coords.world_to_cell(player_pos)))
+		var night: bool = _ctx.conditions != null and _ctx.conditions.is_night
+		effective_sight_range = Perception.effective_sight_range(stats.sight_range, fog, night, _night_sense(), _ctx.perception)
+		concealed = _target.has_method("is_concealed") and _target.is_concealed()
+	if distance <= stats.sense_radius:
 		return true
-	if dist_sq > stats.sight_range * stats.sight_range:
-		return false
-	return _grid.has_line_of_sight(global_position, player_pos)
+	if concealed or distance > effective_sight_range:
+		return false  # cheap checks first; the line only runs when it can matter
+	return Perception.can_see(distance, stats.sense_radius, effective_sight_range,
+			_grid.has_line_of_sight(global_position, player_pos), concealed)
+
+
+func _night_sense() -> float:
+	return genome.night_sense if genome != null else 0.0
 
 
 # --- Decisions ----------------------------------------------------------------------

@@ -1,6 +1,6 @@
 class_name PlayerStatus
 extends Control
-## Greybox player panel, bottom-left above the XP bar: HP bar and dodge cooldown.
+## Greybox player panel, bottom-left above the XP bar: HP bar, dodge cooldown, HIDDEN (stealth).
 ## Ammo is not shown because weapons have no ammo yet.
 
 const FONT_SIZE: int = 8
@@ -13,6 +13,7 @@ const COLOR_BACK: Color = Color(0, 0, 0, 0.6)
 const COLOR_HP: Color = Color(0.85, 0.25, 0.25)
 const COLOR_DODGE_READY: Color = Color(0.5, 0.9, 0.5)
 const COLOR_DODGE_WAIT: Color = Color(0.55, 0.55, 0.55)
+const COLOR_HIDDEN: Color = Color(0.55, 0.9, 0.75)
 
 var player: Player
 
@@ -49,8 +50,12 @@ func _draw() -> void:
 	_bar(Rect2(x, y - DODGE_SIZE.y, DODGE_SIZE.x, DODGE_SIZE.y), ratio,
 		COLOR_DODGE_READY if is_ready else COLOR_DODGE_WAIT)
 	x += DODGE_SIZE.x + 3.0
-	_text(font, Vector2(x, y), "ready" if is_ready else "%.1f s" % left,
+	x = _text(font, Vector2(x, y), "ready" if is_ready else "%.1f s" % left,
 		COLOR_DODGE_READY if is_ready else COLOR_DODGE_WAIT)
+
+	# Stealth (GDD 4.3): hidden in tall grass while walking and not shooting.
+	if player.is_concealed():
+		_text(font, Vector2(x + 10.0, y), "HIDDEN", COLOR_HIDDEN)
 
 
 func _bar(rect: Rect2, ratio: float, color: Color) -> void:

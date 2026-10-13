@@ -1,4 +1,4 @@
-[gd_scene load_steps=23 format=3]
+[gd_scene load_steps=24 format=3]
 
 [ext_resource type="Script" path="res://world/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://world/zones/maple_hollow/maple_hollow.tscn" id="2_map"]
@@ -22,6 +22,7 @@
 [ext_resource type="Script" path="res://ui/hud/player_status.gd" id="20_status"]
 [ext_resource type="Script" path="res://ui/menus/pause_menu.gd" id="21_pause"]
 [ext_resource type="Script" path="res://ui/menus/game_over_screen.gd" id="22_game_over"]
+[ext_resource type="Resource" path="res://data/perception.tres" id="23_perception"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
@@ -29,6 +30,7 @@ terrain_costs = ExtResource("4_costs")
 attack_ring_settings = ExtResource("9_ring")
 genome_rules = ExtResource("12_genome_rules")
 fitness_settings = ExtResource("14_fitness")
+perception_settings = ExtResource("23_perception")
 
 [node name="MapleHollow" parent="." instance=ExtResource("2_map")]
 

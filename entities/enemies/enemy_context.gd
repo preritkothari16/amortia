@@ -15,3 +15,7 @@ var target: Node2D
 var genome_rules: GenomeRules
 ## Fitness evaluator; enemies read its settings (pressure radius) while recording.
 var fitness: Fitness
+## Sense rules (night, stealth) and level-wide conditions (is it night?). null = old rules:
+## no night, no concealment.
+var perception: PerceptionSettings
+var conditions: WorldConditions

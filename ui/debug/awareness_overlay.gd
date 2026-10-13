@@ -8,6 +8,7 @@ extends Node2D
 ##   yellow X            the enemy's last known player position (while not chasing)
 ##   letter above enemy  utility AI action: C chase, F flank, I investigate, . idle
 ##   magenta +           flank point of enemies that are flanking
+##   faint ring          each enemy's sight range after fog and night
 
 const NOISE_SHOW_TIME: float = 1.0
 const ACTION_LABELS: Dictionary = {
@@ -63,6 +64,9 @@ func _draw() -> void:
 		var color: Color = STATE_COLORS[state]
 		var pos: Vector2 = enemy.global_position
 		draw_circle(pos + Vector2(0, -9), 1.5, color)
+		# Sight range after fog / night (faint ring).
+		if enemy.effective_sight_range > 0.0:
+			draw_arc(pos, enemy.effective_sight_range, 0.0, TAU, 48, Color(color, 0.12), 1.0)
 		var action: UtilityAction.Type = enemy.brain.current
 		draw_string(ThemeDB.fallback_font, pos + Vector2(-3, -12), ACTION_LABELS[action],
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color.WHITE)

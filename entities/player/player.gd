@@ -11,6 +11,8 @@ extends CharacterBody2D
 @export var skill_tree: SkillTree
 ## Temporary: print dodge state changes and tint the body while invulnerable.
 @export var debug_dodge: bool = false
+## Noise and stealth rules (data/perception.tres). null = no footsteps, never concealed.
+@export var perception: PerceptionSettings
 
 ## XP, level and skill points. Lives on the player, so it carries over between waves.
 var progression: PlayerProgression
@@ -33,6 +35,10 @@ var aim_direction: Vector2 = Vector2.RIGHT
 ## The level's terrain (set by the level). Walking speed x the tile's player speed multiplier
 ## (mud 0.6, tall grass 0.8). null = full speed everywhere.
 var terrain_grid: TerrainGrid
+## Seconds since the last shot (stealth: shooting gives you away for a moment).
+var seconds_since_shot: float = INF
+## Seconds until the next footstep noise.
+var _footstep_left: float = 0.0
 ## True while the dodge's invulnerability window is open. Damage code will check this.
 var is_invulnerable: bool:
 	get:
@@ -71,10 +77,41 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
+	seconds_since_shot += delta
 	_tick_dodge_timers(delta)
 	_move(delta)
+	_footsteps(delta)
 	_aim()
 	_shoot(delta)
+
+
+## True while the player is hidden from enemies beyond their sense radius (GDD 4.3: walking,
+## no shooting, inside tall grass). See Perception.is_concealed.
+func is_concealed() -> bool:
+	if perception == null or terrain_grid == null:
+		return false
+	var cell: Vector2i = terrain_grid.coords.world_to_cell(global_position)
+	return Perception.is_concealed(terrain_grid.conceals(cell), seconds_since_shot, _dodge_left > 0.0, perception)
+
+
+## Walking makes noise every footstep_interval, as loud as the tile under the player (grass
+## quiet, road normal, mud / shallow water loud). Enemies only learn where it happened.
+func _footsteps(delta: float) -> void:
+	if perception == null or terrain_grid == null or _dodge_left > 0.0:
+		return
+	if velocity.length() < stats.move_speed * 0.25:
+		_footstep_left = 0.0  # standing still: next step makes noise straight away
+		return
+	_footstep_left -= delta
+	if _footstep_left > 0.0:
+		return
+	_footstep_left = perception.footstep_interval
+	var definition: TerrainDefinition = terrain_grid.get_definition(terrain_grid.coords.world_to_cell(global_position))
+	if definition == null:
+		return
+	var radius: float = Perception.footstep_radius(definition.noise, perception)
+	if radius > 0.0:
+		EventBus.noise_emitted.emit(global_position, radius)
 
 
 func _move(delta: float) -> void:
@@ -110,6 +147,8 @@ func _try_dodge(input_dir: Vector2) -> void:
 	_invuln_left = stats.dodge_invulnerable_time
 	_dodge_cooldown_left = stats.dodge_cooldown
 	_debug("dodge START dir=%s invulnerable=true" % _dodge_direction)
+	if perception != null and perception.dodge_noise_radius > 0.0:
+		EventBus.noise_emitted.emit(global_position, perception.dodge_noise_radius)
 
 
 func _tick_dodge_timers(delta: float) -> void:
@@ -161,6 +200,7 @@ func _shoot(delta: float) -> void:
 	get_parent().add_child(bullet)
 	# Gunshots are loud: enemies in range learn where the player WAS, not where they go next.
 	EventBus.noise_emitted.emit(global_position, weapon.noise_radius)
+	seconds_since_shot = 0.0
 
 
 # --- Health --------------------------------------------------------------------------

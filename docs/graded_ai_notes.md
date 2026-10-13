@@ -76,3 +76,35 @@ Deterministic: work per frame is counted, not timed.
 Same algorithm; the cache key now includes the profile label:
 `"profile|start|goal"`. Without it, a climber's cached path over a fence could be handed to a
 non-climber (who would then walk into collision). Tail reuse is per (profile, goal) too.
+
+---
+
+## Phase 3 — `ai/decision/perception.gd` (new), `perception_settings.gd`, `world_conditions.gd`
+
+**Idea.** Awareness (the memory: IDLE / INVESTIGATE / SEARCH / CHASE) is unchanged. What changed is
+the *input* to it: whether this frame counts as "seeing" the player, and how far a noise carries.
+Those rules are small pure functions so they can be unit-tested and explained one by one.
+
+```
+effective_sight_range(range, fog, night, night_sense):
+    r = range * fog                          # fog tile at either end: 0.5
+    if night: r *= 1 - 0.4 * (1 - night_sense)
+    return r
+
+can_see(distance, sense_radius, sight_range, line_clear, concealed):
+    if distance <= sense_radius: return true  # 2 tiles: always noticed (GDD 4.3)
+    if concealed: return false                # tall grass + walking + no recent shot
+    return distance <= sight_range and line_clear
+
+hearing_radius(radius, night, night_sense):
+    if not night: return radius
+    return radius * (1 + 0.25 + 0.5 * night_sense)
+
+is_concealed(in_tall_grass, seconds_since_shot, dodging):
+    return in_tall_grass and not dodging and seconds_since_shot >= 1.5
+```
+Night sense never adds information: it only scales ranges, and seeing still needs a clear grid
+line, hearing still needs a noise event. A heard noise only sets `last_known` once (no tracking).
+The two-tile exception is measured from the enemy to the concealed player.
+Player noise: every 0.5 s of walking, a noise with the tile's loudness (grass 24 px, road 48,
+mud / shallow water 96); a dodge roll 64 px; shots as before (weapon radius).

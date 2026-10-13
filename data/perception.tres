@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="PerceptionSettings" format=3]
+
+[ext_resource type="Script" path="res://ai/decision/perception_settings.gd" id="1_perception"]
+
+[resource]
+script = ExtResource("1_perception")
+night_vision_penalty = 0.4
+night_hearing_bonus = 0.25
+night_sense_hearing_bonus = 0.5
+shot_exposure_seconds = 1.5
+footstep_radius_by_level = PackedFloat32Array(0, 24, 48, 96)
+footstep_interval = 0.5
+dodge_noise_radius = 64.0

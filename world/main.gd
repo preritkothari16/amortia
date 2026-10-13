@@ -6,6 +6,8 @@ extends Node2D
 @export var attack_ring_settings: AttackRingSettings
 @export var genome_rules: GenomeRules
 @export var fitness_settings: FitnessSettings
+## Sense rules for enemies (night, stealth). The player has its own reference to the same file.
+@export var perception_settings: PerceptionSettings
 ## Save to user://save.json between waves (after each wave is bred, and when a skill is bought
 ## between waves). Off for tests that shouldn't touch the save file.
 @export var autosave: bool = true
@@ -25,6 +27,8 @@ var flow_fields: FlowFieldSet
 var attack_ring: AttackRing
 ## Budgeted, cached A* shared by all enemies for investigation paths.
 var path_queue: PathQueue
+## Level-wide sense conditions (night...), shared with every enemy.
+var conditions: WorldConditions = WorldConditions.new()
 ## How long the last flow field rebuild took, in milliseconds.
 var last_flow_build_msec: float = 0.0
 
@@ -93,6 +97,8 @@ func _ready() -> void:
 	context.target = _player
 	context.genome_rules = genome_rules
 	context.fitness = Fitness.new(fitness_settings)
+	context.perception = perception_settings
+	context.conditions = conditions
 	_load_pending_save()
 	_wave_manager.generation_bred.connect(func(_summary: Dictionary) -> void: save_game())
 	# A lost wave is saved too (XP from the attempt kept, the save replays that wave).
