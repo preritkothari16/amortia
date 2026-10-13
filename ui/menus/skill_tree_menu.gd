@@ -48,7 +48,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		close()
 	elif visible and event.is_action_pressed("ui_accept"):
-		# Don't let Enter/Space reach the Wave Report's Continue underneath.
+		# Don't let Enter/Space reach the Wave Report's Continue / Game Over's Retry underneath.
 		get_viewport().set_input_as_handled()
 
 

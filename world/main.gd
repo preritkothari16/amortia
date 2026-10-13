@@ -39,6 +39,7 @@ var last_flow_build_msec: float = 0.0
 @onready var _player_status: PlayerStatus = $HUD/PlayerStatus
 @onready var _skill_menu: SkillTreeMenu = $HUD/SkillTreeMenu
 @onready var _pause_menu: PauseMenu = $HUD/PauseMenu
+@onready var _game_over: GameOverScreen = $HUD/GameOverScreen
 
 
 func _ready() -> void:
@@ -63,17 +64,20 @@ func _ready() -> void:
 	_pause_menu.skill_menu = _skill_menu
 	_wave_report.player = _player
 	_wave_report.skills_requested.connect(_skill_menu.open)
+	_game_over.wave_manager = _wave_manager
+	_game_over.player = _player
+	_game_over.skills_requested.connect(_skill_menu.open)
+	_game_over.retry_requested.connect(_wave_manager.continue_to_next_wave)
+	_game_over.main_menu_requested.connect(_on_main_menu)
 	_player_status.player = _player
 
-	_player.global_position = _map.get_player_spawn()
 	var bounds: Rect2 = _map.get_world_rect()
 	var camera: Camera2D = _player.get_node("Camera2D")
 	camera.limit_left = int(bounds.position.x)
 	camera.limit_top = int(bounds.position.y)
 	camera.limit_right = int(bounds.end.x)
 	camera.limit_bottom = int(bounds.end.y)
-	camera.reset_smoothing()
-	_update_flow_field()
+	_put_player_on_spawn()
 	attack_ring.update(_player.global_position, 0.0)
 	var context: EnemyContext = EnemyContext.new()
 	context.flow_field = flow_field
@@ -84,17 +88,35 @@ func _ready() -> void:
 	context.fitness = Fitness.new(fitness_settings)
 	_load_pending_save()
 	_wave_manager.generation_bred.connect(func(_summary: Dictionary) -> void: save_game())
+	# A lost wave is saved too (XP from the attempt kept, the save replays that wave).
+	_wave_manager.wave_failed.connect(func(_summary: Dictionary) -> void: save_game())
 	_player.skills.changed.connect(_on_skills_changed)
-	# Player down -> the wave ends (scored and bred like any other). Deferred so the attack
-	# that killed the player finishes first. Every wave starts with full HP.
+	# Player down -> the wave is lost (Game Over screen, not bred) and Retry replays it.
+	# Deferred so the attack that killed the player finishes first. Every wave starts with
+	# full HP; a replayed wave also starts from the player spawn.
 	_player.died.connect(_on_player_died, CONNECT_DEFERRED)
+	_wave_manager.wave_restarting.connect(func(_wave: int) -> void: _put_player_on_spawn())
 	_wave_manager.wave_started.connect(func(_wave: int) -> void: _player.revive())
 	_wave_manager.setup(_map.get_enemy_spawns(), context)
 
 
 func _on_player_died() -> void:
 	print("[Player] down in wave %d" % _wave_manager.wave_number)
-	_wave_manager.end_wave()
+	_wave_manager.fail_wave()
+
+
+## Moves the player to the map's spawn and points the flow field and camera there, before
+## enemies spawn (they are alerted to the player's position).
+func _put_player_on_spawn() -> void:
+	_player.global_position = _map.get_player_spawn()
+	_player.velocity = Vector2.ZERO
+	(_player.get_node("Camera2D") as Camera2D).reset_smoothing()
+	_update_flow_field()
+
+
+func _on_main_menu() -> void:
+	get_tree().paused = false
+	get_tree().change_scene_to_file(PauseMenu.MAIN_MENU_SCENE)
 
 
 # --- Save / load ---------------------------------------------------------------------

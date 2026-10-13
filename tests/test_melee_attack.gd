@@ -233,22 +233,69 @@ func test_in_game_dead_runner_stops_attacking_and_is_cleaned_up() -> void:
 	assert_eq(wm.alive.size(), 0)
 
 
-func test_in_game_player_death_ends_wave_and_next_wave_revives() -> void:
-	var lvl: Dictionary = await _level_with_one_runner()
+## Lets the one Runner kill the player (1 HP left), then waits for the deferred wave failure.
+func _die_in_level(lvl: Dictionary) -> void:
 	var player: Player = lvl["player"]
-	var wm: WaveManager = lvl["wm"]
 	player.health = 1.0
 	for i: int in 600:
 		await wait_physics_frames(1)
 		if player.is_dead:
 			break
-	assert_true(player.is_dead)
 	await wait_physics_frames(2)
+
+
+func test_in_game_player_death_loses_the_wave_and_retry_replays_it() -> void:
+	var lvl: Dictionary = await _level_with_one_runner()
+	var player: Player = lvl["player"]
+	var wm: WaveManager = lvl["wm"]
+	var population: Array[Genome] = wm.population.duplicate()
+	var wave: int = wm.wave_number
+	var generation: int = wm.generation
+	watch_signals(wm)
+	await _die_in_level(lvl)
+	assert_true(player.is_dead)
 	assert_false(wm.is_wave_running(), "player down ends the wave")
+	assert_true(wm.failed)
+	assert_signal_emitted(wm, "wave_failed")
+	assert_signal_not_emitted(wm, "generation_bred", "a lost wave is not bred")
 	var results: Array[Dictionary] = wm.last_wave_results
 	assert_gt(results.size(), 0)
-	assert_gt(results[0]["components"][Fitness.D], 0.0, "the killer scored D")
-	wm.continue_to_next_wave()
+	assert_gt(results[0]["components"][Fitness.D], 0.0, "the killer scored D (shown on Game Over)")
+	assert_eq(wm.get_save_state()["next_wave"], wave, "a save made now replays the lost wave")
+
+	player.global_position += Vector2(100, 0)
+	wm.continue_to_next_wave()  # Retry
 	await wait_physics_frames(2)
+	assert_false(wm.failed)
+	assert_true(wm.is_wave_running())
+	assert_eq(wm.wave_number, wave, "same wave number")
+	assert_eq(wm.generation, generation, "no new generation")
+	assert_eq(wm.population, population, "same genomes")
+	assert_eq(wm.alive.size(), population.size(), "the whole wave is back")
 	assert_false(player.is_dead)
 	assert_eq(player.health, 100.0)
+	assert_almost_eq(player.global_position, lvl["main"].get_node("MapleHollow").get_player_spawn(),
+		Vector2(2, 2), "the retry starts from the player spawn")
+
+
+func test_in_game_next_wave_key_after_a_loss_replays_the_wave() -> void:
+	var lvl: Dictionary = await _level_with_one_runner()
+	var wm: WaveManager = lvl["wm"]
+	var wave: int = wm.wave_number
+	await _die_in_level(lvl)
+	assert_true(wm.failed)
+	wm.spawn_wave()  # F3
+	await wait_physics_frames(1)
+	assert_eq(wm.wave_number, wave, "a lost wave can't be skipped")
+	assert_false(wm.failed)
+
+
+func test_in_game_clearing_a_wave_still_breeds() -> void:
+	var lvl: Dictionary = await _level_with_one_runner()
+	var wm: WaveManager = lvl["wm"]
+	var generation: int = wm.generation
+	wm.end_wave()  # cleared (the test helper despawned the others, so end it directly)
+	await wait_physics_frames(1)
+	assert_false(wm.failed)
+	assert_eq(wm.generation, generation + 1)
+	assert_eq(wm.get_save_state()["next_wave"], wm.wave_number + 1)

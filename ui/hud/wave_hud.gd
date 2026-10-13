@@ -42,6 +42,8 @@ func _process(_delta: float) -> void:
 
 ## One line: what the player should be doing right now.
 func _status(wm: WaveManager) -> String:
+	if wm.failed:
+		return "You were downed - retry the wave"
 	if wm.waiting_for_continue:
 		return "Wave cleared - read the report, then Continue"
 	if wm.intermission_left >= 0.0:

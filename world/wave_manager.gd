@@ -4,14 +4,21 @@ extends Node2D
 ## player fights it -> each enemy's FitnessRecord is filled in -> the wave ends -> fitness is
 ## scored -> the GeneticAlgorithm breeds the next generation -> after an intermission the next
 ## wave spawns from it. The population persists between waves; wave 1 is random.
-## A wave ends when all its enemies are dead or on F8. Debug: F3 = next wave now,
-## F8 = end wave (score + evolve), F9 = restart the current wave (same genomes, no scoring).
+## A wave ends when all its enemies are dead or on F8. If the player goes down the wave is
+## LOST instead (fail_wave): scored for the Game Over screen but not bred, and Retry replays
+## the same wave with the same genomes. Debug: F3 = next wave now, F8 = end wave
+## (score + evolve), F9 = restart the current wave (same genomes, no scoring).
 
 signal wave_cleared
 ## Fitness results of a finished wave, best first (see end_wave for the entry format).
 signal wave_ended(results: Array[Dictionary])
 ## A new generation was bred (after wave `from_wave`), with its summary (see _evolve).
 signal generation_bred(summary: Dictionary)
+## The player went down: the wave is lost and will be replayed (summary: see fail_wave).
+signal wave_failed(summary: Dictionary)
+## The current wave is about to be replayed with the same genomes (Retry or F9). The
+## enemies spawn right after this, so listeners can move the player first.
+signal wave_restarting(wave: int)
 ## A wave just spawned.
 signal wave_started(wave: int)
 
@@ -70,6 +77,9 @@ var history: Array[Dictionary] = []
 var intermission_left: float = -1.0
 ## True while a finished wave waits for continue_to_next_wave().
 var waiting_for_continue: bool = false
+## True after the player lost the current wave, until it is replayed. The population is not
+## bred, so the next spawn (Retry, the intermission, F3) replays the same wave.
+var failed: bool = false
 ## The seed the GA actually uses (for repeating a run).
 var ga_seed: int = 0
 
@@ -117,7 +127,7 @@ func _physics_process(delta: float) -> void:
 	if intermission_left >= 0.0:
 		intermission_left -= delta
 		if intermission_left < 0.0:
-			spawn_wave()
+			continue_to_next_wave()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -138,7 +148,11 @@ func is_wave_running() -> bool:
 ## was asked for) a new random population is made. count < 0 = the bred population's size
 ## (decided AFTER the previous wave is scored and evolved, so F3 / the intermission never
 ## throw the new generation away), or wave_size if there is none yet.
+## A lost wave is never skipped: it is replayed instead (see fail_wave).
 func spawn_wave(count: int = -1) -> void:
+	if failed:
+		restart_wave()
+		return
 	end_wave()  # close, score and evolve the previous wave first, if it is still open
 	if count < 0:
 		count = population.size() if evolve and not population.is_empty() else wave_size
@@ -165,9 +179,14 @@ func spawn_wave(count: int = -1) -> void:
 		print(_wave_summary(genomes))
 
 
-## Starts the next wave after a wave ended (the Wave Report's Continue button).
+## Starts the next wave after a wave ended (the Wave Report's Continue button), or replays
+## the current one if the player lost it (the Game Over screen's Retry button).
 func continue_to_next_wave() -> void:
-	if not _wave_open:
+	if _wave_open:
+		return
+	if failed:
+		restart_wave()
+	else:
 		spawn_wave()
 
 
@@ -179,18 +198,20 @@ func restart_wave() -> void:
 	_wave_open = false
 	intermission_left = -1.0
 	waiting_for_continue = false
+	failed = false
 	_despawn_all()
-	wave_number -= 1
 	if log_waves:
-		print("[Wave %d] restarted with the same genomes" % (wave_number + 1))
+		print("[Wave %d] restarted with the same genomes" % wave_number)
+	wave_restarting.emit(wave_number)
+	wave_number -= 1
 	spawn_wave()
 
 
 # --- Save / load ---------------------------------------------------------------------
 
 ## Plain-data snapshot for SaveGame: the population that will play `next_wave`.
-## Between waves that's the freshly bred generation for the next wave; during a wave it's the
-## current wave's population, so loading replays that wave.
+## Between waves that's the freshly bred generation for the next wave; during a wave, or after
+## the player lost it, it's the current wave's population, so loading replays that wave.
 func get_save_state() -> Dictionary:
 	var genomes: Array[Dictionary] = []
 	for g: Genome in population:
@@ -200,7 +221,7 @@ func get_save_state() -> Dictionary:
 		compact_history.append({"from_wave": h["from_wave"], "best_fitness": h["best_fitness"],
 			"mean_fitness": h["mean_fitness"]})
 	var state: Dictionary = {
-		"next_wave": wave_number if _wave_open else wave_number + 1,
+		"next_wave": wave_number if _wave_open or failed else wave_number + 1,
 		"generation": generation, "population": genomes, "history": compact_history,
 		"ga_seed": str(ga_seed), "spawn_rng_state": str(_rng.state),
 	}
@@ -389,13 +410,66 @@ func _wave_summary(genomes: Array[Genome]) -> String:
 		wave_number, genomes.size(), _context.genome_rules.budget_for_wave(wave_number), " | ".join(parts), modes]
 
 
-## Freezes every record of the current wave, scores it and reports. Safe to call twice.
-## Each result: {"genome": Genome, "record": FitnessRecord, "components": {D, P, S, O},
-## "fitness": float}, sorted best first (ties keep spawn order).
+## Freezes every record of the current wave, scores it and reports, then breeds the next
+## generation. Safe to call twice. Each result: {"genome": Genome, "record": FitnessRecord,
+## "components": {D, P, S, O}, "fitness": float}, sorted best first (ties keep spawn order).
 func end_wave() -> void:
 	if not _wave_open:
 		return
 	_wave_open = false
+	var results: Array[Dictionary] = _score_wave()
+	wave_ended.emit(results)
+	if evolve:
+		_evolve(results)
+	_wait_for_next_wave()
+
+
+## The player went down: closes the wave and scores it for the Game Over screen, but does NOT
+## breed - the population stays as it is, so the retry is the same wave with the same genomes
+## and evolution only moves on once the player clears it. Safe to call twice.
+## Summary: {wave, generation, wave_seconds, killed, survived, best_fitness, mean_fitness,
+## component_means, gene_means, best_genome}.
+func fail_wave() -> void:
+	if not _wave_open:
+		return
+	_wave_open = false
+	failed = true
+	var results: Array[Dictionary] = _score_wave()
+	var killed: int = 0
+	var total: float = 0.0
+	var component_means: Dictionary = {Fitness.D: 0.0, Fitness.P: 0.0, Fitness.S: 0.0, Fitness.O: 0.0}
+	for r: Dictionary in results:
+		killed += 1 if (r["record"] as FitnessRecord).died else 0
+		total += r["fitness"]
+		for key: StringName in component_means:
+			component_means[key] += r["components"][key] / results.size()
+	var best: Genome = results[0]["genome"] if not results.is_empty() else null
+	var summary: Dictionary = {
+		"wave": wave_number, "generation": generation, "wave_seconds": wave_seconds,
+		"killed": killed, "survived": results.size() - killed,
+		"best_fitness": results[0]["fitness"] if not results.is_empty() else 0.0,
+		"mean_fitness": total / maxf(results.size(), 1), "component_means": component_means,
+		"gene_means": gene_means(population) if best != null else {},
+		"best_genome": best.describe() if best != null else "(no genome)",
+	}
+	if log_waves:
+		print("[Wave %d] lost after %.1f s (%d / %d killed) - not bred, the wave will be replayed" % [
+			wave_number, wave_seconds, killed, results.size()])
+	wave_failed.emit(summary)
+	_wait_for_next_wave()
+
+
+func _wait_for_next_wave() -> void:
+	if auto_next_wave:
+		if pause_between_waves:
+			waiting_for_continue = true
+		else:
+			intermission_left = intermission_seconds
+
+
+## Freezes and scores every record of the closed wave: sorted results, also kept in
+## last_wave_results.
+func _score_wave() -> Array[Dictionary]:
 	var results: Array[Dictionary] = []
 	for i: int in _wave_entries.size():
 		var record: FitnessRecord = _wave_entries[i]["record"]
@@ -410,14 +484,7 @@ func end_wave() -> void:
 	last_wave_results = results
 	if log_waves:
 		print(fitness_report(results))
-	wave_ended.emit(results)
-	if evolve:
-		_evolve(results)
-	if auto_next_wave:
-		if pause_between_waves:
-			waiting_for_continue = true
-		else:
-			intermission_left = intermission_seconds
+	return results
 
 
 ## Current fitness of a record if the wave ended now (for live debug display).

@@ -19,6 +19,7 @@ var player: Player
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	process_mode = Node.PROCESS_MODE_ALWAYS  # show 0 HP under the Game Over screen (game paused)
 
 
 func _process(_delta: float) -> void:
