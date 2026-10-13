@@ -16,3 +16,6 @@ vision_per_point = 0.1
 mutation_rate = 0.1
 stat_sigma = 1.0
 behaviour_sigma = 0.1
+adaptation_budget = 1.5
+adaptation_random_max = 1.5
+adaptation_sigma = 0.1

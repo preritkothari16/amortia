@@ -3,6 +3,8 @@ extends RefCounted
 ## Shared services every enemy uses, built once by main.gd and handed out by WaveManager.
 
 var flow_field: FlowField
+## One flow field per terrain-profile bucket (flow_field above = its base field).
+var flow_fields: FlowFieldSet
 ## Attack slots around the player (null = enemies close in directly).
 var attack_ring: AttackRing
 ## Budgeted, cached A* for investigation targets.

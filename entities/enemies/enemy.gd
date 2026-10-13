@@ -36,7 +36,13 @@ var current_target: Vector2 = Vector2.INF
 var nav_mode: StringName = &"idle"
 
 var _ctx: EnemyContext
+## Base-profile field: attack-ring engagement and the "close to the player" checks use it so
+## every enemy measures distance to the player the same way.
 var _flow_field: FlowField
+## Field and cost profile for this enemy's own terrain genes (its bucket in FlowFieldSet):
+## used for navigation, A* and climbing speed. Same as the base ones without terrain genes.
+var _nav_field: FlowField
+var nav_profile: TerrainCostProfile
 var _grid: TerrainGrid
 var _target: Node2D
 var _ring: AttackRing
@@ -102,6 +108,11 @@ func setup(context: EnemyContext, allies: Array[Enemy], enemy_genome: Genome = n
 	_ctx = context
 	_flow_field = context.flow_field
 	_grid = _flow_field.grid
+	nav_profile = _grid.base_profile
+	_nav_field = _flow_field
+	if context.flow_fields != null and enemy_genome != null:
+		nav_profile = context.flow_fields.canonical_profile(_grid.make_profile(enemy_genome.terrain_genes()))
+		_nav_field = context.flow_fields.field_for(nav_profile)
 	_target = context.target
 	_ring = context.attack_ring
 	_allies = allies
@@ -269,7 +280,7 @@ func _gather_inputs() -> DecisionInputs:
 		var facing: Vector2 = _player_facing()
 		_inputs.player_facing_dot = facing.dot((global_position - player_pos).normalized()) \
 				if facing != Vector2.ZERO else 1.0
-		flank_point = FlankPlanner.choose(player_pos, facing, global_position, _flow_field, stats.utility_settings)
+		flank_point = FlankPlanner.choose(player_pos, facing, global_position, _nav_field, stats.utility_settings)
 		_inputs.flank_point_available = flank_point != Vector2.INF
 		var radius_sq: float = stats.utility_settings.ally_radius * stats.utility_settings.ally_radius
 		for other: Enemy in _allies:
@@ -292,7 +303,7 @@ func _player_facing() -> Vector2:
 
 func _flank_seek(cell: Vector2i, cost: float, role: AttackRing.Role) -> Vector2:
 	flank_point = FlankPlanner.choose(_target.global_position, _player_facing(), global_position,
-			_flow_field, stats.utility_settings)
+			_nav_field, stats.utility_settings)
 	if flank_point == Vector2.INF:
 		return _chase_seek(cell, cost, role)  # no usable side this frame: just chase
 	current_target = flank_point
@@ -301,12 +312,12 @@ func _flank_seek(cell: Vector2i, cost: float, role: AttackRing.Role) -> Vector2:
 		return ContextSteering.arrive(flank_point - global_position, stats.move_speed, stats.arrive_radius)
 	# Way to the flank point blocked: the flow field gets us round the obstacle towards the
 	# player (fair, the player is in view), and the straight line opens up on the way.
-	var next: Vector2i = _flow_field.get_next_cell(cell)
+	var next: Vector2i = _nav_field.get_next_cell(cell)
 	if _is_climbable(next):
 		_start_climb(_flow_climb_cells(next))
 		return Vector2.ZERO
 	nav_mode = &"flank"
-	return ContextSteering.seek(ContextSteering.sample_flow(_flow_field, global_position), stats.move_speed)
+	return ContextSteering.seek(ContextSteering.sample_flow(_nav_field, global_position), stats.move_speed)
 
 
 # --- CHASE: player perceived right now -----------------------------------------------
@@ -325,12 +336,12 @@ func _chase_seek(cell: Vector2i, cost: float, role: AttackRing.Role) -> Vector2:
 		return ContextSteering.seek(straight - global_position, stats.move_speed)
 	# Can see the player but can't run straight at them (a fence or corner in the way):
 	# the flow field knows the way, and using it is fair because the player is in view.
-	var next: Vector2i = _flow_field.get_next_cell(cell)
+	var next: Vector2i = _nav_field.get_next_cell(cell)
 	if _is_climbable(next):
 		_start_climb(_flow_climb_cells(next))
 		return Vector2.ZERO
 	nav_mode = &"flow"
-	return ContextSteering.seek(ContextSteering.sample_flow(_flow_field, global_position), stats.move_speed)
+	return ContextSteering.seek(ContextSteering.sample_flow(_nav_field, global_position), stats.move_speed)
 
 
 ## Pursuit: the predicted player position if the body can run straight there, else the
@@ -375,7 +386,7 @@ func _ring_seek(role: AttackRing.Role) -> Vector2:
 		nav_mode = &"ring"
 		return ContextSteering.arrive(target - global_position, stats.move_speed, stats.arrive_radius)
 	nav_mode = &"flow"
-	return ContextSteering.seek(ContextSteering.sample_flow(_flow_field, global_position), stats.move_speed)
+	return ContextSteering.seek(ContextSteering.sample_flow(_nav_field, global_position), stats.move_speed)
 
 
 # --- INVESTIGATE: go to the last known position --------------------------------------
@@ -401,7 +412,7 @@ func _investigate_seek(cell: Vector2i) -> Vector2:
 		# New target (or no plan yet): ask the shared queue for an A* path.
 		_path_version = awareness.target_version
 		_path.clear()
-		_ctx.path_queue.request(id, cell, _grid.coords.world_to_cell(goal))
+		_ctx.path_queue.request(id, cell, _grid.coords.world_to_cell(goal), nav_profile)
 		_waiting_for_path = true
 	if _waiting_for_path:
 		if not _ctx.path_queue.has_result(id):
@@ -452,8 +463,8 @@ func get_debug_path() -> Array[Vector2i]:
 ## Climb tiles taken from the flow field: the fence tiles, then the first tile past them.
 func _flow_climb_cells(first: Vector2i) -> Array[Vector2i]:
 	var cells: Array[Vector2i] = [first]
-	while _is_climbable(cells[-1]) and cells.size() < 8:
-		cells.append(_flow_field.get_next_cell(cells[-1]))
+	while _is_climbable(cells[-1]) and cells.size() < 32:
+		cells.append(_nav_field.get_next_cell(cells[-1]))
 	return cells
 
 
@@ -486,7 +497,7 @@ func _climb_step(cell: Vector2i, delta: float) -> void:
 	current_target = goal
 	var speed: float = stats.move_speed
 	if _is_climbable(cell):
-		speed /= _grid.get_cost(cell, _flow_field.profile)  # fence cost 6 -> 6x slower
+		speed /= _grid.get_cost(cell, nav_profile)  # fence cost 6 -> 6x slower (climber: less)
 	velocity = global_position.direction_to(goal) * speed
 	global_position = global_position.move_toward(goal, speed * delta)
 	if global_position.distance_to(goal) < 0.5:

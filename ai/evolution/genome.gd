@@ -5,6 +5,8 @@ extends Resource
 ##
 ##   Stats (budgeted, stat_min..stat_max): speed, health, vision  -> move_speed, max_health, sight_range
 ##   Behaviour (0..1): aggression, caution, flanking, cohesion, patience -> utility AI weights
+##   Terrain (0..1, adaptation budget): swimmer, climber, crawler, toxin_resistance, night_sense
+##       -> a TerrainCostProfile (cheaper / unlocked terrain, GDD 4.5); night_sense -> senses at night
 ##   Strategy: path_mode (FLOW / ASTAR / GREEDY)
 ## A Resource, so a genome can be saved as .tres or shown in the Inspector; to_dict() /
 ## from_dict() give a plain, JSON-safe form for logs and experiments.
@@ -13,6 +15,8 @@ enum PathMode { FLOW, ASTAR, GREEDY }
 
 const STAT_GENES: Array[StringName] = [&"speed", &"health", &"vision"]
 const BEHAVIOUR_GENES: Array[StringName] = [&"aggression", &"caution", &"flanking", &"cohesion", &"patience"]
+## Names match the adaptation keys in the terrain rulebook (TerrainDefinition.adaptations).
+const TERRAIN_GENES: Array[StringName] = [&"swimmer", &"climber", &"crawler", &"toxin_resistance", &"night_sense"]
 
 @export_group("Stats")
 @export var speed: float = 5.0
@@ -25,6 +29,13 @@ const BEHAVIOUR_GENES: Array[StringName] = [&"aggression", &"caution", &"flankin
 @export_range(0.0, 1.0) var flanking: float = 0.5
 @export_range(0.0, 1.0) var cohesion: float = 0.5
 @export_range(0.0, 1.0) var patience: float = 0.5
+
+@export_group("Terrain")
+@export_range(0.0, 1.0) var swimmer: float = 0.0
+@export_range(0.0, 1.0) var climber: float = 0.0
+@export_range(0.0, 1.0) var crawler: float = 0.0
+@export_range(0.0, 1.0) var toxin_resistance: float = 0.0
+@export_range(0.0, 1.0) var night_sense: float = 0.0
 
 @export_group("Strategy")
 @export var path_mode: PathMode = PathMode.FLOW
@@ -43,6 +54,13 @@ static func random(rng: RandomNumberGenerator, rules: GenomeRules, budget: int) 
 	for gene: StringName in STAT_GENES:
 		weights.append(rng.randf_range(0.05, 1.0))
 	g._spend_budget(weights, rules, budget)
+	# Terrain genes (drawn last, so the genes above match genomes made before they existed):
+	# a random total 0..adaptation_random_max, split by random weights, each capped at 1.
+	var terrain_weights: Array[float] = []
+	for gene: StringName in TERRAIN_GENES:
+		terrain_weights.append(rng.randf())
+	var total: float = rng.randf_range(0.0, minf(rules.adaptation_random_max, rules.adaptation_budget))
+	g._spread_adaptations(terrain_weights, total)
 	return g
 
 
@@ -68,6 +86,10 @@ func mutate(rng: RandomNumberGenerator, rules: GenomeRules, budget: int, rate: f
 		if rng.randf() < rate:
 			set(gene, get(gene) + rng.randfn(0.0, rules.behaviour_sigma))
 			changed += 1
+	for gene: StringName in TERRAIN_GENES:
+		if rng.randf() < rate:
+			set(gene, get(gene) + rng.randfn(0.0, rules.adaptation_sigma))
+			changed += 1
 	if rng.randf() < rate:
 		# Pick one of the OTHER modes: offset 1..size-1 from the current one.
 		var offset: int = rng.randi_range(1, PathMode.size() - 1)
@@ -86,11 +108,14 @@ func mutate(rng: RandomNumberGenerator, rules: GenomeRules, budget: int, rate: f
 ##      stat_max is capped and its overflow goes to the others (water-filling).
 ## So extra points follow the ratios evolution chose (via crossover and mutation), instead of
 ## all going to one stat. All stats at stat_min (no allocation yet) -> split evenly.
+##   4. terrain genes: clamp to 0..1; if their sum is over rules.adaptation_budget, scale them
+##      all down by the same factor (a ceiling only - adaptations are never topped up).
 func repair(rules: GenomeRules, budget: int) -> void:
 	for gene: StringName in STAT_GENES:
 		set(gene, clampf(get(gene), rules.stat_min, rules.stat_max))
 	for gene: StringName in BEHAVIOUR_GENES:
 		set(gene, clampf(get(gene), 0.0, 1.0))
+	_repair_adaptations(rules)
 	if spends_budget(rules, budget):
 		return  # already exact: leave the numbers untouched (elites stay bit-identical)
 	var shares: Array[float] = []
@@ -108,6 +133,23 @@ func stat_total() -> float:
 	return speed + health + vision
 
 
+## Sum of the five terrain genes (limited by rules.adaptation_budget).
+func adaptation_total() -> float:
+	var total: float = 0.0
+	for gene: StringName in TERRAIN_GENES:
+		total += get(gene)
+	return total
+
+
+## The terrain genes as {trait name: value}, for TerrainCostProfile / TerrainGrid.make_profile.
+## night_sense is included; no terrain lists it, so it never changes a cost.
+func terrain_genes() -> Dictionary[String, float]:
+	var genes: Dictionary[String, float] = {}
+	for gene: StringName in TERRAIN_GENES:
+		genes[String(gene)] = get(gene)
+	return genes
+
+
 ## True if the stats add up to exactly `budget` (or as close as the 1..10 ranges allow).
 ## Every genome the GA or Genome.random produces does; is_valid only checks the ceiling.
 func spends_budget(rules: GenomeRules, budget: int) -> bool:
@@ -122,10 +164,12 @@ func is_valid(rules: GenomeRules, budget: int) -> bool:
 		var v: float = get(gene)
 		if v < rules.stat_min - 0.0001 or v > rules.stat_max + 0.0001:
 			return false
-	for gene: StringName in BEHAVIOUR_GENES:
+	for gene: StringName in BEHAVIOUR_GENES + TERRAIN_GENES:
 		var b: float = get(gene)
 		if b < 0.0 or b > 1.0:
 			return false
+	if adaptation_total() > rules.adaptation_budget + 0.0001:
+		return false
 	return stat_total() <= budget + 0.0001
 
 
@@ -161,15 +205,17 @@ func to_behaviour_weights() -> BehaviourWeights:
 ## Plain dictionary (JSON-safe): gene name -> value, path_mode as its name.
 func to_dict() -> Dictionary:
 	var d: Dictionary = {}
-	for gene: StringName in STAT_GENES + BEHAVIOUR_GENES:
+	for gene: StringName in STAT_GENES + BEHAVIOUR_GENES + TERRAIN_GENES:
 		d[String(gene)] = get(gene)
 	d["path_mode"] = PathMode.keys()[path_mode]
 	return d
 
 
+## Missing genes keep their defaults: saves from before terrain genes load with all terrain
+## genes at 0 (no adaptations), which is always within the adaptation budget.
 static func from_dict(d: Dictionary) -> Genome:
 	var g: Genome = Genome.new()
-	for gene: StringName in STAT_GENES + BEHAVIOUR_GENES:
+	for gene: StringName in STAT_GENES + BEHAVIOUR_GENES + TERRAIN_GENES:
 		if d.has(String(gene)):
 			g.set(gene, float(d[String(gene)]))
 	if d.has("path_mode"):
@@ -177,14 +223,55 @@ static func from_dict(d: Dictionary) -> Genome:
 	return g
 
 
-## One-line summary, e.g. "spd 6.2 hp 4.1 vis 4.7 | agg .80 cau .12 fla .55 coh .30 pat .91 | FLOW"
+## One-line summary, e.g.
+## "spd 6.2 hp 4.1 vis 4.7 | agg .80 cau .12 fla .55 coh .30 pat .91 | swi .00 cli .62 cra .10 tox .00 nig .30 | FLOW"
 func describe() -> String:
-	return "spd %.1f hp %.1f vis %.1f | agg %.2f cau %.2f fla %.2f coh %.2f pat %.2f | %s" % [
-		speed, health, vision, aggression, caution, flanking, cohesion, patience, PathMode.keys()[path_mode]]
+	return "spd %.1f hp %.1f vis %.1f | agg %.2f cau %.2f fla %.2f coh %.2f pat %.2f | swi %.2f cli %.2f cra %.2f tox %.2f nig %.2f | %s" % [
+		speed, health, vision, aggression, caution, flanking, cohesion, patience,
+		swimmer, climber, crawler, toxin_resistance, night_sense, PathMode.keys()[path_mode]]
 
 
 func _to_string() -> String:
 	return "Genome(%s)" % describe()
+
+
+## Clamps the terrain genes to 0..1, then scales them down together if they exceed the
+## adaptation budget (keeps the genome's specialisation ratios).
+func _repair_adaptations(rules: GenomeRules) -> void:
+	for gene: StringName in TERRAIN_GENES:
+		set(gene, clampf(get(gene), 0.0, 1.0))
+	var total: float = adaptation_total()
+	if total > rules.adaptation_budget and total > 0.0:
+		var factor: float = rules.adaptation_budget / total
+		for gene: StringName in TERRAIN_GENES:
+			set(gene, get(gene) * factor)
+
+
+## Hands `total` adaptation points to the terrain genes in proportion to `weights`, capping
+## each at 1 and passing the overflow on (same water-filling as the stat budget).
+func _spread_adaptations(weights: Array[float], total: float) -> void:
+	var values: Array[float] = []
+	values.resize(TERRAIN_GENES.size())
+	values.fill(0.0)
+	var open: Array[int] = []
+	for i: int in TERRAIN_GENES.size():
+		open.append(i)
+	var left: float = minf(total, float(TERRAIN_GENES.size()))
+	while left > 0.0001 and not open.is_empty():
+		var weight_sum: float = 0.0
+		for i: int in open:
+			weight_sum += weights[i]
+		var overflow: float = 0.0
+		for i: int in open.duplicate():
+			var part: float = weights[i] / weight_sum if weight_sum > 0.0 else 1.0 / open.size()
+			values[i] += left * part
+			if values[i] >= 1.0:
+				overflow += values[i] - 1.0
+				values[i] = 1.0
+				open.erase(i)
+		left = overflow
+	for i: int in TERRAIN_GENES.size():
+		set(TERRAIN_GENES[i], values[i])
 
 
 ## Sets the stats to stat_min plus a share of the remaining budget proportional to `weights`,

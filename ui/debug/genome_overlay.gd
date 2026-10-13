@@ -4,6 +4,8 @@ extends Node2D
 ##   "6/4/5"  speed / health / vision genes (rounded)
 ##   bar      aggression (red), flanking (magenta), patience (yellow), 0..1 each
 ##   "F .21"  fitness so far (as if the wave ended now)
+##   "Cs"     terrain genes >= 0.25 (S swimmer, C climber, V crawler, T toxin, N night sense;
+##            capital letter = >= 0.5)
 
 var wave_manager: WaveManager
 
@@ -41,3 +43,13 @@ func _draw() -> void:
 		var colors: Array[Color] = [Color(1, 0.3, 0.3), Color.MAGENTA, Color(1, 0.9, 0.2)]
 		for i: int in 3:
 			draw_rect(Rect2(pos + Vector2(-6, 16 + i * 2), Vector2(12 * genes[i], 1)), colors[i])
+		# Terrain adaptations: one letter per gene >= 0.25 (S swimmer, C climber, V crawler,
+		# T toxin, N night sense), upper case once it unlocks / strongly cuts the cost (>= 0.5).
+		var tags: String = ""
+		for j: int in Genome.TERRAIN_GENES.size():
+			var v: float = g.get(Genome.TERRAIN_GENES[j])
+			if v >= 0.25:
+				var letter: String = "SCVTN"[j]
+				tags += letter if v >= 0.5 else letter.to_lower()
+		if tags != "":
+			draw_string(font, pos + Vector2(-8, 35), tags, HORIZONTAL_ALIGNMENT_LEFT, -1, 6, Color(0.5, 0.85, 1))

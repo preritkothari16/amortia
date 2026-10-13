@@ -24,6 +24,17 @@ extends Resource
 @export var health_per_point: float = 0.15
 @export var vision_per_point: float = 0.10
 
+@export_group("Terrain adaptation budget")
+## Sum of the five terrain genes (swimmer, climber, crawler, toxin_resistance, night_sense) may
+## not exceed this (GDD 5.3: 1.5 - forces specialisation). Separate from the stat budget, and a
+## ceiling only: unlike stat points, adaptations don't have to be spent.
+@export var adaptation_budget: float = 1.5
+## A random (wave 1) genome spends a random amount between 0 and this on adaptations.
+## Default = the full budget, so evolution has variation to select from in every zone.
+@export var adaptation_random_max: float = 1.5
+## Size (standard deviation) of the Gaussian nudge for terrain genes.
+@export var adaptation_sigma: float = 0.1
+
 @export_group("Mutation")
 ## Chance for each gene to mutate.
 @export_range(0.0, 1.0) var mutation_rate: float = 0.1

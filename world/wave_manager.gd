@@ -264,7 +264,7 @@ func _apply_restore() -> void:
 ## Mean of each gene over a list of genomes: gene name -> mean.
 static func gene_means(genomes: Array[Genome]) -> Dictionary:
 	var means: Dictionary = {}
-	for gene: StringName in Genome.STAT_GENES + Genome.BEHAVIOUR_GENES:
+	for gene: StringName in Genome.STAT_GENES + Genome.BEHAVIOUR_GENES + Genome.TERRAIN_GENES:
 		var total: float = 0.0
 		for g: Genome in genomes:
 			total += g.get(gene)
@@ -392,7 +392,7 @@ func _pick_spawn_position(near: Vector2, stats: EnemyStats) -> Vector2:
 ## e.g. "[Wave 1] 20 enemies, budget 15 | speed 2.1-7.9 (avg 5.0) | ... | paths FLOW 7 ASTAR 6 GREEDY 7"
 func _wave_summary(genomes: Array[Genome]) -> String:
 	var parts: PackedStringArray = PackedStringArray()
-	for gene: StringName in Genome.STAT_GENES + Genome.BEHAVIOUR_GENES:
+	for gene: StringName in Genome.STAT_GENES + Genome.BEHAVIOUR_GENES + Genome.TERRAIN_GENES:
 		var lo: float = INF
 		var hi: float = -INF
 		var total: float = 0.0

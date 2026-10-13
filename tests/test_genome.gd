@@ -99,7 +99,7 @@ func test_mutation_rate_zero_changes_nothing() -> void:
 func test_mutation_rate_one_changes_every_gene() -> void:
 	var g: Genome = Genome.random(_rng, _rules, 15)
 	var before: Genome = g.copy()
-	assert_eq(g.mutate(_rng, _rules, 15, 1.0), 9, "3 stats + 5 behaviour + path_mode")
+	assert_eq(g.mutate(_rng, _rules, 15, 1.0), 14, "3 stats + 5 behaviour + 5 terrain + path_mode")
 	assert_ne(g.path_mode, before.path_mode, "category re-picked to a DIFFERENT value")
 	var behaviour_changed: int = 0
 	for gene: StringName in Genome.BEHAVIOUR_GENES:
@@ -112,7 +112,7 @@ func test_default_rate_mutates_about_ten_percent() -> void:
 	var total: int = 0
 	for i: int in 500:
 		total += Genome.random(_rng, _rules, 15).mutate(_rng, _rules, 15)
-	var per_gene: float = total / (500.0 * 9.0)
+	var per_gene: float = total / (500.0 * 14.0)  # 3 stats + 5 behaviour + 5 terrain + path_mode
 	assert_between(per_gene, 0.07, 0.13, "observed rate %.3f" % per_gene)
 
 

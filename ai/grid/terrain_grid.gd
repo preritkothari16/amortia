@@ -138,6 +138,20 @@ func build_cost_array(profile: TerrainCostProfile = null) -> PackedFloat32Array:
 	return costs
 
 
+## Terrain ids used by at least one cell, sorted (unknown terrain left out).
+func present_terrain_ids() -> PackedInt32Array:
+	var seen: PackedByteArray = PackedByteArray()
+	seen.resize(_names.size())
+	for id: int in _terrain_ids:
+		if id >= 0:
+			seen[id] = 1
+	var ids: PackedInt32Array = PackedInt32Array()
+	for id: int in seen.size():
+		if seen[id] == 1:
+			ids.append(id)
+	return ids
+
+
 ## The cell's full terrain definition (null outside the map, unknown terrain, or rules
 ## without definitions). For per-frame lookups prefer the dedicated getters below.
 func get_definition(cell: Vector2i) -> TerrainDefinition:

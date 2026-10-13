@@ -1,6 +1,7 @@
 class_name TerrainCostOverlay
 extends Node2D
-## Debug view of a TerrainGrid: tints every cell by its movement cost. Toggle with F1.
+## Debug view of a TerrainGrid: tints every cell by its movement cost. F1: base costs, then
+## each flow-field bucket's costs, then off.
 ## Green = cost 1, yellow = cost 2, orange = 3+, red cross = impassable.
 
 var grid: TerrainGrid:
@@ -19,9 +20,30 @@ func _ready() -> void:
 	z_index = 10
 
 
+## Optional: F1 then steps through every terrain-profile bucket in use (base first), so
+## adapted costs (a climber's cheap fences...) can be inspected. Label shows the bucket.
+var flow_fields: FlowFieldSet
+var _profile_index: int = 0
+
+
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("debug_overlay"):
-		visible = not visible
+	if not event.is_action_pressed("debug_overlay"):
+		return
+	var profiles: Array[TerrainCostProfile] = flow_fields.get_profiles() if flow_fields != null else []
+	if not visible:
+		visible = true
+		_profile_index = 0
+	else:
+		_profile_index += 1
+		if _profile_index >= maxi(profiles.size(), 1):
+			visible = false
+			_profile_index = 0
+	profile = profiles[_profile_index] if _profile_index < profiles.size() and _profile_index > 0 else null
+
+
+func _process(_delta: float) -> void:
+	if visible:
+		queue_redraw()  # terrain can change at runtime; label follows the camera
 
 
 func _draw() -> void:
@@ -38,6 +60,10 @@ func _draw() -> void:
 				draw_line(Vector2(rect.end.x, rect.position.y), Vector2(rect.position.x, rect.end.y), cross)
 			else:
 				draw_rect(rect.grow(-1.0), _cost_color(cost))
+	var name: String = profile.label if profile != null else "base costs"
+	var cam: Camera2D = get_viewport().get_camera_2d()
+	var at: Vector2 = cam.get_screen_center_position() + Vector2(-230, 120) if cam != null else Vector2(4, 260)
+	draw_string(ThemeDB.fallback_font, at, "F1 costs: " + name.left(90), HORIZONTAL_ALIGNMENT_LEFT, -1, 6, Color.WHITE)
 
 
 func _cost_color(cost: float) -> Color:

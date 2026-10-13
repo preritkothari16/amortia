@@ -3,7 +3,9 @@ extends RefCounted
 ## Shares one AStar between many enemies without frame spikes (GDD 6.4: limited searches per
 ## frame, results cached). Enemies request a path and pick up the result a frame or more later.
 ##
-##   request(id, start, goal)
+##   request(id, start, goal, profile)
+##     (everything below is per cost profile: a climber's cached path is never handed to a
+##      non-climber; profiles are keyed by their label - FlowFieldSet gives bucket labels)
 ##     1. exact (start, goal) seen before        -> answer at once from the cache
 ##     2. start lies on a cached path to `goal`  -> answer at once with the rest of that path
 ##     3. otherwise queue it; a newer request from the same id replaces the older one
@@ -25,33 +27,34 @@ var cache_hits: int = 0
 var reuse_hits: int = 0
 var last_process_usec: int = 0
 
-## Waiting requests in arrival order: [id, start, goal].
+## Waiting requests in arrival order: [id, start, goal, profile].
 var _queue: Array[Array] = []
 ## Finished results waiting to be picked up: id -> path ([] = no path).
 var _results: Dictionary[int, Array] = {}
-## (start, goal) packed as Vector4i -> path.
-var _cache: Dictionary[Vector4i, Array] = {}
-## goal -> list of cached paths ending there, for tail reuse.
-var _paths_to_goal: Dictionary[Vector2i, Array] = {}
+## "profile|start|goal" -> path.
+var _cache: Dictionary[String, Array] = {}
+## "profile|goal" -> list of cached paths ending there, for tail reuse.
+var _paths_to_goal: Dictionary[String, Array] = {}
 
 
 func _init(search: AStar) -> void:
 	astar = search
 
 
-func request(id: int, start: Vector2i, goal: Vector2i) -> void:
+## `profile` = whose terrain costs to search with (null = the grid's base costs).
+func request(id: int, start: Vector2i, goal: Vector2i, profile: TerrainCostProfile = null) -> void:
 	cancel(id)
-	var key: Vector4i = Vector4i(start.x, start.y, goal.x, goal.y)
+	var key: String = _key(profile, start, goal)
 	if _cache.has(key):
 		cache_hits += 1
 		_results[id] = _cache[key]
 		return
-	var tail: Array[Vector2i] = _reuse_tail(start, goal)
+	var tail: Array[Vector2i] = _reuse_tail(profile, start, goal)
 	if not tail.is_empty():
 		reuse_hits += 1
 		_results[id] = tail
 		return
-	_queue.append([id, start, goal])
+	_queue.append([id, start, goal, profile])
 
 
 ## Drops any queued request and unread result for this id (e.g. the enemy died).
@@ -93,10 +96,10 @@ func process() -> void:
 		if done > 0 and Time.get_ticks_usec() - start_usec >= budget_usec:
 			break
 		var entry: Array = _queue.pop_front()
-		var path: Array[Vector2i] = astar.find_path(entry[1], entry[2])
+		var path: Array[Vector2i] = astar.find_path(entry[1], entry[2], entry[3])
 		searches_run += 1
 		done += 1
-		_store(entry[1], entry[2], path)
+		_store(entry[3], entry[1], entry[2], path)
 		_results[entry[0]] = path
 	last_process_usec = Time.get_ticks_usec() - start_usec
 
@@ -107,21 +110,34 @@ func clear_cache() -> void:
 	_paths_to_goal.clear()
 
 
-func _store(start: Vector2i, goal: Vector2i, path: Array[Vector2i]) -> void:
+func _store(profile: TerrainCostProfile, start: Vector2i, goal: Vector2i, path: Array[Vector2i]) -> void:
 	if _cache.size() >= max_cache_size:
 		clear_cache()
-	_cache[Vector4i(start.x, start.y, goal.x, goal.y)] = path
+	_cache[_key(profile, start, goal)] = path
 	if not path.is_empty():
-		if not _paths_to_goal.has(goal):
-			_paths_to_goal[goal] = []
-		_paths_to_goal[goal].append(path)
+		var goal_key: String = _goal_key(profile, goal)
+		if not _paths_to_goal.has(goal_key):
+			_paths_to_goal[goal_key] = []
+		_paths_to_goal[goal_key].append(path)
+
+
+static func _profile_name(profile: TerrainCostProfile) -> String:
+	return profile.label if profile != null else "base"
+
+
+static func _key(profile: TerrainCostProfile, start: Vector2i, goal: Vector2i) -> String:
+	return "%s|%d,%d|%d,%d" % [_profile_name(profile), start.x, start.y, goal.x, goal.y]
+
+
+static func _goal_key(profile: TerrainCostProfile, goal: Vector2i) -> String:
+	return "%s|%d,%d" % [_profile_name(profile), goal.x, goal.y]
 
 
 ## If `start` is on a cached cheapest path to `goal`, the rest of that path is also a cheapest
 ## path from `start` (every part of a shortest path is itself shortest).
-func _reuse_tail(start: Vector2i, goal: Vector2i) -> Array[Vector2i]:
+func _reuse_tail(profile: TerrainCostProfile, start: Vector2i, goal: Vector2i) -> Array[Vector2i]:
 	var tail: Array[Vector2i] = []
-	for path: Array in _paths_to_goal.get(goal, []):
+	for path: Array in _paths_to_goal.get(_goal_key(profile, goal), []):
 		var i: int = path.find(start)
 		if i >= 0:
 			tail.assign(path.slice(i))

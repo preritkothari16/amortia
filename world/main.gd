@@ -17,7 +17,10 @@ extends Node2D
 ## Plain-data copy of the map for the AI. Rebuild or set_terrain() when terrain changes.
 var terrain_grid: TerrainGrid
 ## Shared flow field towards the player, rebuilt whenever the player enters a new cell.
+## This is the base-profile field of flow_fields.
 var flow_field: FlowField
+## Flow fields per terrain-profile bucket (climbers, swimmers... get their own arrows).
+var flow_fields: FlowFieldSet
 ## Slots around the player that decide who surrounds and who attacks (GDD 6.4).
 var attack_ring: AttackRing
 ## Budgeted, cached A* shared by all enemies for investigation paths.
@@ -47,7 +50,9 @@ func _ready() -> void:
 	terrain_grid = TerrainGrid.from_rows(_map.get_terrain_rows(), terrain_costs, coords)
 	_cost_overlay.grid = terrain_grid
 	_player.terrain_grid = terrain_grid
-	flow_field = FlowField.new(terrain_grid)
+	flow_fields = FlowFieldSet.new(terrain_grid)
+	flow_field = flow_fields.base_field
+	_cost_overlay.flow_fields = flow_fields
 	_flow_overlay.field = flow_field
 	attack_ring = AttackRing.new(flow_field, attack_ring_settings)
 	_ring_overlay.ring = attack_ring
@@ -82,6 +87,7 @@ func _ready() -> void:
 	attack_ring.update(_player.global_position, 0.0)
 	var context: EnemyContext = EnemyContext.new()
 	context.flow_field = flow_field
+	context.flow_fields = flow_fields
 	context.attack_ring = attack_ring
 	context.path_queue = path_queue
 	context.target = _player
@@ -163,6 +169,7 @@ func _physics_process(delta: float) -> void:
 	# Runs before the enemies (parents process first), so they read this frame's roles.
 	attack_ring.update(_player.global_position, delta)
 	path_queue.process()
+	flow_fields.process()
 
 
 ## Rebuilds the field only when the player's cell changes (GDD 6.2).
@@ -173,6 +180,6 @@ func _update_flow_field() -> void:
 	if not terrain_grid.is_walkable(cell):
 		return  # keep the old field rather than pointing everything at a wall
 	var start_usec: int = Time.get_ticks_usec()
-	flow_field.build(cell)
+	flow_fields.set_target(cell)
 	last_flow_build_msec = (Time.get_ticks_usec() - start_usec) / 1000.0
 	_flow_overlay.refresh()

@@ -8,7 +8,7 @@ extends RefCounted
 ##       parents A, B = tournament selection (size tournament_size)
 ##       child = uniform crossover of A and B (chance crossover_rate), else a copy of A
 ##       child.mutate(rate)   - Gaussian nudge for numbers, re-pick for path_mode
-##       child.repair(budget) - clamp ranges, spend exactly the stat budget
+##       child.repair(budget) - clamp ranges, spend exactly the stat budget, cap adaptations
 ##   rate = mutation_rate, doubled for this generation if > diversity_threshold of the
 ##   population share one path_mode (diversity guard)
 ##
@@ -105,10 +105,10 @@ func tournament_select(fitness: Array[float]) -> int:
 
 
 ## Uniform crossover: every gene independently comes from parent A or parent B (50/50).
-## The child may break the stat budget - the caller repairs it.
+## The child may break the stat or adaptation budget - the caller repairs it.
 func uniform_crossover(a: Genome, b: Genome) -> Genome:
 	var child: Genome = Genome.new()
-	for gene: StringName in Genome.STAT_GENES + Genome.BEHAVIOUR_GENES:
+	for gene: StringName in Genome.STAT_GENES + Genome.BEHAVIOUR_GENES + Genome.TERRAIN_GENES:
 		child.set(gene, a.get(gene) if rng.randf() < 0.5 else b.get(gene))
 	child.path_mode = a.path_mode if rng.randf() < 0.5 else b.path_mode
 	return child

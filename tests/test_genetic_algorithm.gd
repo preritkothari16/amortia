@@ -271,7 +271,7 @@ func test_mutation_rate_about_ten_percent_per_gene() -> void:
 	for generation: int in 100:
 		ga.next_generation(pop, fit, BUDGET)
 		mutated += ga.last_stats["genes_mutated"]
-		genes += 18 * 9
+		genes += 18 * 14  # 18 children x 14 mutable genes
 	var rate: float = float(mutated) / genes
 	assert_between(rate, 0.08, 0.12, "measured %.3f" % rate)
 
