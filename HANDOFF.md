@@ -4,7 +4,7 @@ Read this first in a new session, together with `CLAUDE.md` and `Game Design Doc
 It is updated at the end of every prompt. Last update: 2026-10-13.
 
 > **Resume here:** steps 1–39 done on `main` (8 commits NOT pushed). 441 GUT tests pass. On 2026-10-13 the user asked
-> to "build all": expansion Phases 1–8 were built in one evening (steps 32–39). Short review list: `EVENING_SUMMARY.md`.
+> to "build all": expansion Phases 1–8 were built in one evening (steps 32–39). Open decisions: "Open items" below.
 > Graded-code explanations + pseudocode for the new AI files: `docs/graded_ai_notes.md` (read before the viva).
 > Audit / conflicts / remaining design decisions: `EXPANSION_PLAN.md`.
 > Before that: player death = Game Over + Retry the same wave (step 31). GA calibration (step 29) —
@@ -311,7 +311,18 @@ Spawns are 15–32 tiles from the player; all 1383 walkable cells reachable (che
 - Scratch generator scripts can't use `const T = SomeClassName`; use `preload("res://...gd")`.
 
 ## Open items / deferred
-- (2026-10-13 evening build) Design decisions still open: see EVENING_SUMMARY.md "Needs your decision".
+- (2026-10-13 evening build) Design decisions still open (defaults chosen, all in data):
+  1. Proposed numbers: fire 15 / toxic 6 dps, footstep radii 24 / 48 / 96 px, shot exposure 1.5 s, night hearing
+     +25 % (+50 % night-sense), adaptation budget 1.5, straggler pacing, Hold / Escort / Nest HP, boss ×12 HP ×2 dmg.
+  2. Death after clearing a wave: wave stays cleared, next area (alternative: retry).
+  3. Campaign death: Retry wave or Restart level, both keep XP + evolution.
+  4. Grass burnable (GDD 4.4; the 4.2 table lists only tall grass).
+  5. Enemies not slowed by mud / tall grass; terrain only changes their route.
+  6. Fences shootable (40 HP) in the prototype too.
+  7. Zone 2–4 layouts are placeholders (Maple Hollow chunks + their zone's events).
+- Known limitations: Escort enemies don't target the survivor; Apex = big Runner, no boss attacks; Safehouse rooms
+  and rescue / bestiary / collectible side objectives are placeholders; no human playtest; worst headless frame
+  ~100 ms on wave spawn (was ~57) — check windowed; GA-vs-random experiment not rerun with the new genes.
 - Tall grass: player speed 80 % done (step 32); concealment (vision) is Phase 3.
 - Terrain rulebook (step 32): metadata for noise, HP, burnable, collapse, hazards, overlays, PARTIAL /
   REDUCES / CONCEALS vision is stored but not used yet (Phases 3–4). Traversals SWIM / CRAWL reuse the

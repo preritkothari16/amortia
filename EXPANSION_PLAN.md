@@ -1,9 +1,9 @@
 # Amortia — terrain / evolution / objectives / campaign expansion plan
 
 Audit and roadmap for the "Terrain, Evolution, Objectives & Campaign Expansion" spec (2026-10-13).
-**Status: all 8 phases built on 2026-10-13** (user: "build all") — HANDOFF steps 32–39, review list
-in `EVENING_SUMMARY.md`. The "Before / After P1" columns below are the original audit; every M / P
-row in phases 2–8 is now implemented except where EVENING_SUMMARY lists a limitation.
+**Status: all 8 phases built on 2026-10-13** (user: "build all") — HANDOFF steps 32–39, open decisions
+in HANDOFF "Open items". The "Before / After P1" columns below are the original audit; every M / P
+row in phases 2–8 is now implemented except where HANDOFF lists a limitation.
 Learning mode still applies: files in `ai/nav`, `ai/evolution`, `ai/decision`, `ai/learning`,
 `ai/levelgen` get an explanation + pseudocode first, code only on request.
 
