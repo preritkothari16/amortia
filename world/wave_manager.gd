@@ -67,6 +67,9 @@ signal enemies_arrived(wave: int)
 @export_range(0.0, 1.0) var behind_fraction: float = 0.0
 ## Set by the level for waves 2+ of a level: part of the wave comes from behind the player.
 var use_behind_spawns: bool = false
+## End (score + breed) the wave when all its enemies are dead. Objectives whose goal is
+## something else (escort, nests, hold timer, boss) turn this off and call end_wave() themselves.
+var auto_end_when_all_dead: bool = true
 
 ## Waves spawned so far in this zone (the first wave is 1). Sets the stat budget.
 var wave_number: int = 0
@@ -234,11 +237,13 @@ func set_spawn_points(points: Array[Vector2], behind: Array[Vector2] = []) -> vo
 ## A straggler (after the wave is done, the player lingering): an enemy from the current
 ## population at a random spawn point, NOT scored - no FitnessRecord, never bred from - so
 ## lingering can't distort evolution. Returns the enemy.
-func spawn_straggler() -> Enemy:
+## `near` = where (Vector2.INF = a random spawn point; nests pass their position).
+func spawn_straggler(near: Vector2 = Vector2.INF) -> Enemy:
 	if _spawn_points.is_empty() or population.is_empty():
 		return null
 	var genome: Genome = population[_rng.randi_range(0, population.size() - 1)]
-	return spawn_enemy(_spawn_points[_rng.randi_range(0, _spawn_points.size() - 1)], genome, null)
+	var at: Vector2 = near if near != Vector2.INF else _spawn_points[_rng.randi_range(0, _spawn_points.size() - 1)]
+	return spawn_enemy(at, genome, null)
 
 
 ## Removes every living enemy without scoring (area change).
@@ -593,5 +598,5 @@ func _on_enemy_died(enemy: Enemy) -> void:
 	if alive.is_empty():
 		wave_cleared.emit()
 	# The wave is over once every enemy it spawned is dead.
-	if _wave_open and _wave_entries.all(func(e: Dictionary) -> bool: return (e["record"] as FitnessRecord).frozen):
+	if _wave_open and auto_end_when_all_dead 			and _wave_entries.all(func(e: Dictionary) -> bool: return (e["record"] as FitnessRecord).frozen):
 		end_wave()

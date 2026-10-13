@@ -17,6 +17,8 @@ signal died(enemy: Enemy)
 var health: float = 0.0
 ## True while crossing a climbable tile (fence) with world collision switched off.
 var is_climbing: bool = false
+## True for an Apex boss (make_boss).
+var is_boss: bool = false
 ## This enemy's genes (null = plain archetype values from `stats`).
 var genome: Genome
 ## Raw fitness facts for the GA (null = not being scored). Shared with the WaveManager.
@@ -660,6 +662,19 @@ func _die() -> void:
 	died.emit(self)
 	EventBus.enemy_killed.emit(self)
 	queue_free()
+
+
+## Turns this enemy into a zone boss (Apex objective): more HP and damage, bigger, purple.
+## Placeholder until boss designs exist - no new attacks. Call after it entered the tree.
+func make_boss(health_multiplier: float, damage_multiplier: float, size: float) -> void:
+	stats = stats.duplicate() as EnemyStats
+	stats.max_health *= health_multiplier
+	stats.attack_damage *= damage_multiplier
+	stats.color = Color(0.6, 0.2, 0.85)
+	health = stats.max_health
+	_body.color = stats.color
+	_body.scale *= size
+	is_boss = true
 
 
 ## Greybox health bar, shown once damaged.

@@ -19,5 +19,7 @@ extends Resource
 ## S = seconds alive / this. Fixed evaluation length, so surviving a wave the player ended early
 ## (by going down) doesn't give S = 1. 0 = use the wave's duration (survivors score 1).
 @export var survival_cap_seconds: float = 0.0
-## O = objective points / this.
+## O = objective points / this. Objective points are damage-equivalent (HP of damage to a held
+## point or escort, seconds guarding, 50 for raising a stealth alarm; see ObjectiveConfig),
+## so the cap matches damage_cap: 50 points = full O.
 @export var objective_cap: float = 1.0

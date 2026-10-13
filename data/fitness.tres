@@ -12,4 +12,4 @@ damage_cap = 50.0
 pressure_radius = 64.0
 pressure_cap_seconds = 0.0
 survival_cap_seconds = 45.0
-objective_cap = 1.0
+objective_cap = 50.0

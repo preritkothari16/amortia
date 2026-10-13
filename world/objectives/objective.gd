@@ -51,8 +51,14 @@ func clears_on_kill_all() -> bool:
 	return true
 
 
-## True if the exit gate is open from the start (Stealth: sneak to it).
+## True if the exit gate is open from the start (Stealth: sneak to it; Escort: walk to it).
 func exit_open_from_start() -> bool:
+	return false
+
+
+## The player walked out while the wave was still on (only with exit_open_from_start).
+## Return true if that completes the wave's goal.
+func player_exited() -> bool:
 	return false
 
 
@@ -109,3 +115,43 @@ static func credit(enemy: Enemy, points: float) -> void:
 func _clear_props() -> void:
 	for child: Node in get_children():
 		child.queue_free()
+
+
+# --- Helpers for placing props -------------------------------------------------------
+
+## The walkable (for the player) cell nearest to `cell`, searching outwards; `cell` if none.
+func walkable_near(cell: Vector2i) -> Vector2i:
+	for r: int in 12:
+		for dy: int in range(-r, r + 1):
+			for dx: int in range(-r, r + 1):
+				if maxi(absi(dx), absi(dy)) != r:
+					continue
+				var c: Vector2i = cell + Vector2i(dx, dy)
+				var d: TerrainDefinition = grid.get_definition(c)
+				if d != null and d.player_passable and grid.get_overlay(c) == "":
+					return c
+	return cell
+
+
+## Shortest 4-way walk for a survivor (player rules: no fences, no water) - breadth-first
+## search. [] if none. The exit gate counts as walkable (it opens).
+func walk_path(from: Vector2i, to: Vector2i) -> Array[Vector2i]:
+	var came: Dictionary[Vector2i, Vector2i] = {from: from}
+	var queue: Array[Vector2i] = [from]
+	while not queue.is_empty():
+		var c: Vector2i = queue.pop_front()
+		if c == to:
+			var path: Array[Vector2i] = [c]
+			while path[0] != from:
+				path.push_front(came[path[0]])
+			return path
+		for d: Vector2i in [Vector2i.RIGHT, Vector2i.DOWN, Vector2i.UP, Vector2i.LEFT]:
+			var n: Vector2i = c + d
+			if came.has(n):
+				continue
+			var t: TerrainDefinition = grid.get_definition(n)
+			if t == null or not (t.player_passable or t.id == "gate"):
+				continue
+			came[n] = c
+			queue.append(n)
+	return []

@@ -120,6 +120,8 @@ func _ready() -> void:
 	context.terrain_health = terrain_health
 	_load_pending_save()
 	_wave_manager.generation_bred.connect(func(_summary: Dictionary) -> void: save_game())
+	# Apex bosses are built from the zone's fittest genome (failed waves count: the attempt was real).
+	_wave_manager.wave_ended.connect(GameState.record_wave_best)
 	# A lost wave is saved too (XP from the attempt kept, the save replays that wave).
 	_wave_manager.wave_failed.connect(func(_summary: Dictionary) -> void: save_game())
 	_player.skills.changed.connect(_on_skills_changed)

@@ -68,6 +68,7 @@ func setup(level: LevelConfig, level_main: Node, waves: WaveManager, the_player:
 	player.build_requested.connect(_on_build_requested)
 	EventBus.enemy_killed.connect(_on_enemy_killed)
 	if objective != null:
+		wave_manager.auto_end_when_all_dead = objective.clears_on_kill_all()
 		objective.goal_reached.connect(_on_goal_reached)
 		objective.failed.connect(_on_objective_failed)
 		objective.area_loaded(main.current_map())
@@ -140,13 +141,12 @@ func _check_exit() -> void:
 
 func _on_exited() -> void:
 	if phase == Phase.FIGHTING or phase == Phase.ENTERING:
-		# Stealth: walking out IS the goal.
-		if objective != null:
-			objective._complete()
+		# Exit open during the wave (Stealth, Escort): the objective decides whether walking
+		# out now completes it (Stealth) or not yet (Escort: the survivor must get there).
+		if objective == null or not objective.player_exited():
+			return
 		if wave_manager.is_wave_running():
 			wave_manager.end_wave()
-		if objective == null:
-			return
 	wave_manager.clear_enemies()  # stragglers
 	if waves_done >= config.waves:
 		phase = Phase.COMPLETE
