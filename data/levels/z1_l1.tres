@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="LevelConfig" format=3]
+
+[ext_resource type="PackedScene" path="res://world/zones/maple_hollow/areas/area_1.tscn" id="1_b5mj0"]
+[ext_resource type="PackedScene" path="res://world/zones/maple_hollow/areas/area_2.tscn" id="2_uxfpt"]
+[ext_resource type="PackedScene" path="res://world/zones/maple_hollow/areas/area_3.tscn" id="3_olhfe"]
+[ext_resource type="Script" path="res://world/events/terrain_event.gd" id="4_olrwr"]
+[ext_resource type="Script" path="res://world/events/fire_spread.gd" id="5_1yh6a"]
+[ext_resource type="Script" path="res://world/events/day_night.gd" id="6_ppaa8"]
+[ext_resource type="Script" path="res://world/objectives/objective_config.gd" id="7_k6b7p"]
+[ext_resource type="Script" path="res://world/level/level_config.gd" id="8_jny5k"]
+[ext_resource type="Script" path="res://world/campaign/side_objective.gd" id="9_8c8lt"]
+
+[sub_resource type="Resource" id="Resource_b3064"]
+script = ExtResource("5_1yh6a")
+
+[sub_resource type="Resource" id="Resource_1bhtu"]
+script = ExtResource("6_ppaa8")
+
+[sub_resource type="Resource" id="Resource_hb5jh"]
+script = ExtResource("7_k6b7p")
+
+[sub_resource type="Resource" id="Resource_pg5bi"]
+script = ExtResource("9_8c8lt")
+id = "z1_l1_no_barricades"
+title = "No barricades"
+challenge = 2
+time_limit_seconds = 600.0
+
+[resource]
+script = ExtResource("8_jny5k")
+id = "z1_l1"
+title = "Maple Hollow 1: Survive"
+areas = Array[PackedScene]([ExtResource("1_b5mj0"), ExtResource("2_uxfpt"), ExtResource("3_olhfe")])
+objective = SubResource("Resource_hb5jh")
+events = Array[ExtResource("4_olrwr")]([SubResource("Resource_b3064"), SubResource("Resource_1bhtu")])
+side_objectives = Array[ExtResource("9_8c8lt")]([SubResource("Resource_pg5bi")])

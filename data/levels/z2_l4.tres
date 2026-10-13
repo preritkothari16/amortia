@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="LevelConfig" format=3]
+
+[ext_resource type="Script" path="res://world/events/terrain_event.gd" id="1_vhoqo"]
+[ext_resource type="Script" path="res://world/events/fire_spread.gd" id="2_fcmqq"]
+[ext_resource type="Script" path="res://world/events/rising_tide.gd" id="3_bk6pg"]
+[ext_resource type="Script" path="res://world/events/bridge_collapse.gd" id="4_ngbqc"]
+[ext_resource type="Resource" path="res://data/levelgen/maple_hollow.tres" id="5_afxne"]
+[ext_resource type="Script" path="res://world/objectives/objective_config.gd" id="6_4x6t3"]
+[ext_resource type="Script" path="res://world/level/level_config.gd" id="7_d6w6b"]
+[ext_resource type="Script" path="res://world/campaign/side_objective.gd" id="8_pmk24"]
+
+[sub_resource type="Resource" id="Resource_jdlvo"]
+script = ExtResource("2_fcmqq")
+
+[sub_resource type="Resource" id="Resource_4fq7d"]
+script = ExtResource("3_bk6pg")
+
+[sub_resource type="Resource" id="Resource_5p0r4"]
+script = ExtResource("4_ngbqc")
+
+[sub_resource type="Resource" id="Resource_mbwur"]
+script = ExtResource("6_4x6t3")
+type = 6
+
+[sub_resource type="Resource" id="Resource_1oyag"]
+script = ExtResource("8_pmk24")
+id = "z2_l4_under_time"
+title = "Under 10 minutes"
+challenge = 1
+time_limit_seconds = 600.0
+
+[resource]
+script = ExtResource("7_d6w6b")
+id = "z2_l4"
+title = "Lowtide Apex"
+zone = 2
+generator = ExtResource("5_afxne")
+generator_seed = 204
+waves = 1
+objective = SubResource("Resource_mbwur")
+events = Array[ExtResource("1_vhoqo")]([SubResource("Resource_jdlvo"), SubResource("Resource_4fq7d"), SubResource("Resource_5p0r4")])
+side_objectives = Array[ExtResource("8_pmk24")]([SubResource("Resource_1oyag")])

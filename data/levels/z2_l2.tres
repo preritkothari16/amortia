@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="LevelConfig" format=3]
+
+[ext_resource type="Script" path="res://world/events/terrain_event.gd" id="1_8brn4"]
+[ext_resource type="Script" path="res://world/events/fire_spread.gd" id="2_fighc"]
+[ext_resource type="Script" path="res://world/events/rising_tide.gd" id="3_81x04"]
+[ext_resource type="Script" path="res://world/events/bridge_collapse.gd" id="4_7g0h0"]
+[ext_resource type="Resource" path="res://data/levelgen/maple_hollow.tres" id="5_xbdy8"]
+[ext_resource type="Script" path="res://world/objectives/objective_config.gd" id="6_umvgt"]
+[ext_resource type="Script" path="res://world/level/level_config.gd" id="7_ri6kh"]
+[ext_resource type="Script" path="res://world/campaign/side_objective.gd" id="8_68vrn"]
+
+[sub_resource type="Resource" id="Resource_drvat"]
+script = ExtResource("2_fighc")
+
+[sub_resource type="Resource" id="Resource_rs7br"]
+script = ExtResource("3_81x04")
+
+[sub_resource type="Resource" id="Resource_1jgri"]
+script = ExtResource("4_7g0h0")
+
+[sub_resource type="Resource" id="Resource_5jv72"]
+script = ExtResource("6_umvgt")
+type = 3
+
+[sub_resource type="Resource" id="Resource_2eopf"]
+script = ExtResource("8_68vrn")
+id = "z2_l2_under_time"
+title = "Under 10 minutes"
+challenge = 1
+time_limit_seconds = 600.0
+
+[resource]
+script = ExtResource("7_ri6kh")
+id = "z2_l2"
+title = "Lowtide 2: Purge nests"
+zone = 2
+generator = ExtResource("5_xbdy8")
+generator_seed = 202
+objective = SubResource("Resource_5jv72")
+events = Array[ExtResource("1_8brn4")]([SubResource("Resource_drvat"), SubResource("Resource_rs7br"), SubResource("Resource_1jgri")])
+side_objectives = Array[ExtResource("8_68vrn")]([SubResource("Resource_2eopf")])

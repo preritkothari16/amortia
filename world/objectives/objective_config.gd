@@ -47,6 +47,8 @@ enum Type { SURVIVE, HOLD, ESCORT, PURGE, EXTRACT, STEALTH, APEX }
 @export var boss_health_multiplier: float = 12.0
 @export var boss_damage_multiplier: float = 2.0
 @export var boss_scale: float = 2.0
+## The final boss (the Seed, GDD 3) uses the best genome of the whole run, not just the zone's.
+@export var boss_uses_run_best: bool = false
 
 @export_group("Objective fitness (O)")
 ## Raw objective points an enemy can earn per wave are normalised by FitnessSettings.objective_cap.

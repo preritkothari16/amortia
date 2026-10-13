@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="LevelConfig" format=3]
+
+[ext_resource type="Script" path="res://world/events/terrain_event.gd" id="1_w6sok"]
+[ext_resource type="Script" path="res://world/events/fire_spread.gd" id="2_kug6u"]
+[ext_resource type="Script" path="res://world/events/rising_tide.gd" id="3_avhjb"]
+[ext_resource type="Script" path="res://world/events/bridge_collapse.gd" id="4_4g6b6"]
+[ext_resource type="Resource" path="res://data/levelgen/maple_hollow.tres" id="5_57g8b"]
+[ext_resource type="Script" path="res://world/objectives/objective_config.gd" id="6_wstme"]
+[ext_resource type="Script" path="res://world/level/level_config.gd" id="7_ic1k7"]
+[ext_resource type="Script" path="res://world/campaign/side_objective.gd" id="8_avpmv"]
+
+[sub_resource type="Resource" id="Resource_q0v2j"]
+script = ExtResource("2_kug6u")
+
+[sub_resource type="Resource" id="Resource_77x1q"]
+script = ExtResource("3_avhjb")
+
+[sub_resource type="Resource" id="Resource_k8heb"]
+script = ExtResource("4_4g6b6")
+
+[sub_resource type="Resource" id="Resource_mo13c"]
+script = ExtResource("6_wstme")
+
+[sub_resource type="Resource" id="Resource_pnc00"]
+script = ExtResource("8_avpmv")
+id = "z2_l3_no_damage"
+title = "No damage"
+time_limit_seconds = 600.0
+
+[resource]
+script = ExtResource("7_ic1k7")
+id = "z2_l3"
+title = "Lowtide 3: Survive"
+zone = 2
+generator = ExtResource("5_57g8b")
+generator_seed = 203
+objective = SubResource("Resource_mo13c")
+events = Array[ExtResource("1_w6sok")]([SubResource("Resource_q0v2j"), SubResource("Resource_77x1q"), SubResource("Resource_k8heb")])
+side_objectives = Array[ExtResource("8_avpmv")]([SubResource("Resource_pnc00")])

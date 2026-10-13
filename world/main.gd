@@ -39,6 +39,9 @@ var _nav_dirty: bool = false
 ## Campaign: the area sequencer and the level's objective (null in the prototype).
 var level_flow: LevelFlow
 var objective: Objective
+## True when this level is the campaign's current level (GameState): XP and the zone's
+## population come from GameState and go back to it when the level is done.
+var in_campaign: bool = false
 ## How long the last flow field rebuild took, in milliseconds.
 var last_flow_build_msec: float = 0.0
 
@@ -65,6 +68,7 @@ func _ready() -> void:
 	if level_config == null and GameState.pending_level != null:
 		level_config = GameState.pending_level
 		GameState.pending_level = null
+	in_campaign = level_config != null and GameState.campaign_active and level_config == GameState.current_level()
 	if level_config != null and level_config.has_areas():
 		_swap_map_node(level_config.area_scene(0))
 	var coords: GridCoords = GridCoords.new(_map.terrain_layer.tile_set.tile_size.x, _map.get_world_rect().position)
@@ -102,6 +106,7 @@ func _ready() -> void:
 	_game_over.skills_requested.connect(_skill_menu.open)
 	_game_over.retry_requested.connect(_wave_manager.continue_to_next_wave)
 	_game_over.main_menu_requested.connect(_on_main_menu)
+	_game_over.restart_level_requested.connect(_on_restart_level)
 	_player_status.player = _player
 
 	_set_camera_limits()
@@ -119,6 +124,11 @@ func _ready() -> void:
 	context.conditions = conditions
 	context.terrain_health = terrain_health
 	_load_pending_save()
+	if in_campaign:
+		_load_campaign_state()
+	elif GameState.endless_mode:
+		_wave_manager.wave_started.connect(func(wave: int) -> void:
+			GameState.endless_best_wave = maxi(GameState.endless_best_wave, wave))
 	_wave_manager.generation_bred.connect(func(_summary: Dictionary) -> void: save_game())
 	# Apex bosses are built from the zone's fittest genome (failed waves count: the attempt was real).
 	_wave_manager.wave_ended.connect(GameState.record_wave_best)
@@ -141,6 +151,7 @@ func _ready() -> void:
 	terrain_health.is_occupied = _terrain_events.is_occupied
 	if level_config != null:
 		_setup_level()
+		_game_over.allow_level_restart = in_campaign
 	_wave_manager.setup(_map.get_enemy_spawns(), context)
 	if level_config != null:
 		_wave_manager.set_spawn_points(_map.get_enemy_spawns(), _map.get_behind_spawns())
@@ -227,6 +238,43 @@ func open_exit() -> void:
 func _on_level_completed() -> void:
 	print("[Level] %s complete" % level_config.id)
 	EventBus.level_completed.emit(level_config)
+	if not in_campaign:
+		return
+	var player: Dictionary = SaveGame.capture(_player.progression, _player.skills, {})["player"]
+	var destination: String = GameState.finish_level(_wave_manager.get_save_state(), player)
+	if destination == "level":
+		GameState.call_deferred("start_current_level", get_tree())
+	else:
+		get_tree().call_deferred("change_scene_to_file", GameState.SAFEHOUSE_SCENE)
+
+
+## Campaign: XP / skills from the previous level, the zone's population so far (validated the
+## same way as a save), New Game+ mutation rate.
+func _load_campaign_state() -> void:
+	var warnings: PackedStringArray = PackedStringArray()
+	if not GameState.player_data.is_empty():
+		_player.apply_save(SaveGame._validate_player(GameState.player_data, _player.progression_settings,
+				_player.skill_tree, warnings))
+	var evolution: Variant = GameState.zone_evolution.get(GameState.current_zone)
+	if evolution is Dictionary:
+		var checked: Dictionary = SaveGame._validate_evolution(evolution, genome_rules, warnings)
+		if checked.has("error"):
+			push_warning("Campaign population unusable (%s); new population" % checked["error"])
+		else:
+			_wave_manager.load_state(checked)
+	if GameState.ng_plus and _wave_manager.ga_settings != null:
+		_wave_manager.ga_settings = _wave_manager.ga_settings.duplicate() as GASettings
+		_wave_manager.ga_settings.mutation_rate *= GameState.campaign().ng_plus_mutation_multiplier
+	for w: String in warnings:
+		push_warning("Campaign: " + w)
+
+
+## Game Over -> "Restart level": the same level from its first wave, keeping XP and the
+## zone's evolution (GDD 7.2).
+func _on_restart_level() -> void:
+	var player: Dictionary = SaveGame.capture(_player.progression, _player.skills, {})["player"]
+	GameState.restart_level(_wave_manager.get_save_state(), player)
+	GameState.start_current_level(get_tree())
 
 
 func _on_player_died() -> void:
@@ -253,6 +301,7 @@ func _put_player_on_spawn() -> void:
 
 
 func _on_main_menu() -> void:
+	GameState.leave_campaign()  # campaign progress is in its save (level start)
 	get_tree().paused = false
 	get_tree().change_scene_to_file(PauseMenu.MAIN_MENU_SCENE)
 
@@ -261,8 +310,8 @@ func _on_main_menu() -> void:
 
 ## Writes the checkpoint: player XP/level/skills + the population for the next wave.
 func save_game() -> void:
-	if not autosave:
-		return
+	if not autosave or level_config != null:
+		return  # campaign levels save at level boundaries (GameState), not per wave
 	var data: Dictionary = SaveGame.capture(_player.progression, _player.skills, _wave_manager.get_save_state())
 	if SaveSystem.write_save(data) == OK:
 		print("[Save] saved: level %d, %d skills, next wave %d, generation %d" % [

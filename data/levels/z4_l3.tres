@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="LevelConfig" format=3]
+
+[ext_resource type="Script" path="res://world/events/terrain_event.gd" id="1_pupj4"]
+[ext_resource type="Script" path="res://world/events/fire_spread.gd" id="2_2wnc3"]
+[ext_resource type="Script" path="res://world/events/living_walls.gd" id="3_8i2on"]
+[ext_resource type="Resource" path="res://data/levelgen/maple_hollow.tres" id="4_l2igv"]
+[ext_resource type="Script" path="res://world/objectives/objective_config.gd" id="5_kn5wx"]
+[ext_resource type="Script" path="res://world/level/level_config.gd" id="6_u7yuo"]
+[ext_resource type="Script" path="res://world/campaign/side_objective.gd" id="7_aupry"]
+
+[sub_resource type="Resource" id="Resource_pqq3k"]
+script = ExtResource("2_2wnc3")
+
+[sub_resource type="Resource" id="Resource_vu5wa"]
+script = ExtResource("3_8i2on")
+
+[sub_resource type="Resource" id="Resource_poech"]
+script = ExtResource("5_kn5wx")
+
+[sub_resource type="Resource" id="Resource_itxg1"]
+script = ExtResource("7_aupry")
+id = "z4_l3_no_damage"
+title = "No damage"
+time_limit_seconds = 600.0
+
+[resource]
+script = ExtResource("6_u7yuo")
+id = "z4_l3"
+title = "Sunnyseed Labs 3: Survive"
+zone = 4
+generator = ExtResource("4_l2igv")
+generator_seed = 403
+objective = SubResource("Resource_poech")
+events = Array[ExtResource("1_pupj4")]([SubResource("Resource_pqq3k"), SubResource("Resource_vu5wa")])
+side_objectives = Array[ExtResource("7_aupry")]([SubResource("Resource_itxg1")])

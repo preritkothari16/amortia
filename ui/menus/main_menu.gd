@@ -1,7 +1,8 @@
 class_name MainMenu
 extends Control
-## Greybox main menu: New Game, Continue (only if a save exists), Settings (placeholder), Quit.
-## Built in code like the other prototype menus. Keyboard: arrows + Enter, Esc closes Settings.
+## Greybox main menu: New Game / Continue (the prototype wave loop), Campaign (16 levels:
+## new, continue, New Game+ and Endless once the campaign is won), Settings (placeholder), Quit.
+## Built in code like the other prototype menus. Keyboard: arrows + Enter, Esc goes back.
 
 const GAME_SCENE: String = "res://world/main.tscn"
 const FONT_SIZE: int = 8
@@ -9,6 +10,8 @@ const BUTTON_SIZE: Vector2 = Vector2(110, 16)
 
 var _menu: VBoxContainer
 var _settings: VBoxContainer
+var _campaign_menu: VBoxContainer
+var _campaign_continue: Button
 var _new_game_button: Button
 var _continue_button: Button
 ## Shown when Continue fails (unreadable save).
@@ -45,6 +48,7 @@ func _ready() -> void:
 	_message.add_theme_font_size_override("font_size", FONT_SIZE)
 	_message.add_theme_color_override("font_color", Color(1.0, 0.6, 0.4))
 	_message.visible = false
+	_add_button(_menu, "Campaign", _show_campaign.bind(true))
 	_add_button(_menu, "Settings", _show_settings.bind(true))
 	_add_button(_menu, "Quit", _on_quit)
 	_menu.add_child(_message)
@@ -57,17 +61,73 @@ func _ready() -> void:
 	_add_label(_settings, "Audio, controls and display\noptions come in a later phase.", FONT_SIZE, Color(0.6, 0.6, 0.6))
 	_add_button(_settings, "Back", _show_settings.bind(false))
 
+	_build_campaign_menu(column)
 	_new_game_button.grab_focus()
+
+
+## Campaign submenu. Unlocks come from the campaign save.
+func _build_campaign_menu(column: VBoxContainer) -> void:
+	var has_campaign: bool = GameState.load_campaign()
+	_campaign_menu = VBoxContainer.new()
+	_campaign_menu.add_theme_constant_override("separation", 3)
+	_campaign_menu.visible = false
+	column.add_child(_campaign_menu)
+	_add_label(_campaign_menu, "CAMPAIGN", 10, Color.WHITE)
+	_add_button(_campaign_menu, "New Campaign", _on_new_campaign.bind(false))
+	_campaign_continue = _add_button(_campaign_menu, "Continue Campaign", _on_continue_campaign)
+	_campaign_continue.visible = has_campaign and GameState.campaign_active and not GameState.campaign_won
+	if _campaign_continue.visible:
+		var level: LevelConfig = GameState.current_level()
+		_add_label(_campaign_menu, level.title if level != null else "", FONT_SIZE, Color(0.6, 0.6, 0.6))
+	var ng: Button = _add_button(_campaign_menu, "New Game+", _on_new_campaign.bind(true))
+	ng.disabled = not GameState.ng_plus_unlocked
+	var endless: Button = _add_button(_campaign_menu, "Endless" + (" (best wave %d)" % GameState.endless_best_wave
+			if GameState.endless_best_wave > 0 else ""), _on_endless)
+	endless.disabled = not GameState.endless_unlocked
+	if ng.disabled:
+		_add_label(_campaign_menu, "Destroy the Seed to unlock New Game+ and Endless.", FONT_SIZE, Color(0.55, 0.55, 0.55))
+	_add_button(_campaign_menu, "Back", _show_campaign.bind(false))
+
+
+func _on_new_campaign(ng_plus: bool) -> void:
+	GameState.start_new_campaign(ng_plus)
+	GameState.save_campaign()
+	GameState.start_current_level(get_tree())
+
+
+func _on_continue_campaign() -> void:
+	GameState.campaign_active = true
+	GameState.start_current_level(get_tree())
+
+
+## Endless (post-game): the evolution loop with no end, best wave remembered.
+func _on_endless() -> void:
+	GameState.endless_mode = true
+	SaveSystem.pending_state = {}
+	get_tree().change_scene_to_file(GAME_SCENE)
+
+
+func _show_campaign(open: bool) -> void:
+	_menu.visible = not open
+	_campaign_menu.visible = open
+	var first: Button = (_campaign_menu if open else _menu).get_children().filter(
+		func(c: Node) -> bool: return c is Button and c.visible and not c.disabled)[0]
+	first.grab_focus()
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _settings.visible and event.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
 		_show_settings(false)
+	elif _campaign_menu.visible and event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
+		_show_campaign(false)
 
 
 ## Fresh start. The old save stays until the new game's first checkpoint overwrites it.
 func _on_new_game() -> void:
+	GameState.leave_campaign()
+	GameState.endless_mode = false
 	SaveSystem.pending_state = {}
 	get_tree().change_scene_to_file(GAME_SCENE)
 
@@ -82,6 +142,8 @@ New Game will replace it." % result["error"]
 		_continue_button.visible = false
 		_new_game_button.grab_focus()
 		return
+	GameState.leave_campaign()
+	GameState.endless_mode = false
 	SaveSystem.pending_state = result["data"]
 	get_tree().change_scene_to_file(GAME_SCENE)
 

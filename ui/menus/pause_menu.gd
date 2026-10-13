@@ -82,6 +82,7 @@ func _on_skills() -> void:
 
 
 func _on_main_menu() -> void:
+	GameState.leave_campaign()
 	get_tree().paused = false
 	get_tree().change_scene_to_file(MAIN_MENU_SCENE)
 

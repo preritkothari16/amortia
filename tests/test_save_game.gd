@@ -218,7 +218,7 @@ func test_file_round_trip_and_broken_file() -> void:
 	var r: Dictionary = save_system.read_save()
 	assert_true(r["ok"], r["error"])
 	assert_true(_validate(r["data"])["ok"])
-	assert_false(FileAccess.file_exists(save_system.TEMP_PATH), "temp file renamed away")
+	assert_false(FileAccess.file_exists(save_system.SAVE_PATH + ".tmp"), "temp file renamed away")
 	# Garbage on disk is reported, not crashed on.
 	var f: FileAccess = FileAccess.open(save_system.SAVE_PATH, FileAccess.WRITE)
 	f.store_string("{ not json")

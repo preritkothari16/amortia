@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="LevelConfig" format=3]
+
+[ext_resource type="Script" path="res://world/events/terrain_event.gd" id="1_tiyeo"]
+[ext_resource type="Script" path="res://world/events/fire_spread.gd" id="2_gf5fk"]
+[ext_resource type="Script" path="res://world/events/fog_banks.gd" id="3_4cit6"]
+[ext_resource type="Script" path="res://world/events/day_night.gd" id="4_4fp54"]
+[ext_resource type="Resource" path="res://data/levelgen/maple_hollow.tres" id="5_1wtul"]
+[ext_resource type="Script" path="res://world/objectives/objective_config.gd" id="6_t5sfj"]
+[ext_resource type="Script" path="res://world/level/level_config.gd" id="7_racpx"]
+[ext_resource type="Script" path="res://world/campaign/side_objective.gd" id="8_xryhj"]
+
+[sub_resource type="Resource" id="Resource_oaa1k"]
+script = ExtResource("2_gf5fk")
+
+[sub_resource type="Resource" id="Resource_ocuy6"]
+script = ExtResource("3_4cit6")
+
+[sub_resource type="Resource" id="Resource_yovuh"]
+script = ExtResource("4_4fp54")
+
+[sub_resource type="Resource" id="Resource_pcmh8"]
+script = ExtResource("6_t5sfj")
+type = 3
+
+[sub_resource type="Resource" id="Resource_0o2l0"]
+script = ExtResource("8_xryhj")
+id = "z3_l3_no_damage"
+title = "No damage"
+time_limit_seconds = 600.0
+
+[resource]
+script = ExtResource("7_racpx")
+id = "z3_l3"
+title = "Greywood 3: Purge nests"
+zone = 3
+generator = ExtResource("5_1wtul")
+generator_seed = 303
+objective = SubResource("Resource_pcmh8")
+events = Array[ExtResource("1_tiyeo")]([SubResource("Resource_oaa1k"), SubResource("Resource_ocuy6"), SubResource("Resource_yovuh")])
+side_objectives = Array[ExtResource("8_xryhj")]([SubResource("Resource_0o2l0")])

@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="CampaignConfig" format=3]
+
+[ext_resource type="Script" path="res://world/campaign/campaign_config.gd" id="1_l8a60"]
+[ext_resource type="Script" path="res://world/campaign/zone_config.gd" id="2_dcaxd"]
+[ext_resource type="Script" path="res://world/level/level_config.gd" id="3_gp1k8"]
+[ext_resource type="Resource" path="res://data/levels/z1_l1.tres" id="4_86gkw"]
+[ext_resource type="Resource" path="res://data/levels/z1_l2.tres" id="5_i34fe"]
+[ext_resource type="Resource" path="res://data/levels/z1_l3.tres" id="6_rmdhg"]
+[ext_resource type="Resource" path="res://data/levels/z1_l4.tres" id="7_ov5g6"]
+[ext_resource type="Resource" path="res://data/levels/z2_l1.tres" id="8_itjoy"]
+[ext_resource type="Resource" path="res://data/levels/z2_l2.tres" id="9_gb5dp"]
+[ext_resource type="Resource" path="res://data/levels/z2_l3.tres" id="10_0qof3"]
+[ext_resource type="Resource" path="res://data/levels/z2_l4.tres" id="11_0s8nd"]
+[ext_resource type="Resource" path="res://data/levels/z3_l1.tres" id="12_yh14w"]
+[ext_resource type="Resource" path="res://data/levels/z3_l2.tres" id="13_fx4x8"]
+[ext_resource type="Resource" path="res://data/levels/z3_l3.tres" id="14_5ejx7"]
+[ext_resource type="Resource" path="res://data/levels/z3_l4.tres" id="15_6pyhi"]
+[ext_resource type="Resource" path="res://data/levels/z4_l1.tres" id="16_poela"]
+[ext_resource type="Resource" path="res://data/levels/z4_l2.tres" id="17_fadoo"]
+[ext_resource type="Resource" path="res://data/levels/z4_l3.tres" id="18_2gq07"]
+[ext_resource type="Resource" path="res://data/levels/z4_l4.tres" id="19_l2r38"]
+
+[sub_resource type="Resource" id="Resource_b0c22"]
+script = ExtResource("2_dcaxd")
+title = "Maple Hollow"
+levels = Array[ExtResource("3_gp1k8")]([ExtResource("4_86gkw"), ExtResource("5_i34fe"), ExtResource("6_rmdhg"), ExtResource("7_ov5g6")])
+
+[sub_resource type="Resource" id="Resource_thge2"]
+script = ExtResource("2_dcaxd")
+zone = 2
+title = "Lowtide"
+levels = Array[ExtResource("3_gp1k8")]([ExtResource("8_itjoy"), ExtResource("9_gb5dp"), ExtResource("10_0qof3"), ExtResource("11_0s8nd")])
+
+[sub_resource type="Resource" id="Resource_xw1vd"]
+script = ExtResource("2_dcaxd")
+zone = 3
+title = "Greywood"
+levels = Array[ExtResource("3_gp1k8")]([ExtResource("12_yh14w"), ExtResource("13_fx4x8"), ExtResource("14_5ejx7"), ExtResource("15_6pyhi")])
+
+[sub_resource type="Resource" id="Resource_wy65f"]
+script = ExtResource("2_dcaxd")
+zone = 4
+title = "Sunnyseed Labs"
+levels = Array[ExtResource("3_gp1k8")]([ExtResource("16_poela"), ExtResource("17_fadoo"), ExtResource("18_2gq07"), ExtResource("19_l2r38")])
+
+[resource]
+script = ExtResource("1_l8a60")
+zones = Array[ExtResource("2_dcaxd")]([SubResource("Resource_b0c22"), SubResource("Resource_thge2"), SubResource("Resource_xw1vd"), SubResource("Resource_wy65f")])

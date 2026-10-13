@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="LevelConfig" format=3]
+
+[ext_resource type="Script" path="res://world/events/terrain_event.gd" id="1_yqnt1"]
+[ext_resource type="Script" path="res://world/events/fire_spread.gd" id="2_v161i"]
+[ext_resource type="Script" path="res://world/events/fog_banks.gd" id="3_78dma"]
+[ext_resource type="Script" path="res://world/events/day_night.gd" id="4_sy4kc"]
+[ext_resource type="Resource" path="res://data/levelgen/maple_hollow.tres" id="5_coaa7"]
+[ext_resource type="Script" path="res://world/objectives/objective_config.gd" id="6_wx5hk"]
+[ext_resource type="Script" path="res://world/level/level_config.gd" id="7_a30d3"]
+[ext_resource type="Script" path="res://world/campaign/side_objective.gd" id="8_ue8tm"]
+
+[sub_resource type="Resource" id="Resource_rafob"]
+script = ExtResource("2_v161i")
+
+[sub_resource type="Resource" id="Resource_5v7k8"]
+script = ExtResource("3_78dma")
+
+[sub_resource type="Resource" id="Resource_5lh7h"]
+script = ExtResource("4_sy4kc")
+
+[sub_resource type="Resource" id="Resource_k6ayk"]
+script = ExtResource("6_wx5hk")
+type = 5
+
+[sub_resource type="Resource" id="Resource_etijv"]
+script = ExtResource("8_ue8tm")
+id = "z3_l1_no_barricades"
+title = "No barricades"
+challenge = 2
+time_limit_seconds = 600.0
+
+[resource]
+script = ExtResource("7_a30d3")
+id = "z3_l1"
+title = "Greywood 1: Stealth"
+zone = 3
+generator = ExtResource("5_coaa7")
+generator_seed = 301
+waves = 2
+objective = SubResource("Resource_k6ayk")
+events = Array[ExtResource("1_yqnt1")]([SubResource("Resource_rafob"), SubResource("Resource_5v7k8"), SubResource("Resource_5lh7h")])
+side_objectives = Array[ExtResource("8_ue8tm")]([SubResource("Resource_etijv")])

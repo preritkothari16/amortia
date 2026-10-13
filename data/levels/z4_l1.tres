@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="LevelConfig" format=3]
+
+[ext_resource type="Script" path="res://world/events/terrain_event.gd" id="1_anmrm"]
+[ext_resource type="Script" path="res://world/events/fire_spread.gd" id="2_havo3"]
+[ext_resource type="Script" path="res://world/events/living_walls.gd" id="3_je1xh"]
+[ext_resource type="Resource" path="res://data/levelgen/maple_hollow.tres" id="4_fqlqu"]
+[ext_resource type="Script" path="res://world/objectives/objective_config.gd" id="5_ctk2e"]
+[ext_resource type="Script" path="res://world/level/level_config.gd" id="6_w77p5"]
+[ext_resource type="Script" path="res://world/campaign/side_objective.gd" id="7_y1xbp"]
+
+[sub_resource type="Resource" id="Resource_mqor4"]
+script = ExtResource("2_havo3")
+
+[sub_resource type="Resource" id="Resource_d1jmv"]
+script = ExtResource("3_je1xh")
+
+[sub_resource type="Resource" id="Resource_wbv1b"]
+script = ExtResource("5_ctk2e")
+type = 4
+
+[sub_resource type="Resource" id="Resource_8g6r1"]
+script = ExtResource("7_y1xbp")
+id = "z4_l1_no_barricades"
+title = "No barricades"
+challenge = 2
+time_limit_seconds = 600.0
+
+[resource]
+script = ExtResource("6_w77p5")
+id = "z4_l1"
+title = "Sunnyseed Labs 1: Extract"
+zone = 4
+generator = ExtResource("4_fqlqu")
+generator_seed = 401
+objective = SubResource("Resource_wbv1b")
+events = Array[ExtResource("1_anmrm")]([SubResource("Resource_mqor4"), SubResource("Resource_d1jmv")])
+side_objectives = Array[ExtResource("7_y1xbp")]([SubResource("Resource_8g6r1")])

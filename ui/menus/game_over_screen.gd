@@ -16,6 +16,11 @@ signal skills_requested
 signal retry_requested
 ## Main Menu pressed.
 signal main_menu_requested
+## Restart level pressed (campaign: the whole level from wave 1, XP and evolution kept).
+signal restart_level_requested
+
+## Show the Restart level button (campaign levels).
+var allow_level_restart: bool = false
 
 var wave_manager: WaveManager:
 	set(value):
@@ -85,6 +90,12 @@ func _on_wave_failed(summary: Dictionary) -> void:
 	_retry_button.grab_focus()
 
 
+func _on_restart_level() -> void:
+	visible = false
+	get_tree().paused = false
+	restart_level_requested.emit()
+
+
 func _on_retry() -> void:
 	visible = false
 	get_tree().paused = false
@@ -125,6 +136,9 @@ func _build(s: Dictionary) -> void:
 	_skills_button.focus_mode = Control.FOCUS_NONE  # Enter stays on Retry
 	_update_skills_button()
 	_retry_button = _button(buttons, "Retry  (Enter)", _on_retry)
+	if allow_level_restart:
+		var restart: Button = _button(buttons, "Restart level", _on_restart_level)
+		restart.focus_mode = Control.FOCUS_NONE
 	var menu_button: Button = _button(buttons, "Main Menu", main_menu_requested.emit)
 	menu_button.focus_mode = Control.FOCUS_NONE
 

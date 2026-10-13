@@ -31,7 +31,7 @@ func tick(_delta: float) -> void:
 
 func _spawn_boss() -> void:
 	_spawned = true
-	var genome: Genome = GameState.zone_best_genome()
+	var genome: Genome = GameState.run_best_genome() if config.boss_uses_run_best else GameState.zone_best_genome()
 	if genome == null and not wave_manager.population.is_empty():
 		genome = wave_manager.population[0]
 	var spawns: Array[Vector2] = map.get_enemy_spawns()

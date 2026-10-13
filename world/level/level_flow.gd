@@ -46,6 +46,10 @@ var straggler_interval: float = 0.0
 var stragglers_spawned: int = 0
 
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+## Level stats for side objectives (GDD 8.3 challenges).
+var stats: Dictionary = {"damage_taken": 0.0, "seconds": 0.0, "barricades_placed": 0}
+## Side objectives met when the level ended (ids).
+var side_completed: Array[String] = []
 
 
 func setup(level: LevelConfig, level_main: Node, waves: WaveManager, the_player: Player,
@@ -66,6 +70,7 @@ func setup(level: LevelConfig, level_main: Node, waves: WaveManager, the_player:
 	report.continue_pressed.connect(_on_report_continue)
 	player.died.connect(_on_player_died, CONNECT_DEFERRED)
 	player.build_requested.connect(_on_build_requested)
+	player.damaged.connect(func(amount: float) -> void: stats["damage_taken"] += amount)
 	EventBus.enemy_killed.connect(_on_enemy_killed)
 	if objective != null:
 		wave_manager.auto_end_when_all_dead = objective.clears_on_kill_all()
@@ -86,6 +91,8 @@ func _on_wave_started(_wave: int) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if phase != Phase.COMPLETE:
+		stats["seconds"] += delta
 	if objective != null and (phase == Phase.ENTERING or phase == Phase.FIGHTING):
 		objective.tick(delta)
 	match phase:
@@ -150,6 +157,7 @@ func _on_exited() -> void:
 	wave_manager.clear_enemies()  # stragglers
 	if waves_done >= config.waves:
 		phase = Phase.COMPLETE
+		_evaluate_side_objectives()
 		level_completed.emit()
 		return
 	phase = Phase.EXITED
@@ -187,6 +195,19 @@ func _on_build_requested(cell: Vector2i) -> void:
 		return
 	if main.terrain_health.place(cell, "barricade"):
 		barricades_left -= 1
+		stats["barricades_placed"] += 1
+
+
+## Challenges met this level pay their bonus scrap (once per side objective id).
+func _evaluate_side_objectives() -> void:
+	side_completed.clear()
+	for side: SideObjective in config.side_objectives:
+		if side.is_met(stats):
+			side_completed.append(side.id)
+			if not GameState.side_done.has(side.id):
+				GameState.side_done.append(side.id)
+				GameState.scrap += side.reward_scrap
+			print("[Side objective] %s done (+%d scrap)" % [side.title, side.reward_scrap])
 
 
 ## Kills drop samples and scrap (GDD 7.5 / 7.6) - also during the straggler phase.

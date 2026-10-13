@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="LevelConfig" format=3]
+
+[ext_resource type="Script" path="res://world/events/terrain_event.gd" id="1_2nj70"]
+[ext_resource type="Script" path="res://world/events/fire_spread.gd" id="2_aooww"]
+[ext_resource type="Script" path="res://world/events/day_night.gd" id="3_kjo4h"]
+[ext_resource type="Resource" path="res://data/levelgen/maple_hollow.tres" id="4_usoom"]
+[ext_resource type="Script" path="res://world/objectives/objective_config.gd" id="5_8c3nd"]
+[ext_resource type="Script" path="res://world/level/level_config.gd" id="6_cdwio"]
+[ext_resource type="Script" path="res://world/campaign/side_objective.gd" id="7_n70q0"]
+
+[sub_resource type="Resource" id="Resource_tqv8p"]
+script = ExtResource("2_aooww")
+
+[sub_resource type="Resource" id="Resource_1kqpp"]
+script = ExtResource("3_kjo4h")
+
+[sub_resource type="Resource" id="Resource_4a1t3"]
+script = ExtResource("5_8c3nd")
+type = 1
+
+[sub_resource type="Resource" id="Resource_jymyj"]
+script = ExtResource("7_n70q0")
+id = "z1_l2_under_time"
+title = "Under 10 minutes"
+challenge = 1
+time_limit_seconds = 600.0
+
+[resource]
+script = ExtResource("6_cdwio")
+id = "z1_l2"
+title = "Maple Hollow 2: Hold the point"
+generator = ExtResource("4_usoom")
+generator_seed = 102
+objective = SubResource("Resource_4a1t3")
+events = Array[ExtResource("1_2nj70")]([SubResource("Resource_tqv8p"), SubResource("Resource_1kqpp")])
+side_objectives = Array[ExtResource("7_n70q0")]([SubResource("Resource_jymyj")])

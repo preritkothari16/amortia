@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="LevelConfig" format=3]
+
+[ext_resource type="Script" path="res://world/events/terrain_event.gd" id="1_bgubj"]
+[ext_resource type="Script" path="res://world/events/fire_spread.gd" id="2_21s8y"]
+[ext_resource type="Script" path="res://world/events/fog_banks.gd" id="3_cbuut"]
+[ext_resource type="Script" path="res://world/events/day_night.gd" id="4_yfsvt"]
+[ext_resource type="Resource" path="res://data/levelgen/maple_hollow.tres" id="5_plcnl"]
+[ext_resource type="Script" path="res://world/objectives/objective_config.gd" id="6_dxxgm"]
+[ext_resource type="Script" path="res://world/level/level_config.gd" id="7_woct1"]
+[ext_resource type="Script" path="res://world/campaign/side_objective.gd" id="8_0mdrl"]
+
+[sub_resource type="Resource" id="Resource_4momh"]
+script = ExtResource("2_21s8y")
+
+[sub_resource type="Resource" id="Resource_1q8qk"]
+script = ExtResource("3_cbuut")
+
+[sub_resource type="Resource" id="Resource_f5vqw"]
+script = ExtResource("4_yfsvt")
+
+[sub_resource type="Resource" id="Resource_dqjtl"]
+script = ExtResource("6_dxxgm")
+type = 1
+
+[sub_resource type="Resource" id="Resource_71757"]
+script = ExtResource("8_0mdrl")
+id = "z3_l2_under_time"
+title = "Under 10 minutes"
+challenge = 1
+time_limit_seconds = 600.0
+
+[resource]
+script = ExtResource("7_woct1")
+id = "z3_l2"
+title = "Greywood 2: Hold the point"
+zone = 3
+generator = ExtResource("5_plcnl")
+generator_seed = 302
+objective = SubResource("Resource_dqjtl")
+events = Array[ExtResource("1_bgubj")]([SubResource("Resource_4momh"), SubResource("Resource_1q8qk"), SubResource("Resource_f5vqw")])
+side_objectives = Array[ExtResource("8_0mdrl")]([SubResource("Resource_71757")])

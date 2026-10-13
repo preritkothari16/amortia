@@ -21,6 +21,8 @@ extends Resource
 @export var objective: ObjectiveConfig
 ## Dynamic terrain for this level (fire, tide, fog, day/night...).
 @export var events: Array[TerrainEvent] = []
+## Optional goals (challenges for bonus scrap; GDD 8.3).
+@export var side_objectives: Array[SideObjective] = []
 
 ## The scene for area `index` (0-based): generated, or areas[index % size]. null if none.
 func area_scene(index: int) -> PackedScene:
