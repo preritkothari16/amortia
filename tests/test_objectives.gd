@@ -203,6 +203,7 @@ func test_stealth_reaching_the_exit_completes() -> void:
 	await wait_physics_frames(2)
 	assert_false(lvl["wm"].is_wave_running())
 	assert_eq(lvl["flow"].phase, LevelFlow.Phase.COMPLETE, "1-wave level done")
+	assert_true(lvl["main"].get_node("HUD/WaveReport").visible, "report before the next level")
 
 
 func test_apex_boss_from_the_zone_best_genome() -> void:

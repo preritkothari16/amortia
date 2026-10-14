@@ -30,6 +30,7 @@ title = "Sunnyseed Labs 3: Survive"
 zone = 4
 generator = ExtResource("4_l2igv")
 generator_seed = 403
+waves = 1
 objective = SubResource("Resource_poech")
 events = Array[ExtResource("1_pupj4")]([SubResource("Resource_pqq3k"), SubResource("Resource_vu5wa")])
 side_objectives = Array[ExtResource("7_aupry")]([SubResource("Resource_itxg1")])

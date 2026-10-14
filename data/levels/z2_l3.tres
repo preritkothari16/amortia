@@ -34,6 +34,7 @@ title = "Lowtide 3: Survive"
 zone = 2
 generator = ExtResource("5_57g8b")
 generator_seed = 203
+waves = 1
 objective = SubResource("Resource_mo13c")
 events = Array[ExtResource("1_w6sok")]([SubResource("Resource_q0v2j"), SubResource("Resource_77x1q"), SubResource("Resource_k8heb")])
 side_objectives = Array[ExtResource("8_avpmv")]([SubResource("Resource_pnc00")])

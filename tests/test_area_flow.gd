@@ -174,7 +174,13 @@ func test_full_level_flow_three_areas() -> void:
 			main.get_node("HUD/WaveReport")._continue_button.pressed.emit()
 			await wait_physics_frames(185)
 	assert_eq(flow.phase, LevelFlow.Phase.COMPLETE)
+	var report: WaveReport = main.get_node("HUD/WaveReport")
+	assert_true(report.visible, "the last wave's report opens at the level's end too")
+	assert_eq(report._next_chip.text, "Level complete")
+	assert_signal_not_emitted(flow, "level_completed", "not before Continue")
+	report._continue_button.pressed.emit()
 	assert_signal_emitted(flow, "level_completed")
+	assert_eq(report.next_override, "", "chip back to the next wave")
 
 
 func test_retry_reloads_the_same_area_and_wave() -> void:

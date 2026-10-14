@@ -35,6 +35,7 @@ title = "Greywood 3: Purge nests"
 zone = 3
 generator = ExtResource("5_1wtul")
 generator_seed = 303
+waves = 1
 objective = SubResource("Resource_pcmh8")
 events = Array[ExtResource("1_tiyeo")]([SubResource("Resource_oaa1k"), SubResource("Resource_ocuy6"), SubResource("Resource_yovuh")])
 side_objectives = Array[ExtResource("8_xryhj")]([SubResource("Resource_0o2l0")])

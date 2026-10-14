@@ -39,6 +39,8 @@ var auto_open: bool = true
 var drives_wave_manager: bool = true
 ## The latest bred-generation summary (for open_last()).
 var last_summary: Dictionary = {}
+## Replaces the "Next: Wave N · Generation G" chip (the level's end: next level, Safehouse...).
+var next_override: String = ""
 
 var _continue_button: Button
 var _title: Label
@@ -225,7 +227,7 @@ func fill(s: Dictionary) -> void:
 	var seconds: int = int(s["wave_seconds"])
 	_title.text = "WAVE %d CLEARED" % s["from_wave"]
 	_subtitle.text = "%d killed, %d got away  ·  %d:%02d" % [s["killed"], s["survived"], seconds / 60, seconds % 60]
-	_next_chip.text = "Next: Wave %d · Generation %d" % [s["from_wave"] + 1, s["generation"]]
+	_next_chip.text = next_override if next_override != "" else "Next: Wave %d · Generation %d" % [s["from_wave"] + 1, s["generation"]]
 
 	var changes: Array[Array] = GeneInfo.ranked_changes(before, after)
 	_story.text = GeneInfo.story_sentence(s["generation"], changes)

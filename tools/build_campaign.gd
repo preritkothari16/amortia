@@ -45,7 +45,10 @@ func _initialize() -> void:
 			c.objective.type = ObjectiveConfig.Type.APEX if apex else z[2][n]
 			c.objective.boss_uses_run_best = apex and z[0] == 4  # the Seed: best of the whole run
 			c.title = "%s Apex" % z[1] if apex else "%s %d: %s" % [z[1], n + 1, TYPE_NAMES[c.objective.type]]
-			c.waves = 1 if apex else (2 if c.objective.type == ObjectiveConfig.Type.ESCORT or c.objective.type == ObjectiveConfig.Type.STEALTH else 3)
+			# Waves (user, 2026-10-14: halve the campaign, 37 -> 20): a zone's first level has 2 -
+			# the zone's new population gets one bred generation, and the player one area change -
+			# every other level 1, the Apex 1. Evolution carries on across levels within a zone.
+			c.waves = 2 if n == 0 else 1
 			if z[0] == 1 and n == 0:
 				var areas: Array[PackedScene] = []
 				for path: String in HAND_MADE:

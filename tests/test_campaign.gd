@@ -56,6 +56,12 @@ func test_campaign_has_four_zones_of_three_levels_and_an_apex() -> void:
 			assert_eq(level.objective.type == ObjectiveConfig.Type.APEX, n == 3, "%s: Apex last" % level.id)
 			assert_eq(level.side_objectives.size(), 1)
 	assert_eq(types.size(), 7, "all seven objective types appear")
+	var total: int = 0
+	for zone: ZoneConfig in c.zones:
+		for n: int in zone.levels.size():
+			assert_eq(zone.levels[n].waves, 2 if n == 0 else 1, "%s waves" % zone.levels[n].id)
+			total += zone.levels[n].waves
+	assert_eq(total, 20, "campaign length (halved from 37)")
 	assert_true(c.get_level(4, 3).objective.boss_uses_run_best, "the Seed uses the run's best genome")
 	assert_eq(c.zones[0].title, "Maple Hollow")
 	assert_eq(c.zones[3].title, "Sunnyseed Labs")
@@ -221,3 +227,12 @@ func test_level_flow_rewards_side_objectives_once() -> void:
 	flow._evaluate_side_objectives()
 	assert_true(flow.side_completed.has(side.id))
 	assert_eq(GameState.scrap, scrap + side.reward_scrap, "paid once")
+
+
+func test_level_end_report_names_the_next_stop() -> void:
+	var lvl: Dictionary = await _campaign_level()
+	assert_eq(lvl["main"].next_destination_text(), "Next: " + GameState.campaign().get_level(1, 1).title)
+	GameState.level_index = 3
+	assert_eq(lvl["main"].next_destination_text(), "Next: Safehouse")
+	GameState.current_zone = 4
+	assert_eq(lvl["main"].next_destination_text(), "Next: The end")

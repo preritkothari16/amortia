@@ -9,7 +9,9 @@ extends Node
 ##   CLEARED   the right-hand exit gate opens; the player may stay to pick up samples / scrap;
 ##             after straggler_delay_seconds stragglers come, faster and faster (not scored)
 ##   EXITED    player walked through the exit -> Wave Report (+ skill tree) -> Continue loads the
-##             next area variant and the next wave; after the level's last wave -> COMPLETE
+##             next area variant and the next wave
+##   COMPLETE  after the level's last wave: the Wave Report still opens (it is where evolution and
+##             the skill points show, and most levels are 1-2 waves), Continue -> level_completed
 ##
 ## Separation of concerns: the WaveManager owns waves, scoring and evolution; this node only
 ## sequences areas around it. Losing a wave (player down, objective failed) uses the same
@@ -165,13 +167,19 @@ func _on_exited() -> void:
 	if waves_done >= config.waves:
 		phase = Phase.COMPLETE
 		_evaluate_side_objectives()
-		level_completed.emit()
+		report.next_override = main.next_destination_text() if main.has_method("next_destination_text") else "Level complete"
+		report.open_last()  # Continue (or no report to show) -> _on_report_continue -> level_completed
 		return
+	report.next_override = ""
 	phase = Phase.EXITED
 	report.open_last()
 
 
 func _on_report_continue() -> void:
+	if phase == Phase.COMPLETE:
+		report.next_override = ""
+		level_completed.emit()
+		return
 	if phase != Phase.EXITED:
 		return
 	area_index += 1

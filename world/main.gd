@@ -242,6 +242,17 @@ func open_exit() -> void:
 			terrain_grid.set_terrain(cell, "road")
 
 
+## The Wave Report's "Next" chip at the end of the level: the next campaign level, the
+## Safehouse, or the end of the campaign.
+func next_destination_text() -> String:
+	if not in_campaign:
+		return "Level complete"
+	if not GameState.is_apex_level():
+		var next: LevelConfig = GameState.campaign().get_level(GameState.current_zone, GameState.level_index + 1)
+		return "Next: " + next.title if next != null else "Level complete"
+	return "Next: Safehouse" if GameState.current_zone < GameState.campaign().zones.size() else "Next: The end"
+
+
 func _on_level_completed() -> void:
 	print("[Level] %s complete" % level_config.id)
 	EventBus.level_completed.emit(level_config)

@@ -31,6 +31,7 @@ script = ExtResource("8_jny5k")
 id = "z1_l1"
 title = "Maple Hollow 1: Survive"
 areas = Array[PackedScene]([ExtResource("1_b5mj0"), ExtResource("2_uxfpt"), ExtResource("3_olhfe")])
+waves = 2
 objective = SubResource("Resource_hb5jh")
 events = Array[ExtResource("4_olrwr")]([SubResource("Resource_b3064"), SubResource("Resource_1bhtu")])
 side_objectives = Array[ExtResource("9_8c8lt")]([SubResource("Resource_pg5bi")])
