@@ -47,6 +47,11 @@ var endless_best_wave: int = 0
 var endless_mode: bool = false
 ## Set by the Safehouse: what it should show ("zone" after an Apex, "victory" at the end).
 var safehouse_mode: String = "zone"
+## Test scenario run (main menu -> Test Scenarios, see DebugScenarios): the campaign save is
+## never written. Ends with end_test_mode() or when the game is closed.
+var test_mode: bool = false
+## Waves of the next level already counted as done (test scenarios start at the last wave).
+var pending_start_wave: int = 0
 
 var _campaign: CampaignConfig
 
@@ -225,7 +230,24 @@ func from_dict(d: Dictionary) -> bool:
 
 
 func save_campaign() -> Error:
+	if test_mode:
+		return OK  # test scenarios never touch the real campaign save
 	return SaveSystem.write_save(to_dict(), SaveSystem.CAMPAIGN_PATH)
+
+
+## Leaves a test scenario run: forgets everything it set and reloads the real campaign save.
+func end_test_mode() -> void:
+	test_mode = false
+	pending_start_wave = 0
+	start_new_campaign()
+	campaign_active = false
+	player_data = {}
+	campaign_won = false
+	endless_unlocked = false
+	ng_plus_unlocked = false
+	endless_best_wave = 0
+	endless_mode = false
+	load_campaign()
 
 
 func load_campaign() -> bool:

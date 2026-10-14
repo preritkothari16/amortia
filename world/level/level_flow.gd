@@ -79,6 +79,13 @@ func setup(level: LevelConfig, level_main: Node, waves: WaveManager, the_player:
 		objective.area_loaded(main.current_map())
 
 
+## Test scenarios: start as if `count` waves were already done (main loaded area `count`).
+func skip_waves(count: int) -> void:
+	waves_done = count
+	area_index = count
+	wave_manager.use_behind_spawns = count > 0
+
+
 func _on_wave_started(_wave: int) -> void:
 	phase = Phase.ENTERING
 	barricades_left = config.barricades_per_wave

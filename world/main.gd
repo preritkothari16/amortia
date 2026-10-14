@@ -42,6 +42,8 @@ var objective: Objective
 ## True when this level is the campaign's current level (GameState): XP and the zone's
 ## population come from GameState and go back to it when the level is done.
 var in_campaign: bool = false
+## Waves of the level counted as done at the start (test scenarios: GameState.pending_start_wave).
+var start_wave: int = 0
 ## How long the last flow field rebuild took, in milliseconds.
 var last_flow_build_msec: float = 0.0
 
@@ -69,8 +71,11 @@ func _ready() -> void:
 		level_config = GameState.pending_level
 		GameState.pending_level = null
 	in_campaign = level_config != null and GameState.campaign_active and level_config == GameState.current_level()
+	if level_config != null:
+		start_wave = clampi(GameState.pending_start_wave, 0, level_config.waves - 1)
+	GameState.pending_start_wave = 0
 	if level_config != null and level_config.has_areas():
-		_swap_map_node(level_config.area_scene(0))
+		_swap_map_node(level_config.area_scene(start_wave))
 	var coords: GridCoords = GridCoords.new(_map.terrain_layer.tile_set.tile_size.x, _map.get_world_rect().position)
 	terrain_grid = TerrainGrid.from_rows(_map.get_terrain_rows(), terrain_costs, coords)
 	_cost_overlay.grid = terrain_grid
@@ -200,6 +205,8 @@ func _setup_level() -> void:
 	level_flow.name = "LevelFlow"
 	add_child(level_flow)
 	level_flow.setup(c, self, _wave_manager, _player, _wave_report, objective, _event_seed())
+	if start_wave > 0:
+		level_flow.skip_waves(start_wave)
 	_wave_hud.level_flow = level_flow
 	level_flow.level_completed.connect(_on_level_completed)
 
@@ -310,8 +317,8 @@ func _on_main_menu() -> void:
 
 ## Writes the checkpoint: player XP/level/skills + the population for the next wave.
 func save_game() -> void:
-	if not autosave or level_config != null:
-		return  # campaign levels save at level boundaries (GameState), not per wave
+	if not autosave or level_config != null or GameState.test_mode:
+		return  # campaign levels save at level boundaries (GameState), not per wave; tests never save
 	var data: Dictionary = SaveGame.capture(_player.progression, _player.skills, _wave_manager.get_save_state())
 	if SaveSystem.write_save(data) == OK:
 		print("[Save] saved: level %d, %d skills, next wave %d, generation %d" % [
