@@ -1,17 +1,12 @@
 class_name GameOverScreen
-extends Control
-## Greybox Game Over screen: shown when the player goes down. The wave is lost (not bred, see
-## WaveManager.fail_wave), so the only way on is Retry, which replays the same wave with the
-## same Bloomed. Shows how the attempt went, and has the skill tree so XP earned in the
-## attempt can be spent before retrying. Pauses the game while open.
+extends ReportScreen
+## Downed screen: shown when the player goes down. The wave is lost (not bred, see
+## WaveManager.fail_wave), so the way on is Retry, which replays the same wave with the same
+## Bloomed. Shows how the attempt went (time, kills, XP), what got you (the Bloomed that dealt
+## the most damage, in plain words, with one tip), and has the skill tree so XP earned in the
+## attempt can be spent before retrying. Raw genome in Details (D). Pauses the game while open.
+## Layout and keys: ReportScreen. One scene (game_over_screen.tscn), built once, refilled.
 
-const FONT_SIZE: int = 8
-const COLOR_TITLE: Color = Color(1.0, 0.35, 0.3)
-const COLOR_DIM: Color = Color(0.6, 0.6, 0.6)
-const COLOR_TRAITS: Color = Color(1, 0.9, 0.5)
-
-## Opens the skill tree (connected by the level).
-signal skills_requested
 ## Retry pressed (button, Enter or Space). The level replays the wave.
 signal retry_requested
 ## Main Menu pressed.
@@ -20,7 +15,11 @@ signal main_menu_requested
 signal restart_level_requested
 
 ## Show the Restart level button (campaign levels).
-var allow_level_restart: bool = false
+var allow_level_restart: bool = false:
+	set(v):
+		allow_level_restart = v
+		if _restart_button != null:
+			_restart_button.visible = v
 
 var wave_manager: WaveManager:
 	set(value):
@@ -29,50 +28,103 @@ var wave_manager: WaveManager:
 			wave_manager.wave_failed.connect(_on_wave_failed)
 			wave_manager.wave_started.connect(_on_wave_started)
 
-## Set by the level: level / XP lines and the unspent skill points on the Skills button.
-var player: Player
-
-var _body: VBoxContainer
 var _retry_button: Button
-var _skills_button: Button
-## Player's total XP when the attempt started, for "XP this attempt".
+var _restart_button: Button
+var _subtitle: Label
+var _time: Label
+var _kills_bar: UiBar
+var _kills: Label
+var _level: Label
+var _xp_bar: UiBar
+var _xp: Label
+var _xp_gain: Label
+var _culprit: Label
+var _tip: Label
+var _details: VBoxContainer
+## Player's total XP when the attempt started, for "+XP this attempt".
 var _xp_at_wave_start: int = 0
 
 
 func _ready() -> void:
-	visible = false
-	process_mode = Node.PROCESS_MODE_ALWAYS  # must work while the game is paused
-	var backdrop: ColorRect = ColorRect.new()
-	backdrop.color = Color(0.1, 0, 0, 0.6)
-	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(backdrop)
-	var center: CenterContainer = CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(center)
-	var panel: PanelContainer = PanelContainer.new()
-	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.bg_color = Color(0.13, 0.12, 0.12, 0.97)
-	style.border_color = Color(0.7, 0.3, 0.3)
-	style.set_border_width_all(1)
-	style.set_content_margin_all(8)
-	panel.add_theme_stylebox_override("panel", style)
-	panel.custom_minimum_size = Vector2(300, 0)
-	center.add_child(panel)
-	_body = VBoxContainer.new()
-	_body.add_theme_constant_override("separation", 2)
-	panel.add_child(_body)
+	super()
+	# A narrower panel than the report: less to show.
+	_frame.add_theme_constant_override("margin_left", 48)
+	_frame.add_theme_constant_override("margin_right", 48)
 
 
-func _process(_delta: float) -> void:
-	if visible:
-		_update_skills_button()  # points change while the skill tree is open on top
+# --- Layout (built once) ------------------------------------------------------------------
+
+func _build_header(root: VBoxContainer) -> void:
+	var head: VBoxContainer = vbox(root, false, 0)
+	label(head, "DOWNED", &"DangerTitleLabel").horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_subtitle = label(head, "", &"MutedLabel")
+	_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if visible and event.is_action_pressed("ui_accept"):
-		get_viewport().set_input_as_handled()
-		_on_retry()
+func _build_pages() -> void:
+	var page: VBoxContainer = add_page("overview")
+	var attempt: VBoxContainer = card(page, "This attempt")
+	var grid: GridContainer = GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("v_separation", 3)
+	attempt.add_child(grid)
+	label(grid, "Time survived", &"MutedLabel")
+	spacer(grid)
+	_time = label(grid, "")
+	_time.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	label(grid, "Bloomed killed", &"MutedLabel")
+	_kills_bar = UiBar.new()
+	_kills_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_child(_kills_bar)
+	_kills = label(grid, "")
+	_kills.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_level = label(grid, "", &"MutedLabel")
+	_xp_bar = UiBar.new()
+	_xp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_xp_bar.fill_color = &"down"
+	grid.add_child(_xp_bar)
+	var xp_row: HBoxContainer = hbox(grid)
+	xp_row.alignment = BoxContainer.ALIGNMENT_END
+	_xp = label(xp_row, "")
+	var gain: PanelContainer = PanelContainer.new()
+	gain.theme_type_variation = &"AccentChip"
+	gain.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	xp_row.add_child(gain)
+	_xp_gain = label(gain, "", &"AccentLabel")
 
+	var got: VBoxContainer = card(page, "What got you", true)
+	_culprit = label(got, "", &"", true)
+	_tip = label(got, "", &"AccentLabel", true)
+
+	var strip: VBoxContainer = card(page)
+	label(strip, "Retry replays this wave with the same Bloomed. They only evolve when you clear it. Your XP and skills are kept.",
+		&"MutedLabel", true)
+
+	var details: VBoxContainer = card(add_page("details"), "", true)
+	label(details, "Details (raw data)", &"SectionLabel")
+	_details = vbox(details, false, 1)
+
+
+func _build_footer(root: VBoxContainer) -> void:
+	var row: HBoxContainer = hbox(root)
+	add_details_button(row)
+	add_button(row, "Main Menu", main_menu_requested.emit, &"TertiaryButton")
+	spacer(row)
+	_restart_button = add_button(row, "Restart level", _on_restart_level, &"")
+	_restart_button.visible = allow_level_restart
+	add_skills_button(row)
+	_retry_button = add_button(row, "Retry (Enter)", _on_retry, &"PrimaryButton")
+
+
+func _primary_button() -> Button:
+	return _retry_button
+
+
+func _primary_action() -> void:
+	_on_retry()
+
+
+# --- Opening / closing --------------------------------------------------------------------
 
 func _on_wave_started(_wave: int) -> void:
 	if player != null:
@@ -83,94 +135,80 @@ func _on_wave_started(_wave: int) -> void:
 
 
 func _on_wave_failed(summary: Dictionary) -> void:
-	_build(summary)
-	visible = true
+	fill(summary)
+	present()
 	if wave_manager.pause_between_waves:
 		get_tree().paused = true
-	_retry_button.grab_focus()
 
 
 func _on_restart_level() -> void:
+	skip_motion()
 	visible = false
 	get_tree().paused = false
 	restart_level_requested.emit()
 
 
 func _on_retry() -> void:
+	skip_motion()
 	visible = false
 	get_tree().paused = false
 	retry_requested.emit()
 
 
-# --- Building the screen -------------------------------------------------------------
+# --- Filling --------------------------------------------------------------------------------
 
-func _build(s: Dictionary) -> void:
-	for child: Node in _body.get_children():
-		child.queue_free()
+func fill(s: Dictionary) -> void:
 	var seconds: int = int(s["wave_seconds"])
 	var total: int = s["killed"] + s["survived"]
-	var c: Dictionary = s["component_means"]
-
-	_label("YOU WERE DOWNED", 12, COLOR_TITLE)
-	_label("Wave %d  (generation %d)" % [s["wave"], s["generation"]], FONT_SIZE, Color.WHITE)
-	_spacer()
-	_label("Survived %d:%02d   |   Bloomed killed %d / %d" % [seconds / 60, seconds % 60, s["killed"], total])
+	_subtitle.text = "Wave %d  ·  Generation %d" % [s["wave"], s["generation"]]
+	_time.text = "%d:%02d" % [seconds / 60, seconds % 60]
+	count_up(_kills, "%d / " + str(total), s["killed"])
+	tween_bar(_kills_bar, "value", 0.0, float(s["killed"]) / maxf(total, 1))
 	if player != null:
 		var p: PlayerProgression = player.progression
-		_label("Level %d   |   XP this attempt +%d   |   %d / %d XP to next level" % [
-			p.level, p.total_xp - _xp_at_wave_start, p.xp, p.xp_to_next()])
-	_label("Bloomed fitness  best %.3f   average %.3f   (avg  D %.2f  P %.2f  S %.2f  O %.2f)" % [
-		s["best_fitness"], s["mean_fitness"], c[Fitness.D], c[Fitness.P], c[Fitness.S], c[Fitness.O]], FONT_SIZE, COLOR_DIM)
+		var need: int = p.xp_to_next()
+		_level.text = "Level %d" % p.level
+		_xp.text = "%d / %d XP" % [p.xp, need] if need > 0 else "Max level"
+		_xp_gain.text = "+%d XP" % (p.total_xp - _xp_at_wave_start)
+		tween_bar(_xp_bar, "value", 0.0, float(p.xp) / need if need > 0 else 1.0)
+
+	var culprit: Dictionary = deadliest()
+	if culprit.is_empty():
+		_culprit.text = "No Bloomed reached you this time."
+		_tip.text = ""
+	else:
+		var g: Genome = culprit["genome"]
+		var dealt: float = (culprit["record"] as FitnessRecord).damage_dealt
+		_culprit.text = "The deadliest was %s. It dealt %d damage%s." % [GeneInfo.describe_plain(g), roundi(dealt),
+			"" if (culprit["record"] as FitnessRecord).died else " and is still standing"]
+		_tip.text = "Tip: " + GeneInfo.tip_for(g)
+	_fill_details(s, culprit)
+
+
+## The enemy of the lost wave that dealt the most damage (best fitness on a tie / no damage):
+## {genome, record, fitness, components} from WaveManager.last_wave_results, or {}.
+func deadliest() -> Dictionary:
+	if wave_manager == null or wave_manager.last_wave_results.is_empty():
+		return {}
+	var best: Dictionary = wave_manager.last_wave_results[0]
+	for r: Dictionary in wave_manager.last_wave_results:
+		if (r["record"] as FitnessRecord).damage_dealt > (best["record"] as FitnessRecord).damage_dealt:
+			best = r
+	return best
+
+
+func _fill_details(s: Dictionary, culprit: Dictionary) -> void:
+	clear(_details)
+	var c: Dictionary = s["component_means"]
+	label(_details, "Deadliest genome: " + ((culprit["genome"] as Genome).describe() if not culprit.is_empty() else "-"),
+		&"SmallTextLabel", true)
+	if not culprit.is_empty():
+		var cc: Dictionary = culprit["components"]
+		label(_details, "Its fitness %.3f  (D %.3f  P %.3f  S %.3f  O %.3f)  raw: %s" % [culprit["fitness"],
+			cc[Fitness.D], cc[Fitness.P], cc[Fitness.S], cc[Fitness.O], (culprit["record"] as FitnessRecord).to_dict()],
+			&"SmallTextLabel", true)
+	label(_details, "Highest fitness: " + s["best_genome"], &"SmallTextLabel", true)
+	label(_details, "Wave fitness best %.3f  mean %.3f  |  mean D %.3f  P %.3f  S %.3f  O %.3f  |  not bred (lost wave)" % [
+		s["best_fitness"], s["mean_fitness"], c[Fitness.D], c[Fitness.P], c[Fitness.S], c[Fitness.O]], &"SmallTextLabel", true)
 	if not s["gene_means"].is_empty():
-		_label("Their traits:  " + WaveReport.dominant_traits(s["gene_means"], false), FONT_SIZE, COLOR_TRAITS)
-	_label("Deadliest: " + s["best_genome"], FONT_SIZE, COLOR_DIM)
-	_spacer()
-	_label("Retry replays this wave with the same Bloomed.\nThey only evolve once you clear it. XP and skills are kept.", FONT_SIZE, COLOR_DIM)
-	_spacer()
-
-	var buttons: HBoxContainer = HBoxContainer.new()
-	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
-	buttons.add_theme_constant_override("separation", 8)
-	_body.add_child(buttons)
-	_skills_button = _button(buttons, "Skills (K)", skills_requested.emit)
-	_skills_button.focus_mode = Control.FOCUS_NONE  # Enter stays on Retry
-	_update_skills_button()
-	_retry_button = _button(buttons, "Retry  (Enter)", _on_retry)
-	if allow_level_restart:
-		var restart: Button = _button(buttons, "Restart level", _on_restart_level)
-		restart.focus_mode = Control.FOCUS_NONE
-	var menu_button: Button = _button(buttons, "Main Menu", main_menu_requested.emit)
-	menu_button.focus_mode = Control.FOCUS_NONE
-
-
-## "Skills (K)", highlighted with the count when there are points to spend.
-func _update_skills_button() -> void:
-	if _skills_button == null or player == null:
-		return
-	var points: int = player.progression.skill_points
-	_skills_button.text = "Skills (K)  -  %d point%s to spend" % [points, "" if points == 1 else "s"] if points > 0 else "Skills (K)"
-	_skills_button.add_theme_color_override("font_color", Color(1.0, 0.9, 0.4) if points > 0 else Color.WHITE)
-
-
-func _button(parent: Control, text: String, action: Callable) -> Button:
-	var b: Button = Button.new()
-	b.text = text
-	b.add_theme_font_size_override("font_size", FONT_SIZE)
-	b.pressed.connect(action)
-	parent.add_child(b)
-	return b
-
-
-func _label(text: String, font_size: int = FONT_SIZE, color: Color = Color.WHITE) -> void:
-	var l: Label = Label.new()
-	l.text = text
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.add_theme_font_size_override("font_size", font_size)
-	l.add_theme_color_override("font_color", color)
-	_body.add_child(l)
-
-
-func _spacer() -> void:
-	var spacer: Control = Control.new()
-	spacer.custom_minimum_size = Vector2(0, 3)
-	_body.add_child(spacer)
+		label(_details, "Traits (population): " + WaveReport.dominant_traits(s["gene_means"]), &"SmallLabel", true)

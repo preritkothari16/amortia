@@ -16,12 +16,12 @@
 [ext_resource type="Resource" path="res://data/fitness.tres" id="14_fitness"]
 [ext_resource type="Resource" path="res://data/ga.tres" id="15_ga"]
 [ext_resource type="Script" path="res://ui/hud/wave_hud.gd" id="16_hud"]
-[ext_resource type="Script" path="res://ui/menus/wave_report.gd" id="17_report"]
+[ext_resource type="PackedScene" path="res://ui/menus/wave_report.tscn" id="17_report"]
 [ext_resource type="Script" path="res://ui/hud/xp_bar.gd" id="18_xp_bar"]
 [ext_resource type="Script" path="res://ui/menus/skill_tree_menu.gd" id="19_skills"]
 [ext_resource type="Script" path="res://ui/hud/player_status.gd" id="20_status"]
 [ext_resource type="Script" path="res://ui/menus/pause_menu.gd" id="21_pause"]
-[ext_resource type="Script" path="res://ui/menus/game_over_screen.gd" id="22_game_over"]
+[ext_resource type="PackedScene" path="res://ui/menus/game_over_screen.tscn" id="22_game_over"]
 [ext_resource type="Resource" path="res://data/perception.tres" id="23_perception"]
 [ext_resource type="Script" path="res://world/terrain/terrain_view.gd" id="24_terrain_view"]
 [ext_resource type="Script" path="res://world/terrain/terrain_events.gd" id="25_terrain_events"]
@@ -101,25 +101,9 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("18_xp_bar")
 
-[node name="WaveReport" type="Control" parent="HUD"]
-process_mode = 3
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-script = ExtResource("17_report")
+[node name="WaveReport" parent="HUD" instance=ExtResource("17_report")]
 
-[node name="GameOverScreen" type="Control" parent="HUD"]
-process_mode = 3
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-script = ExtResource("22_game_over")
+[node name="GameOverScreen" parent="HUD" instance=ExtResource("22_game_over")]
 
 [node name="PauseMenu" type="Control" parent="HUD"]
 process_mode = 3
