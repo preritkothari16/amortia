@@ -54,6 +54,9 @@ signal enemies_arrived(wave: int)
 ## Instead of the intermission countdown, wait for continue_to_next_wave() (the Wave Report's
 ## Continue button). Only applies when auto_next_wave is on.
 @export var pause_between_waves: bool = true
+## Safety net for kill-all waves (Survive): after this many seconds of an open wave it ends
+## as if cleared; survivors are scored as survivors. 0 = off. Objective waves end by their goal.
+@export var wave_deadline_seconds: float = 75.0
 ## Pause between waves (seconds).
 @export var intermission_seconds: float = 3.0
 ## Remove survivors of an ended wave when the next one spawns (they were already scored).
@@ -145,6 +148,12 @@ func _physics_process(delta: float) -> void:
 			_spawn_entries()
 	elif _wave_open:
 		wave_seconds += delta
+		if auto_end_when_all_dead and wave_deadline_seconds > 0.0 and wave_seconds >= wave_deadline_seconds:
+			if log_waves:
+				print("[Wave %d] deadline %.0f s reached - ended with %d alive" % [wave_number, wave_deadline_seconds, alive.size()])
+			end_wave()
+	if _context != null:
+		_context.wave_seconds = wave_seconds if _wave_open else 0.0
 	if intermission_left >= 0.0:
 		intermission_left -= delta
 		if intermission_left < 0.0:
@@ -183,6 +192,8 @@ func spawn_wave(count: int = -1) -> void:
 		_despawn_all()
 	wave_number += 1
 	wave_seconds = 0.0
+	if _context != null:
+		_context.wave_seconds = 0.0
 	_wave_entries.clear()
 	_wave_open = true
 	if population.size() != count or not evolve:

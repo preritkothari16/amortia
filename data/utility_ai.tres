@@ -22,3 +22,5 @@ memory_time = 8.0
 investigate_base = 0.4
 provocation_weight = 1.0
 lost_sight_strength = 0.5
+pressure_start_seconds = 30.0
+pressure_ramp_seconds = 30.0

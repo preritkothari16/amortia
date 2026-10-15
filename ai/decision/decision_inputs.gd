@@ -20,3 +20,6 @@ var has_lead: bool = false
 var lead_age: float = 0.0
 ## How provoking that lead was, 0..1 (1 = gunshot right next to us).
 var lead_strength: float = 0.0
+## How long the wave has dragged on, 0..1 (UtilitySettings.wave_pressure). Pulls even lazy
+## enemies towards a lead they hold.
+var wave_pressure: float = 0.0

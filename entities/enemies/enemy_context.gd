@@ -21,3 +21,5 @@ var perception: PerceptionSettings
 var conditions: WorldConditions
 ## Destructible tiles: enemies break barricades and open doors through it (null = they can't).
 var terrain_health: TerrainHealth
+## Seconds the current wave has been open (WaveManager updates it every physics frame).
+var wave_seconds: float = 0.0

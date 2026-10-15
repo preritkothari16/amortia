@@ -46,3 +46,15 @@ extends Resource
 @export_range(0.0, 1.0) var provocation_weight: float = 1.0
 ## Provocation of losing sight of a chased player (the lead is where they were last seen).
 @export_range(0.0, 1.0) var lost_sight_strength: float = 0.5
+## Hunger ramp: a wave that drags on pulls even lazy enemies towards the lead they hold.
+## Pressure is 0 until pressure_start_seconds of wave time, then rises linearly to 1 over
+## pressure_ramp_seconds. A very large start turns the ramp off.
+@export var pressure_start_seconds: float = 30.0
+@export var pressure_ramp_seconds: float = 30.0
+
+
+## 0..1 pressure after `wave_seconds` of an open wave (see the two settings above).
+func wave_pressure(wave_seconds: float) -> float:
+	if pressure_ramp_seconds <= 0.0:
+		return 1.0 if wave_seconds >= pressure_start_seconds else 0.0
+	return clampf((wave_seconds - pressure_start_seconds) / pressure_ramp_seconds, 0.0, 1.0)

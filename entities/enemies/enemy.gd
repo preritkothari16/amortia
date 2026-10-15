@@ -297,6 +297,7 @@ func _gather_inputs() -> DecisionInputs:
 	_inputs.has_lead = awareness.has_lead()
 	_inputs.lead_age = awareness.lead_age
 	_inputs.lead_strength = awareness.lead_strength
+	_inputs.wave_pressure = stats.utility_settings.wave_pressure(_ctx.wave_seconds)
 	_inputs.allies_chasing = 0
 	_inputs.flank_point_available = false
 	if visible:

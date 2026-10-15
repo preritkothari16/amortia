@@ -167,3 +167,39 @@ enemy cost < INF (they climb fences). Both BFS's are 4-way.
 
 **Determinism.** All randomness is the shuffle of domain order from one seeded RNG; the slot order
 (MRV with index tie-break) is deterministic, so a seed always gives the same layout.
+
+
+## Wave pressure — the Bloom's hunger ramp (ai/decision, audit follow-up 2026-10-15)
+
+**Problem.** Utility AI picks the highest score each 0.2 s. A lazy enemy holding a stale lead
+scores `patience × 0.4` (≈ 0.02–0.08), a timid enemy watching the player scores
+`aggression × 0.5…` (≈ 0.05–0.1); both lose to idle (0.1) forever, so a kill-all wave never ends.
+
+**Idea.** One extra *input* — `wave_pressure` in 0..1 — rises with wave time, and both
+approach actions take the larger of their gene and the pressure as their drive. The gene still
+decides *how long* an enemy holds out; pressure decides *when everyone gives up*.
+```
+pressure(t) = clamp((t - start) / ramp, 0, 1)         # start 30 s, ramp 30 s (data/utility_ai.tres)
+
+InvestigateAction.score:   (needs a lead, player not visible — unchanged)
+    drive = patience + (1 - patience) * lead_strength
+    drive = max(drive, pressure)                       # NEW
+    return drive * (0.4 + 0.6 * freshness)             # pressure 1 -> at least 0.4 > idle 0.1
+
+ChaseAction.score:         (needs the player visible — unchanged)
+    drive = max(aggression, pressure)                  # NEW
+    return drive * (chase_base + (1 - chase_base) * closeness)
+```
+Pressure never creates a lead and never overrides sight, so unaware enemies are not teleport-aggroed.
+Flank is untouched (it needs allies chasing, which pressure now produces).
+
+**Safety net (not AI).** `WaveManager.wave_deadline_seconds` = 75: a kill-all wave (Survive) ends
+as cleared, survivors scored as survivors. Objective waves end by their own goal.
+
+**Why it fits the GA.** Hiding used to be free (S = alive time / 45 s, D and P stay 0). With
+pressure, a hider is eventually dragged into the fight and takes D/P like everyone else, so the
+single fitness formula no longer rewards pure hiding. Measured (seed 4242, standing bot, 8 waves):
+before — wave 1 never ended (stalled); after — every wave cleared in 52–73 s, 20/20 killed,
+evolved patience settles ≈ 0.13 instead of drifting to 0.05.
+
+Tests: `tests/test_wave_pressure.gd` (13).

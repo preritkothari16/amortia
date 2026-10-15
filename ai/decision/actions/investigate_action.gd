@@ -6,6 +6,8 @@ extends UtilityAction
 ##   drive = patience + (1 - patience) * lead_strength * provocation_weight
 ##   score = drive * (investigate_base + (1 - investigate_base) * freshness)
 ##   freshness = 1 - lead_age / memory_time   (clamped to 0..1)
+## A wave that drags on adds hunger: drive = max(drive, wave_pressure), so after the ramp even
+## the laziest enemy that holds a lead scores 0.4+ (above idle) and goes to look.
 
 
 func _init() -> void:
@@ -17,4 +19,5 @@ func score(inputs: DecisionInputs, genes: BehaviourWeights, settings: UtilitySet
 		return 0.0  # seeing the player beats any lead; no lead, nothing to investigate
 	var freshness: float = 1.0 - clampf(inputs.lead_age / settings.memory_time, 0.0, 1.0)
 	var drive: float = genes.patience + (1.0 - genes.patience) * inputs.lead_strength * settings.provocation_weight
+	drive = maxf(drive, inputs.wave_pressure)
 	return drive * (settings.investigate_base + (1.0 - settings.investigate_base) * freshness)

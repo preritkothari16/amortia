@@ -4,7 +4,7 @@ Nothing here blocks the build. Items are ordered by how likely they are to matte
 user, not a bug to fix unasked (HANDOFF design principle: no rule changes from one playtest).
 
 ## Unresolved behaviour
-1. **A wave can stall (design).** A wave ends only when every Runner is dead (Survive / Apex-less levels) or its
+1. **(FIXED in step 44: hunger ramp + 75 s deadline.)** ~~A wave can stall (design).~~ A wave ends only when every Runner is dead (Survive / Apex-less levels) or its
    objective is met. Low-patience Runners stay IDLE after a lead (`aware = INVESTIGATE`, action = IDLE) and never come;
    my bot spent 300 s with 2–3 of them left. There is no wave timer and no stragglers-to-the-player rule. Needs a
    design call (timer? let the idle ones drift toward the player?). Known since step 26.
