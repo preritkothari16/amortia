@@ -161,7 +161,9 @@ func test_skills_badge_shows_unspent_points() -> void:
 	report._skills_button.pressed.emit()
 	assert_signal_emitted(report, "skills_requested")
 	lvl["player"].progression.skill_points = 0
-	await wait_frames(2)
+	# The badge follows the points in _process: count process frames (physics frames can run
+	# twice per process frame when the machine is busy, which made this test flaky).
+	await wait_process_frames(2)
 	assert_false(report._badge.visible)
 
 
