@@ -112,8 +112,8 @@ func _build_scenario_menu(column: VBoxContainer) -> void:
 	_scenario_menu.visible = false
 	column.add_child(_scenario_menu)
 	_add_label(_scenario_menu, "TEST SCENARIOS", 10, Color.WHITE)
-	_add_label(_scenario_menu, "Starts right before the moment. Nothing is saved. F8 ends the current wave.",
-			FONT_SIZE, Color(0.6, 0.6, 0.6))
+	_add_label(_scenario_menu, "Starts right before the moment. Nothing is saved." + (
+			" F8 ends the current wave." if DebugKeys.enabled() else ""), FONT_SIZE, Color(0.6, 0.6, 0.6))
 	var sides: HBoxContainer = HBoxContainer.new()
 	sides.add_theme_constant_override("separation", 12)
 	_scenario_menu.add_child(sides)

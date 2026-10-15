@@ -23,7 +23,7 @@ user, not a bug to fix unasked (HANDOFF design principle: no rule changes from o
    bites (set entry + exit + objective cells in `main._setup_level`).
 7. **(FIXED in step 45: Endless is test-only, saves nothing.)** ~~Endless overwrites the prototype save.~~ Endless is the prototype loop, so its wave checkpoints write
    `user://save.json`, replacing a New Game run's save. Design: give Endless its own slot or no checkpoints.
-8. **Debug keys are live in every build.** F1–F10 (F3 skips a wave, F8 ends it, F9 restarts, F10 ignites) are not
+8. **(FIXED in step 47: debug builds only.)** ~~Debug keys are live in every build.~~ F1–F10 (F3 skips a wave, F8 ends it, F9 restarts, F10 ignites) are not
    gated behind a debug build; F3 mid-level in the campaign would start waves outside `LevelFlow`'s control (reasoned from the code, not run).
 9. **Two wave counters on the HUD.** "WAVE 3 generation 2" counts the zone's waves; "Wave 1 / 1" counts the level's.
 10. **Cosmetic log noise.** Each new zone prints three `… missing or invalid; a fresh one will be used` warnings

@@ -139,7 +139,7 @@ func _apply_hazards() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("debug_ignite") and grid != null:
+	if DebugKeys.enabled() and event.is_action_pressed("debug_ignite") and grid != null:
 		var fire: FireSpread = get_event(FireSpread) as FireSpread
 		var vp: Viewport = get_viewport()
 		var cam: Camera2D = vp.get_camera_2d()

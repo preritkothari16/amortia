@@ -173,6 +173,8 @@ func _physics_process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not DebugKeys.enabled():
+		return  # F3 / F8 / F9 are developer keys: debug builds only
 	if event.is_action_pressed("debug_spawn_wave"):
 		spawn_wave()  # ends (scores, evolves) the current wave first if it is still running
 	elif event.is_action_pressed("debug_end_wave"):

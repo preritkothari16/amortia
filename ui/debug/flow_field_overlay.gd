@@ -18,7 +18,7 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("debug_flow_field"):
+	if DebugKeys.enabled() and event.is_action_pressed("debug_flow_field"):
 		visible = not visible
 		queue_redraw()
 

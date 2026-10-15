@@ -40,7 +40,7 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("debug_awareness"):
+	if DebugKeys.enabled() and event.is_action_pressed("debug_awareness"):
 		visible = not visible
 
 
