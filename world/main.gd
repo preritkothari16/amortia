@@ -132,8 +132,7 @@ func _ready() -> void:
 	if in_campaign:
 		_load_campaign_state()
 	elif GameState.endless_mode:
-		_wave_manager.wave_started.connect(func(wave: int) -> void:
-			GameState.endless_best_wave = maxi(GameState.endless_best_wave, wave))
+		_wave_manager.wave_started.connect(GameState.note_endless_wave)
 	_wave_manager.generation_bred.connect(func(_summary: Dictionary) -> void: save_game())
 	# Apex bosses are built from the zone's fittest genome (failed waves count: the attempt was real).
 	_wave_manager.wave_ended.connect(GameState.record_wave_best)

@@ -7,6 +7,8 @@ extends Control
 
 const MAIN_MENU_SCENE: String = "res://ui/menus/main_menu.tscn"
 const FONT_SIZE: int = 8
+## Text width in viewport px (the viewport is 480 wide).
+const LABEL_WIDTH: float = 400.0
 const ROOMS: Array[String] = ["Workbench (gun mods)", "Lab (research samples)", "Radio (side objectives)",
 	"Garden (healing items)", "Bunks (rescued survivors)"]
 
@@ -65,6 +67,9 @@ func _label(text: String, size: int, color: Color) -> void:
 	var l: Label = Label.new()
 	l.text = text
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# Wrapped inside a fixed width: the genome line is wider than the 480 px viewport otherwise.
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(LABEL_WIDTH, 0)
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)
 	_column.add_child(l)

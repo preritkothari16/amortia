@@ -124,6 +124,12 @@ static func _validate_evolution(e: Dictionary, rules: GenomeRules, warnings: Pac
 				return {"error": "genome %d: gene %s missing or not a number" % [i, gene]}
 		if not Genome.PathMode.keys().has(g.get("path_mode")):
 			return {"error": "genome %d: unknown path_mode %s" % [i, g.get("path_mode")]}
+		g = g.duplicate()
+		for gene: StringName in Genome.TERRAIN_GENES:
+			# Absent = an older save (loads as 0). Present but unreadable: 0, not a crash.
+			if g.has(String(gene)) and not _is_number(g[String(gene)]):
+				warnings.append("genome %d: terrain gene %s is not a number; using 0" % [i, gene])
+				g[String(gene)] = 0.0
 		var genome: Genome = Genome.from_dict(g)
 		if not genome.is_valid(rules, budget) or not genome.spends_budget(rules, budget):
 			genome.repair(rules, budget)  # clamp genes, spend exactly the stat budget

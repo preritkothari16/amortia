@@ -88,7 +88,8 @@ func _build_campaign_menu(column: VBoxContainer) -> void:
 	_campaign_continue.visible = has_campaign and GameState.campaign_active and not GameState.campaign_won
 	if _campaign_continue.visible:
 		var level: LevelConfig = GameState.current_level()
-		_add_label(_campaign_menu, level.title if level != null else "", FONT_SIZE, Color(0.6, 0.6, 0.6))
+		var where: String = "Safehouse" if GameState.safehouse_pending else (level.title if level != null else "")
+		_add_label(_campaign_menu, where, FONT_SIZE, Color(0.6, 0.6, 0.6))
 	var ng: Button = _add_button(_campaign_menu, "New Game+", _on_new_campaign.bind(true))
 	ng.disabled = not GameState.ng_plus_unlocked
 	var endless: Button = _add_button(_campaign_menu, "Endless" + (" (best wave %d)" % GameState.endless_best_wave
@@ -109,6 +110,11 @@ func _on_new_campaign(ng_plus: bool) -> void:
 
 func _on_continue_campaign() -> void:
 	GameState.campaign_active = true
+	if GameState.safehouse_pending:
+		# The zone's Apex is already beaten: carry on from the Safehouse, don't replay the boss.
+		GameState.safehouse_mode = "zone"
+		get_tree().change_scene_to_file(GameState.SAFEHOUSE_SCENE)
+		return
 	GameState.start_current_level(get_tree())
 
 

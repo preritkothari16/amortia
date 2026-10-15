@@ -47,6 +47,9 @@ var endless_best_wave: int = 0
 var endless_mode: bool = false
 ## Set by the Safehouse: what it should show ("zone" after an Apex, "victory" at the end).
 var safehouse_mode: String = "zone"
+## A zone's Apex was beaten and the next zone has not been entered yet: Continue Campaign
+## goes to the Safehouse instead of replaying the Apex. Saved with the campaign.
+var safehouse_pending: bool = false
 ## Test scenario run (main menu -> Test Scenarios, see DebugScenarios): the campaign save is
 ## never written. Ends with end_test_mode() or when the game is closed.
 var test_mode: bool = false
@@ -119,6 +122,8 @@ func start_new_campaign(as_ng_plus: bool = false) -> void:
 	zone_elite.clear()
 	side_done.clear()
 	player_data = keep_player
+	campaign_won = false  # the previous run's win only hid Continue for the new run; the unlocks stay
+	safehouse_pending = false
 	reset_inventory()
 
 
@@ -154,6 +159,7 @@ func finish_level(evolution: Dictionary, player: Dictionary) -> String:
 		else:
 			destination = "safehouse"
 		safehouse_mode = "victory" if destination == "victory" else "zone"
+		safehouse_pending = destination == "safehouse"
 	else:
 		level_index += 1
 	save_campaign()
@@ -185,7 +191,16 @@ func enter_next_zone() -> void:
 		population.append(Genome.random(rng, rules, budget).to_dict())
 	current_zone += 1
 	level_index = 0
+	safehouse_pending = false
 	zone_evolution[current_zone] = {"next_wave": 1, "generation": 0, "population": population, "history": []}
+	save_campaign()
+
+
+## Endless mode reached `wave`: remembers (and saves) the best wave so it survives closing the game.
+func note_endless_wave(wave: int) -> void:
+	if wave <= endless_best_wave:
+		return
+	endless_best_wave = wave
 	save_campaign()
 
 
@@ -202,30 +217,35 @@ func to_dict() -> Dictionary:
 		"zone_evolution": zone_evolution, "zone_best": zone_best, "zone_elite": zone_elite,
 		"player": player_data, "samples": samples, "scrap": scrap, "side_done": side_done,
 		"won": campaign_won, "endless_unlocked": endless_unlocked, "ng_plus_unlocked": ng_plus_unlocked,
-		"ng_plus": ng_plus, "endless_best_wave": endless_best_wave,
+		"ng_plus": ng_plus, "endless_best_wave": endless_best_wave, "safehouse_pending": safehouse_pending,
 	}
 
 
 ## Restores from a saved dictionary. False (state untouched) if it isn't a campaign save.
 ## Zone keys come back from JSON as strings; they are turned back into ints.
 func from_dict(d: Dictionary) -> bool:
-	if int(d.get("format", 0)) != SAVE_FORMAT:
+	if _num(d.get("format"), 0) != SAVE_FORMAT:
 		return false
-	campaign_active = bool(d.get("active", false))
-	current_zone = clampi(int(d.get("zone", 1)), 1, 4)
-	level_index = clampi(int(d.get("level_index", 0)), 0, 3)
+	campaign_active = _flag(d.get("active"))
+	current_zone = clampi(_num(d.get("zone"), 1), 1, 4)
+	level_index = clampi(_num(d.get("level_index"), 0), 0, 3)
 	zone_evolution = _int_keys(d.get("zone_evolution", {}))
 	zone_best = _int_keys(d.get("zone_best", {}))
 	zone_elite = _int_keys(d.get("zone_elite", {}))
 	player_data = d.get("player", {}) if d.get("player") is Dictionary else {}
-	samples = int(d.get("samples", 0))
-	scrap = int(d.get("scrap", 0))
-	side_done.assign(d.get("side_done", []))
-	campaign_won = bool(d.get("won", false))
-	endless_unlocked = bool(d.get("endless_unlocked", false))
-	ng_plus_unlocked = bool(d.get("ng_plus_unlocked", false))
-	ng_plus = bool(d.get("ng_plus", false))
-	endless_best_wave = int(d.get("endless_best_wave", 0))
+	samples = _num(d.get("samples"), 0)
+	scrap = _num(d.get("scrap"), 0)
+	side_done.clear()
+	if d.get("side_done") is Array:
+		for id: Variant in d["side_done"]:
+			if id is String:
+				side_done.append(id)
+	campaign_won = _flag(d.get("won"))
+	endless_unlocked = _flag(d.get("endless_unlocked"))
+	ng_plus_unlocked = _flag(d.get("ng_plus_unlocked"))
+	ng_plus = _flag(d.get("ng_plus"))
+	endless_best_wave = _num(d.get("endless_best_wave"), 0)
+	safehouse_pending = _flag(d.get("safehouse_pending"))
 	return true
 
 
@@ -253,6 +273,15 @@ func end_test_mode() -> void:
 func load_campaign() -> bool:
 	var r: Dictionary = SaveSystem.read_save(SaveSystem.CAMPAIGN_PATH)
 	return r["ok"] and from_dict(r["data"])
+
+
+## A hand-edited or damaged save may hold the wrong type: use the default instead of crashing.
+static func _num(v: Variant, fallback: int) -> int:
+	return int(v) if v is int or v is float else fallback
+
+
+static func _flag(v: Variant) -> bool:
+	return v is bool and v
 
 
 static func _int_keys(d: Variant) -> Dictionary:
