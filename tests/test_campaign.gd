@@ -86,7 +86,7 @@ func _evolution(size: int) -> Dictionary:
 	rng.seed = 4
 	var pop: Array = []
 	for i: int in size:
-		pop.append(Genome.random(rng, rules, 18).to_dict())
+		pop.append(Genome.random(rng, rules, rules.budget_for_wave(4)).to_dict())
 	return {"next_wave": 4, "generation": 3, "population": pop, "history": []}
 
 

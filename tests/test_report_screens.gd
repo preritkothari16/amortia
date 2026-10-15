@@ -113,7 +113,6 @@ func test_report_default_view_has_no_abbreviations_and_details_keep_raw_data() -
 	var text: String = _visible_text(report)
 	assert_null(regex.search(text), "default view: '%s'" % (regex.search(text).get_string() if regex.search(text) else ""))
 	assert_string_contains(text, "How they changed")
-	assert_string_contains(text, "How they hunt")
 	assert_string_contains(text, "How deadly they were")
 	assert_string_contains(text, "What to expect")
 	_key(report, "report_details")
@@ -121,7 +120,7 @@ func test_report_default_view_has_no_abbreviations_and_details_keep_raw_data() -
 	assert_eq(report.current_page(), "details")
 	var details: String = _visible_text(report)
 	assert_string_contains(details, report.last_summary["best_genome"], "raw genome in Details")
-	assert_string_contains(details, "FLOW")
+	assert_string_contains(details, "fer ", "the genome shows ferocity")
 	_assert_fits(report, "details")
 	report.show_page("all")
 	await wait_frames(2)
@@ -238,23 +237,22 @@ func test_every_gene_has_a_full_name_meaning_and_group() -> void:
 		assert_true(grouped.has(String(gene)), "%s grouped" % gene)
 		assert_true(GeneInfo.NAMES.has(String(gene)), "%s named" % gene)
 		assert_true(GeneInfo.MEANINGS.has(String(gene)), "%s explained" % gene)
-	for mode: String in Genome.PathMode.keys():
-		assert_true(GeneInfo.PATH_MODES.has(mode), mode)
 
 
-func test_inert_genes_never_drive_the_story_or_expectations() -> void:
+func test_every_gene_acts_and_drives_the_story_by_size_of_change() -> void:
 	var before: Dictionary = {}
 	var after: Dictionary = {}
 	for gene: String in GeneInfo.all_genes():
 		before[gene] = 0.5 if not GeneInfo.is_stat(gene) else 5.0
 		after[gene] = before[gene]
-	after["caution"] = 1.0
-	after["cohesion"] = 0.0
+	after["cohesion"] = 0.3
 	after["speed"] = 5.5
+	assert_eq(GeneInfo.INERT.size(), 0, "no gene without an effect is left")
 	var changes: Array[Array] = GeneInfo.ranked_changes(before, after)
-	assert_eq(changes[0][0], "speed", "caution / cohesion left out")
-	assert_eq(GeneInfo.expectations(changes), ["They reach you sooner."] as Array[String])
-	assert_eq(GeneInfo.story_sentence(4, changes), "Generation 4 is getting faster.")
+	assert_eq(changes[0][0], "cohesion", "the biggest change relative to its range comes first")
+	assert_eq(changes[1][0], "speed")
+	assert_eq(GeneInfo.expectations(changes), ["They arrive one by one.", "They reach you sooner."] as Array[String])
+	assert_eq(GeneInfo.story_sentence(4, changes), "Generation 4 is spreading out and getting faster.")
 
 
 func test_theme_type_scale_and_contrast() -> void:

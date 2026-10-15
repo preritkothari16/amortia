@@ -119,11 +119,13 @@ static func _validate_evolution(e: Dictionary, rules: GenomeRules, warnings: Pac
 		var g: Variant = raw_pop[i]
 		if not g is Dictionary:
 			return {"error": "genome %d is not a dictionary" % i}
+		# A save from before ferocity has no such key: it loads as neutral (5), see below.
+		var legacy: bool = not g.has("ferocity")
 		for gene: StringName in Genome.STAT_GENES + Genome.BEHAVIOUR_GENES:
+			if legacy and gene == &"ferocity":
+				continue
 			if not _is_number(g.get(String(gene))):
 				return {"error": "genome %d: gene %s missing or not a number" % [i, gene]}
-		if not Genome.PathMode.keys().has(g.get("path_mode")):
-			return {"error": "genome %d: unknown path_mode %s" % [i, g.get("path_mode")]}
 		g = g.duplicate()
 		for gene: StringName in Genome.TERRAIN_GENES:
 			# Absent = an older save (loads as 0). Present but unreadable: 0, not a crash.
@@ -131,7 +133,9 @@ static func _validate_evolution(e: Dictionary, rules: GenomeRules, warnings: Pac
 				warnings.append("genome %d: terrain gene %s is not a number; using 0" % [i, gene])
 				g[String(gene)] = 0.0
 		var genome: Genome = Genome.from_dict(g)
-		if not genome.is_valid(rules, budget) or not genome.spends_budget(rules, budget):
+		if legacy and genome.is_valid(rules, budget):
+			pass  # old genome + neutral ferocity fits the budget: keep its stats exactly as they were
+		elif not genome.is_valid(rules, budget) or not genome.spends_budget(rules, budget):
 			genome.repair(rules, budget)  # clamp genes, spend exactly the stat budget
 			warnings.append("genome %d repaired to fit wave %d (budget %d)" % [i, next_wave, budget])
 		population.append(genome.to_dict())

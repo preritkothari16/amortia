@@ -3,18 +3,16 @@ extends Resource
 ## One enemy's genes (GDD 5.3). Pure data + the operations the GA needs on a single genome:
 ## random creation, copying, mutation and repair. Breeding and selection live elsewhere.
 ##
-##   Stats (budgeted, stat_min..stat_max): speed, health, vision  -> move_speed, max_health, sight_range
-##   Behaviour (0..1): aggression, caution, flanking, cohesion, patience -> utility AI weights
+##   Stats (budgeted, stat_min..stat_max): speed, health, vision, ferocity
+##       -> move_speed, max_health, sight_range, melee damage + attack cooldown
+##   Behaviour (0..1): aggression, flanking, cohesion, patience -> utility AI weights
 ##   Terrain (0..1, adaptation budget): swimmer, climber, crawler, toxin_resistance, night_sense
 ##       -> a TerrainCostProfile (cheaper / unlocked terrain, GDD 4.5); night_sense -> senses at night
-##   Strategy: path_mode (FLOW / ASTAR / GREEDY)
 ## A Resource, so a genome can be saved as .tres or shown in the Inspector; to_dict() /
 ## from_dict() give a plain, JSON-safe form for logs and experiments.
 
-enum PathMode { FLOW, ASTAR, GREEDY }
-
-const STAT_GENES: Array[StringName] = [&"speed", &"health", &"vision"]
-const BEHAVIOUR_GENES: Array[StringName] = [&"aggression", &"caution", &"flanking", &"cohesion", &"patience"]
+const STAT_GENES: Array[StringName] = [&"speed", &"health", &"vision", &"ferocity"]
+const BEHAVIOUR_GENES: Array[StringName] = [&"aggression", &"flanking", &"cohesion", &"patience"]
 ## Names match the adaptation keys in the terrain rulebook (TerrainDefinition.adaptations).
 const TERRAIN_GENES: Array[StringName] = [&"swimmer", &"climber", &"crawler", &"toxin_resistance", &"night_sense"]
 
@@ -22,10 +20,11 @@ const TERRAIN_GENES: Array[StringName] = [&"swimmer", &"climber", &"crawler", &"
 @export var speed: float = 5.0
 @export var health: float = 5.0
 @export var vision: float = 5.0
+## Melee punch: more damage per hit and a shorter cooldown. Costs budget points like the others.
+@export var ferocity: float = 5.0
 
 @export_group("Behaviour")
 @export_range(0.0, 1.0) var aggression: float = 0.5
-@export_range(0.0, 1.0) var caution: float = 0.5
 @export_range(0.0, 1.0) var flanking: float = 0.5
 @export_range(0.0, 1.0) var cohesion: float = 0.5
 @export_range(0.0, 1.0) var patience: float = 0.5
@@ -37,9 +36,6 @@ const TERRAIN_GENES: Array[StringName] = [&"swimmer", &"climber", &"crawler", &"
 @export_range(0.0, 1.0) var toxin_resistance: float = 0.0
 @export_range(0.0, 1.0) var night_sense: float = 0.0
 
-@export_group("Strategy")
-@export var path_mode: PathMode = PathMode.FLOW
-
 
 # --- Creating and copying ------------------------------------------------------------
 
@@ -48,7 +44,6 @@ static func random(rng: RandomNumberGenerator, rules: GenomeRules, budget: int) 
 	var g: Genome = Genome.new()
 	for gene: StringName in BEHAVIOUR_GENES:
 		g.set(gene, rng.randf())
-	g.path_mode = rng.randi_range(0, PathMode.size() - 1) as PathMode
 	# Random share of the budget for each stat, then hand the points out.
 	var weights: Array[float] = []
 	for gene: StringName in STAT_GENES:
@@ -72,7 +67,7 @@ func copy() -> Genome:
 # --- Mutation and repair -------------------------------------------------------------
 
 ## Mutates each gene with probability `rate` (default: rules.mutation_rate), then repairs.
-## Numbers get a Gaussian nudge, the category gene is re-picked to a different value.
+## Every gene gets a Gaussian nudge.
 ## Returns how many genes changed.
 func mutate(rng: RandomNumberGenerator, rules: GenomeRules, budget: int, rate: float = -1.0) -> int:
 	if rate < 0.0:
@@ -90,11 +85,6 @@ func mutate(rng: RandomNumberGenerator, rules: GenomeRules, budget: int, rate: f
 		if rng.randf() < rate:
 			set(gene, get(gene) + rng.randfn(0.0, rules.adaptation_sigma))
 			changed += 1
-	if rng.randf() < rate:
-		# Pick one of the OTHER modes: offset 1..size-1 from the current one.
-		var offset: int = rng.randi_range(1, PathMode.size() - 1)
-		path_mode = ((path_mode + offset) % PathMode.size()) as PathMode
-		changed += 1
 	repair(rules, budget)
 	return changed
 
@@ -125,12 +115,15 @@ func repair(rules: GenomeRules, budget: int) -> void:
 		shares.append(share)
 		share_sum += share
 	if share_sum <= 0.0:
-		shares = [1.0, 1.0, 1.0]
+		shares.fill(1.0)
 	_spend_budget(shares, rules, budget)  # clamps the budget to what 3 stats can hold
 
 
 func stat_total() -> float:
-	return speed + health + vision
+	var total: float = 0.0
+	for gene: StringName in STAT_GENES:
+		total += get(gene)
+	return total
 
 
 ## Sum of the five terrain genes (limited by rules.adaptation_budget).
@@ -192,6 +185,22 @@ func sight_range(base: float, rules: GenomeRules) -> float:
 	return base * stat_multiplier(vision, rules.vision_per_point, rules)
 
 
+## Melee damage per hit: +/- ferocity_damage_per_point per point around neutral (gene 10 = x1.4).
+func attack_damage(base: float, rules: GenomeRules) -> float:
+	return base * stat_multiplier(ferocity, rules.ferocity_damage_per_point, rules)
+
+
+## Seconds between swings: shorter with ferocity (gene 10 = x0.8), never below the rules' floor.
+func attack_cooldown(base: float, rules: GenomeRules) -> float:
+	return maxf(base * (1.0 - (ferocity - rules.stat_neutral) * rules.ferocity_cooldown_per_point),
+			rules.attack_cooldown_min)
+
+
+## Melee damage per second relative to an average (neutral) enemy.
+func melee_dps_factor(rules: GenomeRules) -> float:
+	return attack_damage(1.0, rules) / attack_cooldown(1.0, rules)
+
+
 ## The behaviour genes as utility AI weights.
 func to_behaviour_weights() -> BehaviourWeights:
 	var w: BehaviourWeights = BehaviourWeights.new()
@@ -202,33 +211,31 @@ func to_behaviour_weights() -> BehaviourWeights:
 
 # --- Serialization / debug -----------------------------------------------------------
 
-## Plain dictionary (JSON-safe): gene name -> value, path_mode as its name.
+## Plain dictionary (JSON-safe): gene name -> value.
 func to_dict() -> Dictionary:
 	var d: Dictionary = {}
 	for gene: StringName in STAT_GENES + BEHAVIOUR_GENES + TERRAIN_GENES:
 		d[String(gene)] = get(gene)
-	d["path_mode"] = PathMode.keys()[path_mode]
 	return d
 
 
 ## Missing genes keep their defaults: saves from before terrain genes load with all terrain
-## genes at 0 (no adaptations), which is always within the adaptation budget.
+## genes at 0 (no adaptations), which is always within the adaptation budget; saves from before
+## ferocity load with ferocity 5 (neutral). Keys of removed genes (caution, path_mode) are ignored.
 static func from_dict(d: Dictionary) -> Genome:
 	var g: Genome = Genome.new()
 	for gene: StringName in STAT_GENES + BEHAVIOUR_GENES + TERRAIN_GENES:
 		if d.has(String(gene)):
 			g.set(gene, float(d[String(gene)]))
-	if d.has("path_mode"):
-		g.path_mode = PathMode.keys().find(d["path_mode"]) as PathMode
 	return g
 
 
 ## One-line summary, e.g.
 ## "spd 6.2 hp 4.1 vis 4.7 | agg .80 cau .12 fla .55 coh .30 pat .91 | swi .00 cli .62 cra .10 tox .00 nig .30 | FLOW"
 func describe() -> String:
-	return "spd %.1f hp %.1f vis %.1f | agg %.2f cau %.2f fla %.2f coh %.2f pat %.2f | swi %.2f cli %.2f cra %.2f tox %.2f nig %.2f | %s" % [
-		speed, health, vision, aggression, caution, flanking, cohesion, patience,
-		swimmer, climber, crawler, toxin_resistance, night_sense, PathMode.keys()[path_mode]]
+	return "spd %.1f hp %.1f vis %.1f fer %.1f | agg %.2f fla %.2f coh %.2f pat %.2f | swi %.2f cli %.2f cra %.2f tox %.2f nig %.2f" % [
+		speed, health, vision, ferocity, aggression, flanking, cohesion, patience,
+		swimmer, climber, crawler, toxin_resistance, night_sense]
 
 
 func _to_string() -> String:
@@ -282,7 +289,9 @@ func _spend_budget(weights: Array[float], rules: GenomeRules, budget: int) -> vo
 	values.resize(n)
 	values.fill(rules.stat_min)
 	var left: float = clampf(float(budget) - rules.stat_min * n, 0.0, (rules.stat_max - rules.stat_min) * n)
-	var open: Array[int] = [0, 1, 2]  # stats that can still take points
+	var open: Array[int] = []  # stats that can still take points
+	for i: int in n:
+		open.append(i)
 	while left > 0.0001 and not open.is_empty():
 		var weight_sum: float = 0.0
 		for i: int in open:

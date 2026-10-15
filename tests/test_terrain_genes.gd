@@ -33,10 +33,10 @@ func test_data_defaults() -> void:
 func test_random_genomes_respect_both_budgets_and_vary() -> void:
 	var totals: Array[float] = []
 	for i: int in 300:
-		var g: Genome = Genome.random(_rng, _rules, 15)
+		var g: Genome = Genome.random(_rng, _rules, 20)
 		_assert_adaptations_legal(g, "genome %d" % i)
-		assert_true(g.spends_budget(_rules, 15))
-		assert_true(g.is_valid(_rules, 15))
+		assert_true(g.spends_budget(_rules, 20))
+		assert_true(g.is_valid(_rules, 20))
 		totals.append(g.adaptation_total())
 	totals.sort()
 	assert_lt(totals[0], 0.1, "some genomes barely adapt")
@@ -53,45 +53,45 @@ func test_random_is_reproducible_and_old_genes_unchanged_by_order() -> void:
 
 
 func test_repair_scales_over_budget_adaptations_keeping_ratios() -> void:
-	var g: Genome = Genome.random(_rng, _rules, 15)
+	var g: Genome = Genome.random(_rng, _rules, 20)
 	g.swimmer = 1.0
 	g.climber = 1.0
 	g.crawler = 0.5
 	g.toxin_resistance = 0.5
 	g.night_sense = 0.0
-	g.repair(_rules, 15)
+	g.repair(_rules, 20)
 	assert_almost_eq(g.adaptation_total(), 1.5, 0.0001)
 	assert_almost_eq(g.swimmer / g.crawler, 2.0, 0.0001, "ratios kept")
 	assert_eq(g.night_sense, 0.0)
 
 
 func test_repair_clamps_and_never_tops_up() -> void:
-	var g: Genome = Genome.random(_rng, _rules, 15)
+	var g: Genome = Genome.random(_rng, _rules, 20)
 	for gene: StringName in Genome.TERRAIN_GENES:
 		g.set(gene, 0.0)
 	g.climber = 1.7
 	g.swimmer = -0.3
-	g.repair(_rules, 15)
+	g.repair(_rules, 20)
 	assert_eq(g.climber, 1.0)
 	assert_eq(g.swimmer, 0.0)
 	assert_almost_eq(g.adaptation_total(), 1.0, 0.0001, "under budget stays under")
 
 
 func test_is_valid_checks_the_adaptation_budget() -> void:
-	var g: Genome = Genome.random(_rng, _rules, 15)
+	var g: Genome = Genome.random(_rng, _rules, 20)
 	for gene: StringName in Genome.TERRAIN_GENES:
 		g.set(gene, 0.4)  # 2.0 > 1.5
-	assert_false(g.is_valid(_rules, 15))
-	g.repair(_rules, 15)
-	assert_true(g.is_valid(_rules, 15))
+	assert_false(g.is_valid(_rules, 20))
+	g.repair(_rules, 20)
+	assert_true(g.is_valid(_rules, 20))
 
 
 func test_mutation_moves_terrain_genes_and_stays_legal() -> void:
 	var moved: int = 0
 	for i: int in 200:
-		var g: Genome = Genome.random(_rng, _rules, 15)
+		var g: Genome = Genome.random(_rng, _rules, 20)
 		var before: Dictionary = g.to_dict()
-		g.mutate(_rng, _rules, 15, 0.5)
+		g.mutate(_rng, _rules, 20, 0.5)
 		_assert_adaptations_legal(g)
 		for gene: StringName in Genome.TERRAIN_GENES:
 			if not is_equal_approx(before[String(gene)], g.get(gene)):
@@ -100,7 +100,7 @@ func test_mutation_moves_terrain_genes_and_stays_legal() -> void:
 
 
 func test_dict_round_trip_and_old_dicts_load_with_no_adaptations() -> void:
-	var g: Genome = Genome.random(_rng, _rules, 15)
+	var g: Genome = Genome.random(_rng, _rules, 20)
 	var back: Genome = Genome.from_dict(g.to_dict())
 	for gene: StringName in Genome.TERRAIN_GENES:
 		assert_almost_eq(back.get(gene), g.get(gene), 0.000001)
@@ -109,7 +109,7 @@ func test_dict_round_trip_and_old_dicts_load_with_no_adaptations() -> void:
 		old.erase(String(gene))
 	var legacy: Genome = Genome.from_dict(old)
 	assert_eq(legacy.adaptation_total(), 0.0)
-	assert_true(legacy.is_valid(_rules, 15))
+	assert_true(legacy.is_valid(_rules, 20))
 	assert_string_contains(g.describe(), "cli ")
 
 
@@ -152,8 +152,8 @@ func _ga(seed_value: int) -> GeneticAlgorithm:
 
 func test_crossover_takes_terrain_genes_from_a_parent() -> void:
 	var ga: GeneticAlgorithm = _ga(3)
-	var a: Genome = Genome.random(_rng, _rules, 15)
-	var b: Genome = Genome.random(_rng, _rules, 15)
+	var a: Genome = Genome.random(_rng, _rules, 20)
+	var b: Genome = Genome.random(_rng, _rules, 20)
 	for i: int in 50:
 		var child: Genome = ga.uniform_crossover(a, b)
 		for gene: StringName in Genome.TERRAIN_GENES:
@@ -164,7 +164,7 @@ func test_ga_children_respect_both_budgets_over_many_generations() -> void:
 	var ga: GeneticAlgorithm = _ga(9)
 	var pop: Array[Genome] = []
 	for i: int in 20:
-		pop.append(Genome.random(_rng, _rules, 15))
+		pop.append(Genome.random(_rng, _rules, 20))
 	for generation: int in 40:
 		var fit: Array[float] = []
 		for g: Genome in pop:
@@ -179,13 +179,13 @@ func test_selection_can_evolve_a_terrain_gene() -> void:
 	var ga: GeneticAlgorithm = _ga(21)
 	var pop: Array[Genome] = []
 	for i: int in 20:
-		pop.append(Genome.random(_rng, _rules, 15))
+		pop.append(Genome.random(_rng, _rules, 20))
 	var start: float = WaveManager.gene_means(pop)["climber"]
 	for generation: int in 30:
 		var fit: Array[float] = []
 		for g: Genome in pop:
 			fit.append(g.climber)
-		pop = ga.next_generation(pop, fit, 15)
+		pop = ga.next_generation(pop, fit, 20)
 	var end: float = WaveManager.gene_means(pop)["climber"]
 	assert_gt(end, start + 0.3, "climber %.2f -> %.2f" % [start, end])
 
@@ -198,12 +198,12 @@ func test_same_seed_same_terrain_evolution() -> void:
 		var ga: GeneticAlgorithm = _ga(13)
 		var pop: Array[Genome] = []
 		for i: int in 20:
-			pop.append(Genome.random(rng, _rules, 15))
+			pop.append(Genome.random(rng, _rules, 20))
 		for generation: int in 10:
 			var fit: Array[float] = []
 			for g: Genome in pop:
 				fit.append(g.swimmer + g.speed * 0.01)
-			pop = ga.next_generation(pop, fit, 15)
+			pop = ga.next_generation(pop, fit, 20)
 		var text: PackedStringArray = PackedStringArray()
 		for g: Genome in pop:
 			text.append(g.describe())
@@ -343,7 +343,7 @@ func test_in_level_enemies_navigate_with_their_own_profile() -> void:
 	wm.auto_start = false
 	add_child_autofree(main)
 	await wait_physics_frames(2)
-	var climber: Genome = Genome.random(_rng, _rules, 15)
+	var climber: Genome = Genome.random(_rng, _rules, 20)
 	for gene: StringName in Genome.TERRAIN_GENES:
 		climber.set(gene, 0.0)
 	climber.climber = 1.0

@@ -7,10 +7,9 @@ extends RefCounted
 ##   until next has population_size genomes:
 ##       parents A, B = tournament selection (size tournament_size)
 ##       child = uniform crossover of A and B (chance crossover_rate), else a copy of A
-##       child.mutate(rate)   - Gaussian nudge for numbers, re-pick for path_mode
+##       child.mutate(rate)   - Gaussian nudge for every gene
 ##       child.repair(budget) - clamp ranges, spend exactly the stat budget, cap adaptations
-##   rate = mutation_rate, doubled for this generation if > diversity_threshold of the
-##   population share one path_mode (diversity guard)
+##   rate = mutation_rate
 ##
 ## All randomness comes from `rng`, seeded in the constructor: same seed + same input =
 ## exactly the same next generation (needed for repeatable experiments).
@@ -20,8 +19,7 @@ var rules: GenomeRules
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
 ## What happened in the last next_generation() call, for logs and tests:
-## best_fitness, mean_fitness, elite_indices, mutation_rate, diversity_guard,
-## dominant_path_share, crossovers, genes_mutated.
+## best_fitness, mean_fitness, elite_indices, mutation_rate, crossovers, genes_mutated.
 var last_stats: Dictionary = {}
 
 
@@ -39,10 +37,7 @@ func next_generation(population: Array[Genome], fitness: Array[float], budget: i
 		push_error("GeneticAlgorithm: need one fitness value per genome (got %d genomes, %d values)" % [population.size(), fitness.size()])
 		return []
 
-	# Diversity guard: a population dominated by one path_mode mutates twice as much.
-	var share: float = dominant_path_share(population)
-	var guard: bool = share > settings.diversity_threshold
-	var rate: float = settings.mutation_rate * (settings.diversity_mutation_multiplier if guard else 1.0)
+	var rate: float = settings.mutation_rate
 
 	# Elitism: the fittest genomes pass on with their genes' proportions unchanged; repair only
 	# rescales their stats to this wave's budget (unchanged if the budget is the same).
@@ -75,8 +70,8 @@ func next_generation(population: Array[Genome], fitness: Array[float], budget: i
 		total += f
 	last_stats = {
 		"best_fitness": fitness[order[0]], "mean_fitness": total / fitness.size(),
-		"elite_indices": order.slice(0, elite_count), "mutation_rate": rate, "diversity_guard": guard,
-		"dominant_path_share": share, "crossovers": crossovers, "genes_mutated": genes_mutated,
+		"elite_indices": order.slice(0, elite_count), "mutation_rate": rate,
+		"crossovers": crossovers, "genes_mutated": genes_mutated,
 	}
 	return next
 
@@ -110,7 +105,6 @@ func uniform_crossover(a: Genome, b: Genome) -> Genome:
 	var child: Genome = Genome.new()
 	for gene: StringName in Genome.STAT_GENES + Genome.BEHAVIOUR_GENES + Genome.TERRAIN_GENES:
 		child.set(gene, a.get(gene) if rng.randf() < 0.5 else b.get(gene))
-	child.path_mode = a.path_mode if rng.randf() < 0.5 else b.path_mode
 	return child
 
 
@@ -123,16 +117,3 @@ static func rank(fitness: Array[float]) -> Array[int]:
 	order.sort_custom(func(x: int, y: int) -> bool:
 		return fitness[x] > fitness[y] or (fitness[x] == fitness[y] and x < y))
 	return order
-
-
-## Share (0..1) of the population using the most common path_mode.
-static func dominant_path_share(population: Array[Genome]) -> float:
-	if population.is_empty():
-		return 0.0
-	var counts: Dictionary = {}
-	for g: Genome in population:
-		counts[g.path_mode] = counts.get(g.path_mode, 0) + 1
-	var most: int = 0
-	for mode: Variant in counts:
-		most = maxi(most, counts[mode])
-	return float(most) / population.size()

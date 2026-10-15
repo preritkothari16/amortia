@@ -1,8 +1,8 @@
 extends GutTest
 ## Tests for GeneticAlgorithm: size, elitism, ranges, budget, crossover, mutation, selection
-## pressure, diversity guard, determinism, and that evolution actually improves fitness.
+## pressure, determinism, and that evolution actually improves fitness.
 
-const BUDGET: int = 15
+const BUDGET: int = 20
 
 var _rules: GenomeRules
 var _settings: GASettings
@@ -139,64 +139,66 @@ func test_all_genes_stay_in_range_over_many_generations() -> void:
 		for g: Genome in pop:
 			assert_true(g.is_valid(_rules, BUDGET), "gen %d: %s" % [gen, g.describe()])
 			assert_true(g.spends_budget(_rules, BUDGET), "gen %d spends the budget: %s" % [gen, g.describe()])
-			assert_true(g.path_mode in [Genome.PathMode.FLOW, Genome.PathMode.ASTAR, Genome.PathMode.GREEDY])
 
 
 func test_budget_enforced_when_budget_shrinks() -> void:
-	# Parents bred for budget 24 (late zone), children must fit budget 15 (new zone).
-	var pop: Array[Genome] = _population(20, 7, 24)
-	var next: Array[Genome] = _ga().next_generation(pop, _fitness(20), 15)
+	# Parents bred for budget 32 (late zone), children must fit budget 20 (new zone).
+	var pop: Array[Genome] = _population(20, 7, 32)
+	var next: Array[Genome] = _ga().next_generation(pop, _fitness(20), 20)
 	for g: Genome in next:
-		assert_almost_eq(g.stat_total(), 15.0, 0.0001, g.describe())
-		assert_true(g.is_valid(_rules, 15))
+		assert_almost_eq(g.stat_total(), 20.0, 0.0001, g.describe())
+		assert_true(g.is_valid(_rules, 20))
 
 
 func test_crossover_child_over_budget_is_repaired() -> void:
-	# Two parents that each fit 15 but put their points in different stats.
+	# Two parents that each fit 20 but put their points in different stats.
 	var a: Genome = Genome.new()
 	a.speed = 10.0
-	a.health = 2.5
-	a.vision = 2.5
+	a.health = 3.0
+	a.vision = 3.0
+	a.ferocity = 4.0
 	var b: Genome = Genome.new()
-	b.speed = 2.5
+	b.speed = 3.0
 	b.health = 10.0
-	b.vision = 2.5
+	b.vision = 3.0
+	b.ferocity = 4.0
 	_settings.crossover_rate = 1.0
 	_settings.mutation_rate = 0.0
 	_settings.elitism = 0
 	var pop: Array[Genome] = [a, b]
-	var next: Array[Genome] = _ga().next_generation(pop, [1.0, 1.0] as Array[float], 15)
+	var next: Array[Genome] = _ga().next_generation(pop, [1.0, 1.0] as Array[float], 20)
 	var saw_repair: bool = false
 	for g: Genome in next:
-		assert_lte(g.stat_total(), 15.0 + 0.0001)
-		if g.speed > 2.5 and g.health > 2.5:
+		assert_lte(g.stat_total(), 20.0 + 0.0001)
+		if g.speed > 3.0 and g.health > 3.0:
 			saw_repair = true  # got the big stat from both parents, then was shrunk to fit
 	assert_true(saw_repair, "at least one child mixed both strong stats and was repaired")
 
 
 func test_budget_grows_between_waves() -> void:
-	# The budget is points to spend: every child and elite uses all 16 (and then all 24).
+	# The budget is points to spend: every child and elite uses all 21 (and then all 32).
 	var pop: Array[Genome] = _population(20)
-	var next: Array[Genome] = _ga().next_generation(pop, _fitness(20), 16)
+	var next: Array[Genome] = _ga().next_generation(pop, _fitness(20), 21)
 	for g: Genome in next:
-		assert_true(g.is_valid(_rules, 16))
-		assert_almost_eq(g.stat_total(), 16.0, 0.0001, g.describe())
-	next = _ga().next_generation(next, _fitness(20), 24)
+		assert_true(g.is_valid(_rules, 21))
+		assert_almost_eq(g.stat_total(), 21.0, 0.0001, g.describe())
+	next = _ga().next_generation(next, _fitness(20), 32)
 	for g: Genome in next:
-		assert_almost_eq(g.stat_total(), 24.0, 0.0001, g.describe())
+		assert_almost_eq(g.stat_total(), 32.0, 0.0001, g.describe())
 
 
 func test_elite_keeps_its_proportions_when_budget_grows() -> void:
 	var pop: Array[Genome] = _population(20)
 	var fit: Array[float] = _fitness(20)
 	var best: Genome = pop[GeneticAlgorithm.rank(fit)[0]]
-	var next: Array[Genome] = _ga().next_generation(pop, fit, 16)  # small step: no stat hits 10
+	var next: Array[Genome] = _ga().next_generation(pop, fit, 21)  # small step: no stat hits 10
 	var elite: Genome = next[0]
 	assert_lt(elite.speed, 10.0)
 	assert_lt(elite.health, 10.0)
 	assert_lt(elite.vision, 10.0)
-	var old_extra: float = best.stat_total() - 3.0
-	var new_extra: float = elite.stat_total() - 3.0
+	assert_lt(elite.ferocity, 10.0)
+	var old_extra: float = best.stat_total() - 4.0
+	var new_extra: float = elite.stat_total() - 4.0
 	for gene: StringName in Genome.STAT_GENES:
 		assert_almost_eq((elite.get(gene) - 1.0) / new_extra, (best.get(gene) - 1.0) / old_extra, 0.0001, String(gene))
 	assert_eq(elite.aggression, best.aggression, "behaviour genes untouched")
@@ -220,7 +222,6 @@ func test_uniform_crossover_takes_each_gene_from_a_parent() -> void:
 				from_a += 1
 			else:
 				from_b += 1
-		assert_true(child.path_mode == a.path_mode or child.path_mode == b.path_mode)
 	var share: float = float(from_a) / (from_a + from_b)
 	assert_between(share, 0.45, 0.55, "about half the genes from each parent (%.3f)" % share)
 
@@ -260,18 +261,13 @@ func test_mutation_rate_about_ten_percent_per_gene() -> void:
 	for i: int in 20:
 		pop.append(parent.copy())
 		fit.append(1.0)
-	parent.path_mode = Genome.PathMode.FLOW
-	for g: Genome in pop:
-		g.path_mode = Genome.PathMode.FLOW
-	# Mixed path modes would trigger the guard; keep it off for this measurement.
-	_settings.diversity_threshold = 1.0
 	var ga: GeneticAlgorithm = _ga()
 	var mutated: int = 0
 	var genes: int = 0
 	for generation: int in 100:
 		ga.next_generation(pop, fit, BUDGET)
 		mutated += ga.last_stats["genes_mutated"]
-		genes += 18 * 14  # 18 children x 14 mutable genes
+		genes += 18 * 13  # 18 children x 13 mutable genes (4 stats, 4 behaviour, 5 terrain)
 	var rate: float = float(mutated) / genes
 	assert_between(rate, 0.08, 0.12, "measured %.3f" % rate)
 
@@ -285,14 +281,12 @@ func test_mutation_changes_genes_but_keeps_them_valid() -> void:
 	var next: Array[Genome] = _ga().next_generation(pop, [1.0] as Array[float], BUDGET)
 	for child: Genome in next:
 		assert_ne(child.to_dict(), parent.to_dict(), "rate 1: something changed")
-		assert_ne(child.path_mode, parent.path_mode, "category re-picked to a different value")
 		assert_true(child.is_valid(_rules, BUDGET))
 
 
 func test_no_mutation_no_crossover_selects_only() -> void:
 	_settings.crossover_rate = 0.0
 	_settings.mutation_rate = 0.0
-	_settings.diversity_threshold = 1.0
 	var ga: GeneticAlgorithm = _ga()
 	ga.next_generation(_population(20), _fitness(20), BUDGET)
 	assert_eq(ga.last_stats["genes_mutated"], 0)
@@ -349,45 +343,6 @@ func test_evolution_improves_fitness() -> void:
 
 
 # --- Diversity guard -----------------------------------------------------------------
-
-func test_dominant_path_share() -> void:
-	var pop: Array[Genome] = _population(10)
-	for i: int in 10:
-		pop[i].path_mode = Genome.PathMode.ASTAR if i < 9 else Genome.PathMode.FLOW
-	assert_almost_eq(GeneticAlgorithm.dominant_path_share(pop), 0.9, 0.0001)
-
-
-func test_diversity_guard_doubles_mutation_when_dominated() -> void:
-	var pop: Array[Genome] = _population(20)
-	for g: Genome in pop:
-		g.path_mode = Genome.PathMode.FLOW
-	pop[0].path_mode = Genome.PathMode.GREEDY  # 95 % FLOW
-	var ga: GeneticAlgorithm = _ga()
-	ga.next_generation(pop, _fitness(20), BUDGET)
-	assert_true(ga.last_stats["diversity_guard"])
-	assert_almost_eq(ga.last_stats["mutation_rate"], 0.2, 0.0001)
-
-
-func test_diversity_guard_off_when_mixed() -> void:
-	var pop: Array[Genome] = _population(20)
-	for i: int in 20:
-		pop[i].path_mode = (i % 3) as Genome.PathMode
-	var ga: GeneticAlgorithm = _ga()
-	ga.next_generation(pop, _fitness(20), BUDGET)
-	assert_false(ga.last_stats["diversity_guard"])
-	assert_almost_eq(ga.last_stats["mutation_rate"], 0.1, 0.0001)
-
-
-func test_diversity_guard_threshold_is_strictly_greater() -> void:
-	var pop: Array[Genome] = _population(10)
-	for i: int in 10:
-		pop[i].path_mode = Genome.PathMode.FLOW if i < 8 else Genome.PathMode.ASTAR  # exactly 80 %
-	var ga: GeneticAlgorithm = _ga()
-	ga.next_generation(pop, _fitness(10), BUDGET)
-	assert_false(ga.last_stats["diversity_guard"], "GDD: MORE than 80 %")
-
-
-# --- Determinism ---------------------------------------------------------------------
 
 func test_same_seed_same_next_generation() -> void:
 	var a: Array[Genome] = _ga(123).next_generation(_population(20), _fitness(20), BUDGET)
@@ -451,5 +406,3 @@ func test_data_file_matches_gdd() -> void:
 	assert_eq(s.elitism, 2)
 	assert_almost_eq(s.crossover_rate, 0.9, 0.0001)
 	assert_almost_eq(s.mutation_rate, 0.1, 0.0001)
-	assert_almost_eq(s.diversity_threshold, 0.8, 0.0001)
-	assert_almost_eq(s.diversity_mutation_multiplier, 2.0, 0.0001)

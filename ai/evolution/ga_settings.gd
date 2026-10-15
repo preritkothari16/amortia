@@ -12,9 +12,3 @@ extends Resource
 @export_range(0.0, 1.0) var crossover_rate: float = 0.9
 ## Chance per gene to mutate.
 @export_range(0.0, 1.0) var mutation_rate: float = 0.1
-
-@export_group("Diversity guard")
-## If more than this share of the population has the same path_mode...
-@export_range(0.0, 1.0) var diversity_threshold: float = 0.8
-## ...the mutation rate is multiplied by this for that one generation.
-@export var diversity_mutation_multiplier: float = 2.0

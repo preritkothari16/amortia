@@ -4,8 +4,7 @@ extends ReportScreen
 ## Pauses the game until Continue (button, Enter or Space) when
 ## WaveManager.pause_between_waves is on; otherwise it stays up until the next wave starts.
 ## Shows how the wave went and what evolution changed, in plain words: header, a one-line
-## story with trait chips, how they changed (top 4, "Show all" by group), how they hunt (route
-## strategy), how deadly they were (fitness + history), what to expect. Details (D) keeps the
+## story with trait chips, how they changed (top 4, "Show all" by group), how deadly they were (fitness + history), what to expect. Details (D) keeps the
 ## raw genome and numbers (viva). Layout and keys: ReportScreen. One scene for every wave
 ## (wave_report.tscn); the node tree is built once and refilled.
 
@@ -15,7 +14,7 @@ const TOP_CHANGES: int = 4
 ## Kept for the HUD's dominant_traits() line.
 const TRAIT_WORDS: Dictionary = {
 	"speed": ["fast", "slow"], "health": ["tough", "fragile"], "vision": ["sharp-eyed", "short-sighted"],
-	"aggression": ["aggressive", "timid"], "caution": ["cautious", "reckless"],
+	"aggression": ["aggressive", "timid"], "ferocity": ["savage", "gentle"],
 	"flanking": ["flankers", "head-on"], "cohesion": ["pack hunters", "loners"],
 	"patience": ["patient hunters", "lazy"],
 }
@@ -50,9 +49,6 @@ var _story: Label
 var _trait_chips: HBoxContainer
 var _changes: GridContainer
 var _show_all_button: Button
-var _hunt_now: SegmentBar
-var _hunt_next: SegmentBar
-var _hunt_legend: HBoxContainer
 var _best_value: Label
 var _mean_value: Label
 var _spark: Sparkline
@@ -98,26 +94,6 @@ func _build_overview(page: VBoxContainer) -> void:
 	label(head, "How they changed", &"SectionLabel").size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_show_all_button = add_button(head, "Show all", show_page.bind("all"), &"TertiaryButton")
 	_changes = _gene_grid(changed)
-
-	var hunt: VBoxContainer = card(left)
-	var hunt_head: HBoxContainer = hbox(hunt)
-	label(hunt_head, "How they hunt", &"SectionLabel")
-	var note: Label = label(hunt_head, "(no effect yet)", &"SmallLabel")
-	note.size_flags_vertical = Control.SIZE_SHRINK_END
-	note.tooltip_text = GeneInfo.PATH_MODE_NOTE
-	note.mouse_filter = Control.MOUSE_FILTER_PASS
-	var bars: GridContainer = GridContainer.new()
-	bars.columns = 2
-	hunt.add_child(bars)
-	label(bars, "This wave", &"SmallLabel")
-	_hunt_now = SegmentBar.new()
-	_hunt_now.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bars.add_child(_hunt_now)
-	label(bars, "Next wave", &"SmallLabel")
-	_hunt_next = SegmentBar.new()
-	_hunt_next.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bars.add_child(_hunt_next)
-	_hunt_legend = hbox(hunt)
 
 	var deadly: VBoxContainer = card(right, "How deadly they were")
 	var nums: HBoxContainer = hbox(deadly)
@@ -243,7 +219,6 @@ func fill(s: Dictionary) -> void:
 	for i: int in mini(TOP_CHANGES, changes.size()):
 		_gene_row(_changes, changes[i], i)
 	_fill_all_genes(before, after)
-	_fill_hunt(s)
 	_fill_deadly(s)
 
 	clear(_expect)
@@ -306,36 +281,6 @@ func _fill_all_genes(before: Dictionary, after: Dictionary) -> void:
 				_gene_row(grid, [gene, before[gene], after[gene], after[gene] - before[gene]], 0)
 
 
-func _fill_hunt(s: Dictionary) -> void:
-	var accent: Color = get_theme_color(&"accent", &"Palette")
-	var colors: Array[Color] = [accent, accent.darkened(0.4), get_theme_color(&"muted", &"Palette")]
-	var now: Array[float] = []
-	var next: Array[float] = []
-	for mode: String in Genome.PathMode.keys():
-		now.append(float(s["path_modes_before"].get(mode, 0)))
-		next.append(float(s["path_modes"].get(mode, 0)))
-	_hunt_now.colors = colors
-	_hunt_next.colors = colors
-	_hunt_now.shares = now
-	_hunt_next.shares = next
-	tween_bar(_hunt_now, "reveal", 0.0, 1.0)
-	tween_bar(_hunt_next, "reveal", 0.0, 1.0, 0.1)
-	clear(_hunt_legend)
-	var keys: Array = Genome.PathMode.keys()
-	for i: int in keys.size():
-		var item: HBoxContainer = hbox(_hunt_legend)
-		item.add_theme_constant_override("separation", 2)
-		var swatch: ColorRect = ColorRect.new()
-		swatch.color = colors[i]
-		swatch.custom_minimum_size = Vector2(5, 5)
-		swatch.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		item.add_child(swatch)
-		var info: Array = GeneInfo.PATH_MODES[keys[i]]
-		var l: Label = label(item, "%s %d → %d" % [info[0], int(now[i]), int(next[i])], &"SmallTextLabel")
-		l.tooltip_text = info[1]
-		l.mouse_filter = Control.MOUSE_FILTER_PASS
-
-
 func _fill_deadly(s: Dictionary) -> void:
 	count_up(_best_value, "%.2f", s["best_fitness"])
 	count_up(_mean_value, "%.2f", s["mean_fitness"])
@@ -363,11 +308,8 @@ func _fill_details(s: Dictionary) -> void:
 	label(_details, "Fitness best %.3f  mean %.3f  |  mean D %.3f  P %.3f  S %.3f  O %.3f  |  F = %.2f D + %.2f P + %.2f S + %.2f O" % [
 		s["best_fitness"], s["mean_fitness"], c[Fitness.D], c[Fitness.P], c[Fitness.S], c[Fitness.O],
 		w.weight_damage, w.weight_pressure, w.weight_survival, w.weight_objective], &"SmallTextLabel", true)
-	label(_details, "GA: wave %d -> generation %d  |  stat budget %d  |  mutation rate %.3f  |  diversity guard %s" % [
-		s["from_wave"], s["generation"], s["budget"], s["mutation_rate"], "ON (x2)" if s["diversity_guard"] else "off"],
-		&"SmallTextLabel", true)
-	label(_details, "Path modes  %s  ->  %s" % [_modes_text(s["path_modes_before"]), _modes_text(s["path_modes"])],
-		&"SmallTextLabel", true)
+	label(_details, "GA: wave %d -> generation %d  |  stat budget %d  |  mutation rate %.3f" % [
+		s["from_wave"], s["generation"], s["budget"], s["mutation_rate"]], &"SmallTextLabel", true)
 	label(_details, "History (best / mean): " + _history_text(), &"SmallTextLabel", true)
 	var grid: GridContainer = GridContainer.new()
 	grid.columns = 3
@@ -409,10 +351,3 @@ func _history_text() -> String:
 		var h: Dictionary = wave_manager.history[i]
 		parts.append("w%d %.2f/%.2f" % [h["from_wave"], h["best_fitness"], h["mean_fitness"]])
 	return "  ".join(parts)
-
-
-static func _modes_text(counts: Dictionary) -> String:
-	var parts: PackedStringArray = PackedStringArray()
-	for mode: String in Genome.PathMode.keys():
-		parts.append("%s %d" % [mode, counts.get(mode, 0)])
-	return " ".join(parts)

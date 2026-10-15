@@ -17,7 +17,7 @@ extends Resource
 ## XP for killing an enemy whose stat genes add up to `reference_stat_total`.
 @export var enemy_base_xp: float = 10.0
 ## Stat total of a first-wave enemy (= GenomeRules.budget_start).
-@export var reference_stat_total: float = 15.0
+@export var reference_stat_total: float = 20.0
 ## Bonus per stat point above the reference: 0.05 = +5 % XP per point.
 ## Later waves have a bigger stat budget, so evolved enemies are worth slightly more.
 @export var xp_bonus_per_stat_point: float = 0.05

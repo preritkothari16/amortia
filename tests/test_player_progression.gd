@@ -95,13 +95,13 @@ func test_spend_skill_point() -> void:
 
 
 func test_enemy_xp_base_for_first_wave_enemy() -> void:
-	assert_eq(_settings.enemy_xp(15.0), 10)
+	assert_eq(_settings.enemy_xp(20.0), 10)
 
 
 func test_enemy_xp_grows_slightly_with_stat_total() -> void:
-	assert_eq(_settings.enemy_xp(20.0), 13)   # 10 x 1.25 = 12.5 -> 13
-	assert_eq(_settings.enemy_xp(24.0), 15)   # budget cap: 10 x 1.45 = 14.5 -> 15
-	assert_true(_settings.enemy_xp(24.0) > _settings.enemy_xp(15.0))
+	assert_eq(_settings.enemy_xp(25.0), 13)   # 10 x 1.25 = 12.5 -> 13
+	assert_eq(_settings.enemy_xp(32.0), 16)   # budget cap: 10 x 1.6 = 16
+	assert_true(_settings.enemy_xp(32.0) > _settings.enemy_xp(20.0))
 
 
 func test_enemy_xp_never_below_base() -> void:

@@ -134,6 +134,8 @@ func _apply_genome(rules: GenomeRules) -> void:
 	stats.move_speed = genome.move_speed(base.move_speed, rules)
 	stats.max_health = genome.max_health(base.max_health, rules)
 	stats.sight_range = genome.sight_range(base.sight_range, rules)
+	stats.attack_damage = genome.attack_damage(base.attack_damage, rules)
+	stats.attack_cooldown = genome.attack_cooldown(base.attack_cooldown, rules)
 	stats.behaviour = genome.to_behaviour_weights()
 	# Greybox "visible evolution" (GDD 5.4): more Health gene = bulkier body. Visual only.
 	var bulk: float = inverse_lerp(rules.stat_min, rules.stat_max, genome.health)

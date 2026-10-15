@@ -70,7 +70,6 @@ func test_genomes_survive_round_trip() -> void:
 		var a: Genome = Genome.from_dict(save["evolution"]["population"][i])
 		var b: Genome = Genome.from_dict(e["population"][i])
 		assert_eq(a.describe(), b.describe())
-		assert_eq(a.path_mode, b.path_mode)
 
 
 func test_not_a_dictionary() -> void:
@@ -104,10 +103,79 @@ func test_genome_missing_gene_rejected() -> void:
 	assert_string_contains(r["error"], "genome 3")
 
 
-func test_unknown_path_mode_rejected() -> void:
+func test_removed_genes_in_an_old_save_are_ignored() -> void:
 	var d: Dictionary = _good_save()
 	d["evolution"]["population"][0]["path_mode"] = "TELEPORT"
-	assert_false(_validate(d)["ok"])
+	d["evolution"]["population"][0]["caution"] = "junk"
+	var r: Dictionary = _validate(d)
+	assert_true(r["ok"], r["error"])
+	var healed: Dictionary = r["data"]["evolution"]["population"][0]
+	assert_false(healed.has("path_mode"))
+	assert_false(healed.has("caution"))
+
+
+func _old_genome(budget_wave: int) -> Dictionary:
+	# A genome as saved before ferocity: 3 stats that spend the OLD budget (15 + wave - 1), caution, path_mode.
+	var old_budget: float = 15.0 + (budget_wave - 1)
+	return {"speed": old_budget / 3.0 + 1.0, "health": old_budget / 3.0, "vision": old_budget / 3.0 - 1.0,
+		"aggression": 0.6, "caution": 0.5, "flanking": 0.4, "cohesion": 0.3, "patience": 0.7,
+		"path_mode": "ASTAR"}
+
+
+func test_old_save_without_ferocity_keeps_its_stats_exactly() -> void:
+	var d: Dictionary = _good_save()
+	d["evolution"]["next_wave"] = 4
+	d["evolution"]["generation"] = 3
+	var old: Array = []
+	for i: int in 20:
+		old.append(_old_genome(4))
+	d["evolution"]["population"] = old
+	var before: Genome = Genome.from_dict(old[0])
+	var r: Dictionary = _validate(_through_json(d))
+	assert_true(r["ok"], r["error"])
+	assert_eq(Array(r["warnings"]).filter(func(w: String) -> bool: return w.begins_with("genome")).size(), 0,
+			"a legacy genome that fits is not flagged or repaired")
+	var g: Genome = Genome.from_dict(r["data"]["evolution"]["population"][0])
+	assert_almost_eq(g.speed, before.speed, 0.0001, "stats preserved")
+	assert_almost_eq(g.health, before.health, 0.0001)
+	assert_almost_eq(g.vision, before.vision, 0.0001)
+	assert_eq(g.ferocity, 5.0, "neutral ferocity: no boost, no nerf")
+	assert_almost_eq(g.melee_dps_factor(_rules), 1.0, 0.0001)
+	assert_eq(g.aggression, 0.6)
+	assert_true(g.spends_budget(_rules, _rules.budget_for_wave(4)), "old wave-4 total + 5 = the new wave-4 budget")
+
+
+func test_old_save_past_the_old_cap_is_not_inflated() -> void:
+	# Wave 12: old total 24 (cap) + neutral ferocity 5 = 29, new budget 31. The genome fits (is a
+	# ceiling for migration), so nothing is rescaled upward; the GA tops it up on the next generation.
+	var d: Dictionary = _good_save()
+	d["evolution"]["next_wave"] = 12
+	d["evolution"]["generation"] = 11
+	var old: Array = []
+	for i: int in 20:
+		old.append({"speed": 9.0, "health": 8.0, "vision": 7.0, "aggression": 0.5, "flanking": 0.5,
+			"cohesion": 0.5, "patience": 0.5})
+	d["evolution"]["population"] = old
+	var r: Dictionary = _validate(_through_json(d))
+	assert_true(r["ok"], r["error"])
+	var g: Genome = Genome.from_dict(r["data"]["evolution"]["population"][0])
+	assert_eq(g.speed, 9.0)
+	assert_eq(g.ferocity, 5.0)
+
+
+func test_new_save_with_ferocity_is_checked_like_any_stat() -> void:
+	var d: Dictionary = _good_save()
+	d["evolution"]["population"][2]["ferocity"] = "strong"
+	var r: Dictionary = _validate(d)
+	assert_false(r["ok"])
+	assert_string_contains(r["error"], "ferocity")
+	var d2: Dictionary = _good_save()
+	d2["evolution"]["population"][0]["ferocity"] = 10.0
+	d2["evolution"]["population"][0]["speed"] = 10.0
+	var r2: Dictionary = _validate(d2)
+	assert_true(r2["ok"])
+	assert_true(Genome.from_dict(r2["data"]["evolution"]["population"][0]).spends_budget(_rules, _rules.budget_for_wave(4)),
+			"an over-budget new genome is repaired")
 
 
 func test_over_budget_genome_repaired() -> void:

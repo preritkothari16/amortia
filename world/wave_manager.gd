@@ -378,7 +378,6 @@ func _evolve(results: Array[Dictionary]) -> void:
 	generation += 1
 	var before: Dictionary = gene_means(parents)
 	var after: Dictionary = gene_means(population)
-	var counts: Dictionary = _path_mode_counts(population)
 	var killed: int = 0
 	var component_means: Dictionary = {Fitness.D: 0.0, Fitness.P: 0.0, Fitness.S: 0.0, Fitness.O: 0.0}
 	var fitness_values: Array[float] = []
@@ -391,25 +390,14 @@ func _evolve(results: Array[Dictionary]) -> void:
 		"from_wave": wave_number, "generation": generation, "budget": budget,
 		"wave_seconds": wave_seconds, "killed": killed, "survived": results.size() - killed,
 		"component_means": component_means, "fitness_values": fitness_values,
-		"path_modes_before": _path_mode_counts(parents),
 		"best_fitness": _ga.last_stats["best_fitness"], "mean_fitness": _ga.last_stats["mean_fitness"],
-		"means_before": before, "means_after": after, "path_modes": counts,
-		"diversity_guard": _ga.last_stats["diversity_guard"], "mutation_rate": _ga.last_stats["mutation_rate"],
+		"means_before": before, "means_after": after, "mutation_rate": _ga.last_stats["mutation_rate"],
 		"best_genome": results[0]["genome"].describe(),
 	}
 	history.append(summary)
 	if log_waves:
 		print(_generation_report(summary))
 	generation_bred.emit(summary)
-
-
-## path_mode name -> how many genomes use it.
-static func _path_mode_counts(genomes: Array[Genome]) -> Dictionary:
-	var counts: Dictionary = {}
-	for g: Genome in genomes:
-		var m: String = Genome.PathMode.keys()[g.path_mode]
-		counts[m] = counts.get(m, 0) + 1
-	return counts
 
 
 ## e.g. "[Evolution] wave 3 -> generation 3 (budget 18) | fitness best 0.31 mean 0.12 |
@@ -425,10 +413,9 @@ func _generation_report(s: Dictionary) -> String:
 		var scale: float = 9.0 if Genome.STAT_GENES.has(StringName(gene)) else 1.0
 		shifts.append([absf(d) / scale, "%s %+.2f" % [gene, d]])
 	shifts.sort_custom(func(x: Array, y: Array) -> bool: return x[0] > y[0])
-	return "[Evolution] wave %d -> generation %d (next budget %d) | parents' fitness best %.3f mean %.3f | biggest shifts: %s, %s, %s | gene means: %s | paths %s | mutation %.2f%s\n  best genome so far: %s" % [
+	return "[Evolution] wave %d -> generation %d (next budget %d) | parents' fitness best %.3f mean %.3f | biggest shifts: %s, %s, %s | gene means: %s | mutation %.2f\n  best genome so far: %s" % [
 		s["from_wave"], s["generation"], s["budget"], s["best_fitness"], s["mean_fitness"],
-		shifts[0][1], shifts[1][1], shifts[2][1], " | ".join(parts), s["path_modes"], s["mutation_rate"],
-		" (diversity guard ON)" if s["diversity_guard"] else "", s["best_genome"]]
+		shifts[0][1], shifts[1][1], shifts[2][1], " | ".join(parts), s["mutation_rate"], s["best_genome"]]
 
 
 ## Frees every living enemy without counting it as killed.
@@ -486,12 +473,8 @@ func _wave_summary(genomes: Array[Genome]) -> String:
 			hi = maxf(hi, v)
 			total += v
 		parts.append("%s %.2f-%.2f (avg %.2f)" % [gene, lo, hi, total / genomes.size()])
-	var modes: Dictionary = {}
-	for g: Genome in genomes:
-		var m: String = Genome.PathMode.keys()[g.path_mode]
-		modes[m] = modes.get(m, 0) + 1
-	return "[Wave %d] %d enemies, budget %d | %s | paths %s" % [
-		wave_number, genomes.size(), _context.genome_rules.budget_for_wave(wave_number), " | ".join(parts), modes]
+	return "[Wave %d] %d enemies, budget %d | %s" % [
+		wave_number, genomes.size(), _context.genome_rules.budget_for_wave(wave_number), " | ".join(parts)]
 
 
 ## Freezes every record of the current wave, scores it and reports, then breeds the next

@@ -9,5 +9,5 @@ skill_points_per_level = 1
 xp_first_level = 40
 xp_per_level = 20
 enemy_base_xp = 10.0
-reference_stat_total = 15.0
+reference_stat_total = 20.0
 xp_bonus_per_stat_point = 0.05

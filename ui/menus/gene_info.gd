@@ -3,20 +3,19 @@ extends RefCounted
 ## Player-facing words for the genome (UI only): full gene names, groups, what each gene does,
 ## trait words, survival tips and the route-strategy labels. Meanings checked against
 ## ai/evolution/genome.gd, ai/decision/behaviour_weights.gd and ai/evolution/fitness.gd.
-## Caution, cohesion and the route strategy evolve but no behaviour reads them yet
-## (behaviour_weights.gd, HANDOFF step 16), so the screens mark them and never promise effects.
+## Every gene listed here acts in the game (caution and the route strategy were removed).
 
 ## Group -> genes, in display order ("Show all").
 const GROUPS: Array[Array] = [
-	["Body", ["speed", "health", "vision"]],
-	["Behaviour", ["aggression", "caution", "flanking", "cohesion", "patience"]],
+	["Body", ["speed", "health", "vision", "ferocity"]],
+	["Behaviour", ["aggression", "flanking", "cohesion", "patience"]],
 	["Terrain", ["swimmer", "climber", "crawler", "night_sense"]],
 	["Resistance", ["toxin_resistance"]],
 ]
 
 const NAMES: Dictionary = {
-	"speed": "Speed", "health": "Health", "vision": "Vision",
-	"aggression": "Aggression", "caution": "Caution", "flanking": "Flanking",
+	"speed": "Speed", "health": "Health", "vision": "Vision", "ferocity": "Ferocity",
+	"aggression": "Aggression", "flanking": "Flanking",
 	"cohesion": "Cohesion", "patience": "Patience",
 	"swimmer": "Swimming", "climber": "Climbing", "crawler": "Crawling",
 	"toxin_resistance": "Toxin resistance", "night_sense": "Night sense",
@@ -28,9 +27,9 @@ const MEANINGS: Dictionary = {
 	"health": "How many hits it takes.",
 	"vision": "How far it can see you (walls block sight).",
 	"aggression": "How eagerly it charges when it sees you.",
-	"caution": "Evolves, but has no effect in the game yet.",
 	"flanking": "How often it circles round to your side while others attack.",
-	"cohesion": "Evolves, but has no effect in the game yet.",
+	"cohesion": "How much it sticks with its pack: it waits for friends before charging and passes on what it saw.",
+	"ferocity": "How hard and how often it hits.",
 	"patience": "How long it follows up noises and old sightings.",
 	"swimmer": "Makes water cheaper to cross; high values open deep water.",
 	"climber": "Makes fences cheaper to climb over.",
@@ -39,12 +38,13 @@ const MEANINGS: Dictionary = {
 	"night_sense": "Sees and hears better at night.",
 }
 
-## Genes no behaviour reads yet.
-const INERT: Array[String] = ["caution", "cohesion"]
+## Genes no behaviour reads (none at the moment).
+const INERT: Array[String] = []
 
 ## Trait word when the gene is high / low (story chips, downed screen).
 const TRAITS: Dictionary = {
-	"speed": ["Fast", "Slow"], "health": ["Tough", "Fragile"], "vision": ["Sharp-eyed", "Short-sighted"],
+	"speed": ["Fast", "Slow"], "health": ["Tough", "Fragile"], "vision": ["Sharp-eyed", "Short-sighted"], "ferocity": ["Savage", "Gentle"],
+	"cohesion": ["Pack hunters", "Loners"],
 	"aggression": ["Aggressive", "Timid"], "flanking": ["Flankers", "Head-on"],
 	"patience": ["Relentless", "Easily distracted"], "swimmer": ["Swimmers", ""],
 	"climber": ["Climbers", ""], "crawler": ["Crawlers", ""], "toxin_resistance": ["Toxin-proof", ""],
@@ -56,6 +56,8 @@ const TIPS: Dictionary = {
 	"speed": "It closes distance fast: keep moving and shoot while backing off.",
 	"health": "It soaks up hits: focus your fire on it first.",
 	"vision": "It spots you from far away: break line of sight behind walls.",
+	"ferocity": "Each hit hurts more and comes sooner: dodge the swing, don't trade blows.",
+	"cohesion": "It waits for its pack, then they come together: pick them off while they gather.",
 	"aggression": "It charges straight in: sidestep and dodge through its rush.",
 	"flanking": "It circles round while others attack: watch your sides.",
 	"patience": "It follows up every noise: move after you shoot.",
@@ -65,15 +67,6 @@ const TIPS: Dictionary = {
 	"toxin_resistance": "Toxic pools barely hurt it: don't lure it through them.",
 	"night_sense": "It hunts well at night: use cover and keep moving after dark.",
 }
-
-## Route strategy gene (Genome.PathMode). Plain label, tooltip.
-const PATH_MODES: Dictionary = {
-	"FLOW": ["Shared route", "Flow field: follows the route map the whole pack shares."],
-	"ASTAR": ["Own route", "A*: plans its own shortest path."],
-	"GREEDY": ["Beeline", "Greedy: always steps toward you, even into dead ends."],
-}
-const PATH_MODE_NOTE: String = "Route strategy evolves, but movement doesn't use it yet."
-
 
 static func gene_name(gene: String) -> String:
 	return NAMES.get(gene, gene.capitalize())
@@ -187,6 +180,8 @@ static func _direction_phrase(gene: String, delta: float) -> String:
 		"speed": return "getting faster" if up else "slowing down"
 		"health": return "getting tougher" if up else "getting more fragile"
 		"vision": return "seeing further" if up else "seeing less far"
+		"ferocity": return "hitting harder" if up else "hitting softer"
+		"cohesion": return "sticking together" if up else "spreading out"
 		"aggression": return "charging more" if up else "charging less"
 		"flanking": return "flanking more" if up else "flanking less"
 		"patience": return "searching longer" if up else "giving up sooner"
@@ -198,6 +193,8 @@ static func _expect_line(gene: String, up: bool) -> String:
 		"speed": return "They reach you sooner." if up else "You get more time to aim."
 		"health": return "Each one takes more hits." if up else "They go down in fewer hits."
 		"vision": return "They spot you from further away." if up else "You can get closer unseen."
+		"ferocity": return "Each hit costs you more health." if up else "Each hit costs you less health."
+		"cohesion": return "They gather first, then rush together." if up else "They arrive one by one."
 		"aggression": return "More of them rush straight at you." if up else "Fewer of them rush you."
 		"flanking": return "Expect attacks from your sides." if up else "Fewer attacks from your sides."
 		"patience": return "They chase noises for longer." if up else "They lose your trail sooner."
