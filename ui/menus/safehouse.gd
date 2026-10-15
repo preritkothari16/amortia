@@ -32,7 +32,7 @@ func _ready() -> void:
 	var done: ZoneConfig = zones[GameState.current_zone - 1]
 	if victory:
 		_label("THE SEED IS DESTROYED", 14, Color(0.6, 1.0, 0.6))
-		_label("Campaign complete. Endless and New Game+ are unlocked.", FONT_SIZE, Color(0.8, 0.8, 0.8))
+		_label("Campaign complete. New Game+ is unlocked.", FONT_SIZE, Color(0.8, 0.8, 0.8))
 	else:
 		_label("SAFEHOUSE", 14, Color(1.0, 0.85, 0.5))
 		_label("%s cleared." % done.title, FONT_SIZE, Color(0.8, 0.8, 0.8))

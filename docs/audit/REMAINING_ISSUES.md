@@ -22,7 +22,7 @@ user, not a bug to fix unasked (HANDOFF design principle: no rule changes from o
 6. **LivingWalls guarantee is not wired.** `protected_cells` is never set by the campaign, so the "can't cut entry
    from exit" promise rests on luck. 295 seeded 600-s runs on the zone-4 areas never cut the route. Fix when it
    bites (set entry + exit + objective cells in `main._setup_level`).
-7. **Endless overwrites the prototype save.** Endless is the prototype loop, so its wave checkpoints write
+7. **(FIXED in step 45: Endless is test-only, saves nothing.)** ~~Endless overwrites the prototype save.~~ Endless is the prototype loop, so its wave checkpoints write
    `user://save.json`, replacing a New Game run's save. Design: give Endless its own slot or no checkpoints.
 8. **Debug keys are live in every build.** F1–F10 (F3 skips a wave, F8 ends it, F9 restarts, F10 ignites) are not
    gated behind a debug build; F3 mid-level in the campaign would start waves outside `LevelFlow`'s control (reasoned from the code, not run).

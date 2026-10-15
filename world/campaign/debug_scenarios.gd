@@ -20,7 +20,7 @@ const SCENARIOS: Array[Dictionary] = [
 	{"text": "Apex boss -> Safehouse", "zone": 1, "level": 3, "scene": "level", "last_wave": false},
 	{"text": "Safehouse -> Lowtide (new zone)", "zone": 1, "level": 3, "scene": "safehouse", "last_wave": false},
 	{"text": "The Seed -> victory", "zone": 4, "level": 3, "scene": "level", "last_wave": false},
-	{"text": "Victory -> Endless / New Game+", "zone": 4, "level": 3, "scene": "victory", "last_wave": false},
+	{"text": "Victory -> New Game+", "zone": 4, "level": 3, "scene": "victory", "last_wave": false},
 ]
 
 

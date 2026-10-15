@@ -68,7 +68,7 @@ func test_continue_campaign_is_offered_in_a_new_game_plus_run() -> void:
 	assert_eq(GameState.save_campaign(), OK)
 	var menu: Node = load("res://ui/menus/main_menu.tscn").instantiate()
 	add_child_autofree(menu)
-	assert_true(menu._campaign_continue.visible, "Continue Campaign is visible during New Game+")
+	assert_true(menu._continue_button.visible, "Continue Campaign is visible during New Game+")
 
 
 # --- Safehouse resume ------------------------------------------------------------------------
@@ -190,3 +190,37 @@ func test_safehouse_text_fits_the_480_px_viewport() -> void:
 		assert_lte((label as Label).get_combined_minimum_size().x, 480.0, "label too wide: " + (label as Label).text)
 		checked += 1
 	assert_gt(checked, 4)
+
+
+# --- Main menu: New Game is the campaign, Endless lives in Test Scenarios ----------------------
+
+func _button_texts(root_node: Node) -> PackedStringArray:
+	var texts: PackedStringArray = PackedStringArray()
+	for b: Node in root_node.find_children("*", "Button", true, false):
+		texts.append((b as Button).text)
+	return texts
+
+
+func test_main_menu_new_game_is_the_campaign_and_endless_is_a_test_scenario() -> void:
+	GameState.test_mode = false
+	var menu: Node = load("res://ui/menus/main_menu.tscn").instantiate()
+	add_child_autofree(menu)
+	var top: PackedStringArray = _button_texts(menu._menu)
+	assert_true(top.has("New Game"))
+	assert_true(top.has("Test Scenarios"))
+	assert_false(top.has("Campaign"), "no separate Campaign submenu any more")
+	for t: String in top:
+		assert_false(t.begins_with("Endless"), "Endless is not a top-level button")
+	assert_true(_button_texts(menu._scenario_menu).has("Endless (wave loop)"))
+
+
+func test_endless_from_the_menu_is_a_test_run_that_saves_nothing() -> void:
+	var menu: Node = load("res://ui/menus/main_menu.tscn").instantiate()
+	add_child_autofree(menu)
+	GameState.start_new_campaign()
+	GameState.save_campaign()
+	var before: String = FileAccess.get_file_as_string(SaveSystem.CAMPAIGN_PATH)
+	GameState.test_mode = true
+	GameState.endless_mode = true
+	GameState.note_endless_wave(9)
+	assert_eq(FileAccess.get_file_as_string(SaveSystem.CAMPAIGN_PATH), before, "campaign save untouched")
