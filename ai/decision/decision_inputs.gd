@@ -23,3 +23,13 @@ var lead_strength: float = 0.0
 ## How long the wave has dragged on, 0..1 (UtilitySettings.wave_pressure). Pulls even lazy
 ## enemies towards a lead they hold.
 var wave_pressure: float = 0.0
+## Packmates (allies within pack_radius that know about the player), without the enemy itself.
+var pack_size: int = 0
+## There is a packmate group to regroup with and a clear line to it (PackCoordination.anchor).
+var regroup_available: bool = false
+## This enemy already spent its regroup time budget for this chase (RegroupBudget).
+var regroup_expired: bool = false
+## Escort levels: the survivor is perceived right now (same sight rules as the player).
+var survivor_visible: bool = false
+## Distance (px) to the survivor. Only meaningful while survivor_visible.
+var survivor_distance: float = INF

@@ -8,11 +8,10 @@ user, not a bug to fix unasked (HANDOFF design principle: no rule changes from o
    objective is met. Low-patience Runners stay IDLE after a lead (`aware = INVESTIGATE`, action = IDLE) and never come;
    my bot spent 300 s with 2–3 of them left. There is no wave timer and no stragglers-to-the-player rule. Needs a
    design call (timer? let the idle ones drift toward the player?). Known since step 26.
-2. **Genes without behaviour.** `caution`, `cohesion`, `path_mode` are carried, mutated and shown ("no effect yet")
-   but nothing reads them, so they drift. Fitness / GA are unaffected.
+2. **(FIXED in step 46: `caution` and `path_mode` removed, `cohesion` implemented as pack coordination, `ferocity` added.)**
 3. **Enemy archetypes / weapons.** Only the Runner exists (GDD 5.1 lists Brute, Spitter, Screamer, Crawler); one
    weapon (GDD 7.4: + shotgun in the prototype); no research / Lab / bestiary (GDD 7.5); Safehouse rooms are disabled
-   placeholders; Apex = a big Runner with no boss attack; Escort enemies don't target the survivor.
+   placeholders; Apex = a big Runner with no boss attack; Escort enemies now hunt the survivor (step 46).
 4. **Course deliverables not in the repo** (GDD 5.5, 5.6, 6.6, 10.3): hill-climbing baseline, K-means player
    profiling, an in-repo headless experiment runner (`CLAUDE.md` still shows
    `godot --headless -- --experiment ga_vs_random`; `tools/` has only builders; `ai/learning/` and `ai/bot/` are

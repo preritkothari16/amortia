@@ -115,6 +115,17 @@ var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var _restore: Dictionary = {}
 
 
+## Escort objective that holds a survivor the enemies may hunt (see EnemyContext.escort).
+var _escort: Object
+
+
+## The Escort objective registers itself here (before or after setup()).
+func set_escort(escort: Object) -> void:
+	_escort = escort
+	if _context != null:
+		_context.escort = escort
+
+
 func setup(spawn_points: Array[Vector2], context: EnemyContext) -> void:
 	if spawn_seed != 0:
 		_rng.seed = spawn_seed
@@ -122,6 +133,7 @@ func setup(spawn_points: Array[Vector2], context: EnemyContext) -> void:
 		_rng.randomize()
 	_spawn_points = spawn_points
 	_context = context
+	_context.escort = _escort
 	if ga_settings != null:
 		ga_seed = evolution_seed if evolution_seed != 0 else spawn_seed
 		if ga_seed == 0:

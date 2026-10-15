@@ -7,8 +7,9 @@ extends Objective
 ## fail (Retry); survivor at the exit = wave goal. The exit is open from the start, but the
 ## player walking out alone completes nothing.
 ## Objective fitness O: each enemy is credited with the damage IT did to the survivor.
-## Not done: enemies don't steer towards the survivor (that is a utility-AI action, a later
-## step); they hit it when it is next to them, which happens because it walks with the player.
+## Enemies hunt the survivor: one that perceives it (the player's sight rules) scores HuntSurvivor
+## and walks to it (Enemy._hunt_survivor_seek). Only the escort_max_attackers nearest enemies within
+## reach hit it, each with its own cooldown and ferocity-scaled damage.
 
 const REACH: float = 14.0
 
@@ -26,6 +27,17 @@ func clears_on_kill_all() -> bool:
 
 func exit_open_from_start() -> bool:
 	return true
+
+
+func setup(objective_config: ObjectiveConfig, terrain_grid: TerrainGrid, the_player: Player,
+		waves: WaveManager, health: TerrainHealth) -> void:
+	super(objective_config, terrain_grid, the_player, waves, health)
+	waves.set_escort(self)
+
+
+## The survivor can be seen (and hunted) while the objective runs and it has HP left.
+func is_survivor_alive() -> bool:
+	return state == State.ACTIVE and survivor_health > 0.0
 
 
 func area_loaded(zone_map: ZoneMap) -> void:
@@ -62,14 +74,12 @@ func tick(delta: float) -> void:
 	# Enemies next to the survivor hit it.
 	for id: int in _cooldowns.keys():
 		_cooldowns[id] -= delta
-	for e: Enemy in wave_manager.alive:
-		if e.global_position.distance_to(survivor) > REACH:
-			continue
+	for e: Enemy in nearest_attackers():
 		var id: int = e.get_instance_id()
 		if _cooldowns.get(id, 0.0) > 0.0:
 			continue
 		_cooldowns[id] = e.stats.attack_cooldown
-		var dmg: float = minf(config.escort_hit_damage, survivor_health)
+		var dmg: float = minf(config.escort_hit_damage * e.attack_scale, survivor_health)
 		survivor_health -= dmg
 		credit(e, dmg)
 	queue_redraw()
@@ -77,6 +87,19 @@ func tick(delta: float) -> void:
 		_fail("the survivor died")
 	elif _path_index >= _path.size() and not _path.is_empty():
 		_complete()
+
+
+## Enemies within reach of the survivor, nearest first, at most escort_max_attackers of them.
+func nearest_attackers() -> Array[Enemy]:
+	var near: Array[Enemy] = []
+	for e: Enemy in wave_manager.alive:
+		if e.global_position.distance_to(survivor) <= REACH:
+			near.append(e)
+	near.sort_custom(func(a: Enemy, b: Enemy) -> bool:
+		return a.global_position.distance_squared_to(survivor) < b.global_position.distance_squared_to(survivor))
+	if near.size() > config.escort_max_attackers:
+		near.resize(config.escort_max_attackers)
+	return near
 
 
 func hud_text() -> String:

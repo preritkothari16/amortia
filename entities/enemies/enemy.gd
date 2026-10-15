@@ -85,6 +85,19 @@ var _last_awareness_state: int = -1
 var _last_target_version: int = -1
 ## Close-range attack rules and cooldown (only used while holding an attack token).
 var _attack: MeleeAttack = MeleeAttack.new()
+## Damage multiplier from the ferocity gene (1 = archetype value); the Escort objective uses it too.
+var attack_scale: float = 1.0
+## Pack tactics (cohesion): regroup time spent in this chase, where the pack is, when this
+## enemy last called its pack, and whether it saw the player last frame (to spot the first sighting).
+var _regroup_budget: PackCoordination.RegroupBudget = PackCoordination.RegroupBudget.new()
+var _regroup_anchor: Vector2 = Vector2.INF
+var _share_cooldown: float = 0.0
+var _was_chasing: bool = false
+## Escort levels: the survivor is perceived now, and where.
+var survivor_visible: bool = false
+var _survivor_pos: Vector2 = Vector2.INF
+## Set by _route_to when the A* search found no way (the caller decides what that means).
+var _route_failed: bool = false
 
 @onready var _body: Polygon2D = $Body
 
@@ -135,6 +148,7 @@ func _apply_genome(rules: GenomeRules) -> void:
 	stats.max_health = genome.max_health(base.max_health, rules)
 	stats.sight_range = genome.sight_range(base.sight_range, rules)
 	stats.attack_damage = genome.attack_damage(base.attack_damage, rules)
+	attack_scale = stats.attack_damage / base.attack_damage if base.attack_damage > 0.0 else 1.0
 	stats.attack_cooldown = genome.attack_cooldown(base.attack_cooldown, rules)
 	stats.behaviour = genome.to_behaviour_weights()
 	# Greybox "visible evolution" (GDD 5.4): more Health gene = bulkier body. Visual only.
@@ -217,6 +231,10 @@ func _physics_process(delta: float) -> void:
 			seek_velocity = _flank_seek(cell, cost, role)
 		UtilityAction.Type.INVESTIGATE when awareness.has_lead():
 			seek_velocity = _investigate_seek(cell)
+		UtilityAction.Type.REGROUP when visible:
+			seek_velocity = _regroup_seek(cell, cost, role)
+		UtilityAction.Type.HUNT_SURVIVOR when survivor_visible:
+			seek_velocity = _hunt_survivor_seek(cell)
 		_:
 			nav_mode = &"idle"
 			current_target = Vector2.INF
@@ -246,11 +264,70 @@ func _physics_process(delta: float) -> void:
 
 ## Sight check: the only place the enemy reads the player's real position.
 func _update_awareness(delta: float) -> void:
-	if _can_perceive_player():
+	var sees_player: bool = _can_perceive_player()
+	if sees_player:
 		awareness.see(_target.global_position)
+		if not _was_chasing:
+			_call_pack()  # first sighting: tell the packmates where the player is
 	else:
 		awareness.lose_sight(stats.utility_settings.lost_sight_strength)
+	_was_chasing = sees_player
 	awareness.tick(delta)
+	_share_cooldown = maxf(_share_cooldown - delta, 0.0)
+	_regroup_budget.tick(delta, brain.current == UtilityAction.Type.REGROUP, sees_player, stats.utility_settings)
+	_update_survivor_sight()
+
+
+# --- Pack tactics (cohesion) ----------------------------------------------------------
+
+## Cohesive enemies pass on what they see: every ally within pack_radius gets a lead (where the
+## player was seen), as strong as the weaker cohesion of the two allows. Once per cooldown.
+func _call_pack() -> void:
+	if _share_cooldown > 0.0 or _allies.size() <= 1:
+		return
+	var s: UtilitySettings = stats.utility_settings
+	_share_cooldown = s.pack_share_cooldown
+	var r2: float = s.pack_radius * s.pack_radius
+	for other: Enemy in _allies:
+		if other != self and global_position.distance_squared_to(other.global_position) <= r2:
+			other.receive_pack_lead(_target.global_position, stats.behaviour.cohesion)
+
+
+## A packmate saw the player at `position`. Same lead as a noise (Awareness.hear), as strong as
+## both cohesions allow: a loner hardly reacts. Ignored while this enemy is chasing already.
+func receive_pack_lead(position: Vector2, sender_cohesion: float) -> void:
+	if _dead:
+		return
+	var strength: float = PackCoordination.share_strength(sender_cohesion, stats.behaviour.cohesion, stats.utility_settings)
+	if strength > 0.0:
+		awareness.hear(position, strength)
+
+
+## Packmates that are engaged (they know about the player: chasing or investigating).
+func _engaged_pack_positions() -> PackedVector2Array:
+	var list: PackedVector2Array = PackedVector2Array()
+	for other: Enemy in _allies:
+		if other != self and not other._dead and (other.awareness.state == Awareness.State.CHASE
+				or other.awareness.state == Awareness.State.INVESTIGATE):
+			list.append(other.global_position)
+	return list
+
+
+# --- Escort survivor ------------------------------------------------------------------
+
+## The survivor is seen by the same rules as the player: always within sense_radius, further out
+## only inside the (fog / night adjusted) sight range with a clear grid line.
+func _update_survivor_sight() -> void:
+	survivor_visible = false
+	var escort: Object = _ctx.escort if _ctx != null else null
+	if escort == null or not escort.has_method("is_survivor_alive") or not escort.is_survivor_alive():
+		return
+	_survivor_pos = escort.survivor
+	var distance: float = global_position.distance_to(_survivor_pos)
+	if distance <= stats.sense_radius:
+		survivor_visible = true
+	elif distance <= effective_sight_range:
+		survivor_visible = _grid.has_line_of_sight(global_position, _survivor_pos)
 
 
 ## Within sense_radius the enemy always notices the player (GDD 4.3: even stealth only hides
@@ -318,7 +395,26 @@ func _gather_inputs() -> DecisionInputs:
 	else:
 		_inputs.distance_to_player = INF
 		_inputs.player_facing_dot = 1.0
+	_gather_pack_inputs(visible)
+	_inputs.survivor_visible = survivor_visible
+	_inputs.survivor_distance = global_position.distance_to(_survivor_pos) if survivor_visible else INF
 	return _inputs
+
+
+## Pack facts for RegroupAction: how many engaged packmates are close, where they are, whether a
+## clear line to them exists, and whether this enemy's regroup time is used up.
+func _gather_pack_inputs(visible: bool) -> void:
+	var s: UtilitySettings = stats.utility_settings
+	_inputs.pack_size = 0
+	_inputs.regroup_available = false
+	_regroup_anchor = Vector2.INF
+	_inputs.regroup_expired = _regroup_budget.expired(s)
+	if not visible or stats.behaviour.cohesion <= 0.0:
+		return  # only cohesive enemies that see the player ever regroup
+	var mates: PackedVector2Array = _engaged_pack_positions()
+	_inputs.pack_size = PackCoordination.count_within(global_position, mates, s.pack_radius)
+	_regroup_anchor = PackCoordination.anchor(global_position, mates, s.regroup_search_radius)
+	_inputs.regroup_available = _regroup_anchor != Vector2.INF and _clear_path_to(_regroup_anchor)
 
 
 ## Direction the player is looking (aim), or ZERO if the target has no aim.
@@ -421,6 +517,40 @@ func _ring_seek(role: AttackRing.Role) -> Vector2:
 	return ContextSteering.seek(ContextSteering.sample_flow(_nav_field, global_position), stats.move_speed)
 
 
+# --- REGROUP: wait for the pack, then go together ---------------------------------------
+
+## Walks to the packmates (their centroid). The pack's size is checked at each decision, so the
+## moment enough of them are close every member switches to Chase. No anchor or no clear line:
+## behave like Chase this frame (the next decision drops Regroup).
+func _regroup_seek(cell: Vector2i, cost: float, role: AttackRing.Role) -> Vector2:
+	if _regroup_anchor == Vector2.INF or not _clear_path_to(_regroup_anchor):
+		return _chase_seek(cell, cost, role)
+	current_target = _regroup_anchor
+	nav_mode = &"regroup"
+	return ContextSteering.arrive(_regroup_anchor - global_position, stats.move_speed, stats.arrive_radius)
+
+
+# --- HUNT_SURVIVOR: go for the Escort survivor ----------------------------------------------
+
+## Straight at the survivor when the fat ray is clear, else an A* route (shared PathQueue, re-planned
+## when the survivor has moved two cells). It stands next to the survivor; the Escort objective
+## applies the hits (nearest attackers only, this enemy's cooldown and ferocity).
+func _hunt_survivor_seek(cell: Vector2i) -> Vector2:
+	var goal: Vector2 = _survivor_pos
+	current_target = goal
+	if global_position.distance_to(goal) <= stats.investigate_arrive_distance:
+		nav_mode = &"hunt"
+		_drop_path()
+		return Vector2.ZERO
+	var key: int = hash(_grid.coords.world_to_cell(goal) / 2)
+	var velocity_out: Vector2 = _route_to(cell, goal, key)
+	if _route_failed:
+		return Vector2.ZERO  # unreachable: hold rather than push at a wall
+	if nav_mode == &"investigate":
+		nav_mode = &"hunt"
+	return velocity_out
+
+
 # --- INVESTIGATE: go to the last known position --------------------------------------
 
 func _investigate_seek(cell: Vector2i) -> Vector2:
@@ -433,6 +563,17 @@ func _investigate_seek(cell: Vector2i) -> Vector2:
 		awareness.arrive(stats.search_time)  # nothing here: look around, then give up
 		_drop_path()
 		return Vector2.ZERO
+	var velocity_out: Vector2 = _route_to(cell, goal, awareness.target_version)
+	if _route_failed:
+		awareness.arrive(stats.search_time)  # unreachable: search where we are
+	return velocity_out
+
+
+## Shared by Investigate and Hunt: straight to `goal` when the way is clear, else follow an A* path
+## from the shared queue. `plan_key` identifies the target: a new key means "plan again". Sets
+## _route_failed when the search found no way.
+func _route_to(cell: Vector2i, goal: Vector2, plan_key: int) -> Vector2:
+	_route_failed = false
 	if _clear_path_to(goal):
 		# Straight there, no search needed.
 		nav_mode = &"investigate"
@@ -442,9 +583,9 @@ func _investigate_seek(cell: Vector2i) -> Vector2:
 	var id: int = get_instance_id()
 	if _path_cost_version != _grid.cost_version and not _waiting_for_path:
 		_path_version = -1  # terrain changed since planning (fire, collapse, wall...): plan again
-	if _path_version != awareness.target_version:
+	if _path_version != plan_key:
 		# New target (or no plan yet): ask the shared queue for an A* path.
-		_path_version = awareness.target_version
+		_path_version = plan_key
 		_path_cost_version = _grid.cost_version
 		_path.clear()
 		_ctx.path_queue.request(id, cell, _grid.coords.world_to_cell(goal), nav_profile)
@@ -457,7 +598,7 @@ func _investigate_seek(cell: Vector2i) -> Vector2:
 		_path = _ctx.path_queue.take_result(id)
 		_path_index = 1  # _path[0] is the cell we started in
 		if _path.is_empty():
-			awareness.arrive(stats.search_time)  # unreachable: search where we are
+			_route_failed = true  # unreachable
 			return Vector2.ZERO
 
 	# Follow the waypoints (tile centres).

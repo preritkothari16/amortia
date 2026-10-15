@@ -52,6 +52,31 @@ extends Resource
 @export var pressure_start_seconds: float = 30.0
 @export var pressure_ramp_seconds: float = 30.0
 
+@export_group("Escort survivor")
+## Weight of the survivor as a target next to the player (1 = as attractive at equal distance).
+@export_range(0.0, 2.0) var survivor_priority: float = 1.0
+
+@export_group("Pack (cohesion)")
+## Allies this close (px) count as the pack and hear what a packmate saw.
+@export var pack_radius: float = 128.0
+## A pack is complete with this many members (the enemy itself included).
+@export var pack_needed: int = 3
+## Strength (0..1) of a lead shared by a packmate, before the cohesion of both is applied:
+## strength = min(sender cohesion, receiver cohesion) * this.
+@export_range(0.0, 1.0) var pack_share_strength: float = 0.8
+## Seconds before the same enemy may call its pack again.
+@export var pack_share_cooldown: float = 2.0
+## Regroup score = cohesion * this, while the pack is incomplete (it competes with Chase).
+@export_range(0.0, 1.0) var regroup_base: float = 0.7
+## Closer to the player than this (px) an enemy just fights instead of regrouping.
+@export var regroup_min_distance: float = 64.0
+## Packmates up to this far (px) are worth regrouping with.
+@export var regroup_search_radius: float = 192.0
+## Most seconds one enemy may spend regrouping per chase. Spent time is only forgiven after
+## regroup_reset_seconds without seeing the player, so flickering sight can't restart it.
+@export var regroup_timeout: float = 4.0
+@export var regroup_reset_seconds: float = 6.0
+
 
 ## 0..1 pressure after `wave_seconds` of an open wave (see the two settings above).
 func wave_pressure(wave_seconds: float) -> float:

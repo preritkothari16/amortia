@@ -16,7 +16,8 @@ var last_scores: Dictionary[UtilityAction.Type, float] = {}
 var switches: int = 0
 
 ## Fixed order matters only for ties: the earlier action wins, so results are deterministic.
-var _actions: Array[UtilityAction] = [ChaseAction.new(), FlankAction.new(), InvestigateAction.new()]
+var _actions: Array[UtilityAction] = [ChaseAction.new(), FlankAction.new(), InvestigateAction.new(),
+		RegroupAction.new(), HuntSurvivorAction.new()]
 ## Seconds until the next scheduled decision.
 var _timer: float = 0.0
 

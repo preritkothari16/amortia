@@ -125,7 +125,8 @@ func test_escort_walks_with_the_player_and_can_die() -> void:
 	var biter: Enemy = wm.alive[0]
 	biter.global_position = escort.survivor
 	await wait_physics_frames(3)
-	assert_eq(biter.fitness_record.objective_score, escort.config.escort_hit_damage, "O = damage to the survivor")
+	assert_almost_eq(biter.fitness_record.objective_score, escort.config.escort_hit_damage * biter.attack_scale, 0.0001,
+			"O = damage to the survivor (scaled by the biter's ferocity)")
 	escort.survivor_health = 1.0
 	await wait_physics_frames(int(biter.stats.attack_cooldown * 60) + 5)
 	assert_true(wm.failed, "survivor dead = wave lost")

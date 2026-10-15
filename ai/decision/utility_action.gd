@@ -3,7 +3,7 @@ extends RefCounted
 ## Base class for one thing an enemy can choose to do. Subclasses only answer one question:
 ## "how good is this action right now?" as a number, usually 0..1. They never move anything.
 
-enum Type { IDLE, CHASE, FLANK, INVESTIGATE }
+enum Type { IDLE, CHASE, FLANK, INVESTIGATE, REGROUP, HUNT_SURVIVOR }
 
 ## Which action this is (set by the subclass).
 var type: Type = Type.IDLE

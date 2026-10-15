@@ -6,7 +6,7 @@ extends Node2D
 ##   thin line           enemy -> its current target (where it is heading this frame)
 ##   cyan polyline       remaining A* path while investigating
 ##   yellow X            the enemy's last known player position (while not chasing)
-##   letter above enemy  utility AI action: C chase, F flank, I investigate, . idle
+##   letter above enemy  utility AI action: C chase, F flank, I investigate, R regroup, S hunt survivor, . idle
 ##   magenta +           flank point of enemies that are flanking
 ##   faint ring          each enemy's sight range after fog and night
 
@@ -16,6 +16,8 @@ const ACTION_LABELS: Dictionary = {
 	UtilityAction.Type.CHASE: "C",
 	UtilityAction.Type.FLANK: "F",
 	UtilityAction.Type.INVESTIGATE: "I",
+	UtilityAction.Type.REGROUP: "R",
+	UtilityAction.Type.HUNT_SURVIVOR: "S",
 }
 const STATE_COLORS: Dictionary = {
 	Awareness.State.IDLE: Color(0.6, 0.6, 0.6),

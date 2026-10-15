@@ -24,6 +24,9 @@ enum Type { SURVIVE, HOLD, ESCORT, PURGE, EXTRACT, STEALTH, APEX }
 @export var escort_leash: float = 96.0
 ## Melee damage an enemy next to the survivor deals per hit (uses the enemy's attack cooldown).
 @export var escort_hit_damage: float = 8.0
+## At most this many enemies may hit the survivor at once (the nearest ones), like the player's
+## three attack tokens.
+@export var escort_max_attackers: int = 3
 
 @export_group("Purge nests")
 @export_range(3, 5) var nest_count: int = 3

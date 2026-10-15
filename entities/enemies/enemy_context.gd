@@ -23,3 +23,6 @@ var conditions: WorldConditions
 var terrain_health: TerrainHealth
 ## Seconds the current wave has been open (WaveManager updates it every physics frame).
 var wave_seconds: float = 0.0
+## Escort levels: the objective holding the survivor (`survivor` position, `is_survivor_alive()`),
+## or null. Enemies perceive the survivor themselves (Enemy._update_survivor_sight).
+var escort: Object

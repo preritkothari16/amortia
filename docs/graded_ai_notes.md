@@ -203,3 +203,60 @@ before — wave 1 never ended (stalled); after — every wave cleared in 52–73
 evolved patience settles ≈ 0.13 instead of drifting to 0.05.
 
 Tests: `tests/test_wave_pressure.gd` (13).
+
+
+## Pack tactics, escort hunting and ferocity (ai/decision, ai/evolution — behaviour step)
+
+**Cohesion = pack coordination, not a stat.** It never adds aggression, speed or damage, and the
+attack ring (3 tokens) is untouched. Two mechanisms, both in `PackCoordination` (pure) + `RegroupAction`:
+```
+SHARE (alarm call). When an enemy FIRST sees the player (and its cooldown of 2 s is over):
+    for every ally within pack_radius (128 px):
+        ally.awareness.hear(player_pos, min(sender.cohesion, ally.cohesion) * 0.8)
+    -> an ordinary lead: it feeds the normal Investigate score, so a loner (cohesion ~0) ignores it.
+       Real perception only: one position at the moment of sighting, no tracking.
+
+REGROUP. inputs: pack_size = engaged allies (chasing / investigating) within 128 px,
+                 anchor = centroid of engaged allies within 192 px, if a clear line to it exists
+    RegroupAction.score = cohesion * 0.7 * (1 - wave_pressure)
+        only if: player visible, anchor available, not expired, distance > 64 px, pack_size + 1 < 3
+    Chase is NOT boosted. When pack_size + 1 >= 3 the score drops to 0 and every member's next
+    decision (5 Hz) is Chase: the pack goes together. Movement = arrive at the anchor.
+
+NO INDEFINITE WAITING (RegroupBudget, per enemy):
+    spent += dt while (action == REGROUP and player seen)
+    expired = spent >= 4 s
+    spent resets ONLY after 6 s without seeing the player  -> flickering sight cannot restart the clock
+    plus (1 - wave_pressure): the wave's hunger ramp fades regrouping out
+```
+Measured (open line, A sees the player at 110 px, B 125 px behind A, C/D further): cohesion 0 -> A
+charges alone (arrives 1.1 s), B/C/D never hear of the player; cohesion 1 -> B is alerted, A waits
+(bounded by the 4 s budget, never more), then A and B arrive within 0.2 s of each other.
+
+**Hunt survivor (Escort).** The survivor is perceived with the player's rules (always within
+`sense_radius`, further only inside the fog/night-adjusted sight range with a clear grid line).
+```
+HuntSurvivorAction.score = max(aggression, wave_pressure) * (chase_base + (1 - chase_base) * closeness(survivor))
+                           * survivor_priority        # needs survivor_visible; competes with Chase on distance
+execute: straight if the fat ray is clear, else A* through the shared PathQueue (re-plan when the
+         survivor moves 2 cells); stand next to it. EscortObjective applies the hits:
+         the 3 nearest enemies within reach, own cooldown, damage x ferocity scale.
+```
+
+**Ferocity** is a 4th budgeted stat (speed, health, vision, ferocity; each 1..10).
+Budget 20 -> 32 (+1/wave): 4 x neutral 5 = 20, so the average enemy equals the archetype.
+```
+damage   = 8   * (1 + (ferocity - 5) * 0.08)        gene 10: 11.2, gene 1: 5.44
+cooldown = 1.2 * (1 - (ferocity - 5) * 0.04), >= 0.5  gene 10: 0.96 s, gene 1: 1.39 s
+DPS factor at gene 10 = 1.40 / 0.80 = 1.75  == health at gene 10 (1 + 5 * 0.15 = 1.75)
+```
+Points spent on ferocity come out of speed / health / vision (repair re-spends the exact budget
+in the genome's own proportions), so there is no free power. Selection blind to ferocity does not
+move it (40-seed mean 5.0 +- 0.45); selection that rewards it does, and the others pay.
+Seeded standing-bot run (4242, 8 waves): total = budget every wave, ferocity 5.3 -> 6.8 (damage is
+part of the fixed fitness formula; weights untouched).
+
+**Removed genes.** `caution` and `path_mode` (and the diversity guard that only watched path_mode)
+are gone from genomes, mutation, crossover, reports. Flow field, A* and the greedy straight line stay
+in the code for the comparison experiments. Old saves: removed keys ignored; missing ferocity = 5
+(old stats + 5 = the new wave-1 budget, so nothing is boosted or rescaled while it fits the budget).
