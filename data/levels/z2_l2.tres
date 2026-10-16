@@ -37,6 +37,7 @@ zone = 2
 generator = ExtResource("5_xbdy8")
 generator_seed = 202
 waves = 1
+powerups_enabled = true
 objective = SubResource("Resource_5jv72")
 events = Array[ExtResource("1_8brn4")]([SubResource("Resource_drvat"), SubResource("Resource_rs7br"), SubResource("Resource_1jgri")])
 side_objectives = Array[ExtResource("8_68vrn")]([SubResource("Resource_2eopf")])

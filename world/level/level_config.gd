@@ -60,3 +60,6 @@ func has_areas() -> bool:
 ## A weapon blueprint hidden in this level's last area (exploration reward): a pickup on a far,
 ## reachable cell. Found blueprints are kept; the Safehouse Workbench builds them. "" = none.
 @export var blueprint_weapon: StringName = &""
+## Temporary power-ups spawn during the waves (PowerUpManager, data/power_up_set.tres). The campaign
+## levels turn it on; the plain test levels and experiments leave it off.
+@export var powerups_enabled: bool = false

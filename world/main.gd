@@ -39,6 +39,8 @@ var _nav_dirty: bool = false
 ## Campaign: the area sequencer and the level's objective (null in the prototype).
 var level_flow: LevelFlow
 var objective: Objective
+## Temporary power-ups (null when the level has none).
+var power_up_manager: PowerUpManager
 ## True when this level is the campaign's current level (GameState): XP and the zone's
 ## population come from GameState and go back to it when the level is done.
 var in_campaign: bool = false
@@ -210,6 +212,12 @@ func _setup_level() -> void:
 		objective.name = "Objective"
 		add_child(objective)
 		objective.setup(c.objective, terrain_grid, _player, _wave_manager, terrain_health)
+	if c.powerups_enabled:
+		var power_ups: PowerUpManager = PowerUpManager.new()
+		power_ups.name = "PowerUps"
+		add_child(power_ups)
+		power_ups.setup(load("res://data/power_up_set.tres"), terrain_grid, _player, _wave_manager, _event_seed())
+		power_up_manager = power_ups
 	level_flow = LevelFlow.new()
 	level_flow.name = "LevelFlow"
 	add_child(level_flow)

@@ -32,6 +32,7 @@ title = "Maple Hollow Apex"
 generator = ExtResource("4_cj5uw")
 generator_seed = 104
 waves = 1
+powerups_enabled = true
 objective = SubResource("Resource_wvhf6")
 events = Array[ExtResource("1_4rrjf")]([SubResource("Resource_8hvy1"), SubResource("Resource_u207d")])
 side_objectives = Array[ExtResource("7_8ukte")]([SubResource("Resource_oct1v")])

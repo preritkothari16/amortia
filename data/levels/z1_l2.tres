@@ -32,6 +32,7 @@ title = "Maple Hollow 2: Hold the point"
 generator = ExtResource("4_usoom")
 generator_seed = 102
 waves = 1
+powerups_enabled = true
 objective = SubResource("Resource_4a1t3")
 events = Array[ExtResource("1_2nj70")]([SubResource("Resource_tqv8p"), SubResource("Resource_1kqpp")])
 side_objectives = Array[ExtResource("7_n70q0")]([SubResource("Resource_jymyj")])

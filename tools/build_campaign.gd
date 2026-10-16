@@ -51,6 +51,7 @@ func _initialize() -> void:
 			# the zone's new population gets one bred generation, and the player one area change -
 			# every other level 1, the Apex 1. Evolution carries on across levels within a zone.
 			c.waves = 2 if n == 0 else 1
+			c.powerups_enabled = true
 			if z[0] == 1 and n == 0:
 				c.blueprint_weapon = &"shotgun"  # exploration: hidden in the last area of the first level
 			if z[0] == 1 and n == 0:
