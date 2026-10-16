@@ -35,6 +35,8 @@ func _initialize() -> void:
 		var zone: ZoneConfig = ZoneConfig.new()
 		zone.zone = z[0]
 		zone.title = z[1]
+		if z[0] == 1:
+			zone.reward_blueprint = &"shotgun"  # guaranteed: the first Apex hands it over
 		var levels: Array[LevelConfig] = []
 		for n: int in 4:
 			var c: LevelConfig = LevelConfig.new()
@@ -49,6 +51,8 @@ func _initialize() -> void:
 			# the zone's new population gets one bred generation, and the player one area change -
 			# every other level 1, the Apex 1. Evolution carries on across levels within a zone.
 			c.waves = 2 if n == 0 else 1
+			if z[0] == 1 and n == 0:
+				c.blueprint_weapon = &"shotgun"  # exploration: hidden in the last area of the first level
 			if z[0] == 1 and n == 0:
 				var areas: Array[PackedScene] = []
 				for path: String in HAND_MADE:

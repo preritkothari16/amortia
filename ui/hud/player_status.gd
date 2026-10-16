@@ -57,6 +57,19 @@ func _draw() -> void:
 	if player.is_concealed():
 		_text(font, Vector2(x + 10.0, y), "HIDDEN", COLOR_HIDDEN)
 
+	# Second row: weapon in hand (Q swaps when a spare is carried), shield, temporary power-ups.
+	var y2: float = y - 10.0
+	var x2: float = MARGIN
+	var weapon_data: WeaponStats = WeaponLibrary.get_weapon(player.active_weapon_id())
+	if weapon_data != null:
+		var tag: String = weapon_data.display_name + (" [Q]" if player.loadout.carried().size() > 1 else "")
+		x2 = _text(font, Vector2(x2, y2), tag, Color(0.9, 0.85, 0.6)) + 8.0
+	if player.shield > 0.0:
+		x2 = _text(font, Vector2(x2, y2), "SHIELD %d" % ceili(player.shield), Color(0.5, 0.8, 1.0)) + 8.0
+	for id: StringName in player.modifiers.temporary_ids():
+		x2 = _text(font, Vector2(x2, y2), "%s %ds" % [String(id).capitalize(), ceili(player.modifiers.time_left(id))],
+				Color(0.6, 1.0, 0.6)) + 8.0
+
 
 func _bar(rect: Rect2, ratio: float, color: Color) -> void:
 	draw_rect(rect.grow(1.0), COLOR_BACK)

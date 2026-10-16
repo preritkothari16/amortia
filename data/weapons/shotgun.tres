@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="WeaponStats" format=3]
+
+[ext_resource type="Script" path="res://entities/projectiles/weapon_stats.gd" id="1_weapon"]
+[ext_resource type="PackedScene" path="res://entities/projectiles/bullet.tscn" id="2_bullet"]
+
+[resource]
+script = ExtResource("1_weapon")
+id = &"shotgun"
+display_name = "Shotgun"
+description = "Eight pellets in a cone. Devastating up close and in crowds, weak beyond about six tiles, slow to fire, loud, and slow to draw."
+unlock_cost_scrap = 80
+projectile_scene = ExtResource("2_bullet")
+fire_cooldown = 0.85
+automatic = false
+projectile_speed = 320.0
+projectile_lifetime = 0.3
+damage = 6.0
+noise_radius = 256.0
+pellets = 8
+spread_degrees = 16.0
+draw_time = 0.4

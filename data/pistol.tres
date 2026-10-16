@@ -11,4 +11,7 @@ automatic = false
 projectile_speed = 320.0
 projectile_lifetime = 1.0
 damage = 10.0
+id = &"pistol"
+display_name = "Pistol"
+description = "Reliable and quiet enough. Four shots a second at range."
 noise_radius = 192.0

@@ -18,6 +18,19 @@ extends CharacterBody2D
 var progression: PlayerProgression
 ## Bought skill nodes. `stats` and `weapon` are rebuilt from the base data whenever this changes.
 var skills: PlayerSkills
+## Permanent research + temporary power-up effects, applied on top of the base data (never saved
+## into it). See PlayerModifiers.
+var modifiers: PlayerModifiers = PlayerModifiers.new()
+## The weapons owned / equipped (saved with the campaign) and which slot is in hand.
+var loadout: PlayerLoadout = PlayerLoadout.new()
+var active_slot: int = 0
+## Absorbs damage before health does (power-up), and seconds until it fades.
+var shield: float = 0.0
+var shield_left: float = 0.0
+## Spread of shots: seeded, so a replayed fight fires the same pellets.
+var spread_rng: RandomNumberGenerator = RandomNumberGenerator.new()
+## Emitted when the weapon in hand changes (swap, loadout).
+signal weapon_changed()
 ## Emitted when a hit removes HP (`amount` = HP actually lost).
 signal damaged(amount: float)
 ## Emitted once when HP reaches 0. The level ends the wave; revive() brings the player back.
@@ -75,6 +88,8 @@ func _ready() -> void:
 	health = stats.max_health
 	skills = PlayerSkills.new(skill_tree, progression)
 	skills.changed.connect(_apply_skills)
+	modifiers.changed.connect(_apply_skills)
+	spread_rng.seed = 20261016
 	EventBus.enemy_killed.connect(_on_enemy_killed)
 
 
@@ -82,6 +97,8 @@ func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
 	seconds_since_shot += delta
+	modifiers.tick(delta)
+	_tick_shield(delta)
 	_tick_dodge_timers(delta)
 	_move(delta)
 	_footsteps(delta)
@@ -89,6 +106,8 @@ func _physics_process(delta: float) -> void:
 	_shoot(delta)
 	if Input.is_action_just_pressed("interact"):
 		interact()
+	if Input.is_action_just_pressed("swap_weapon"):
+		swap_weapon()
 	if Input.is_action_just_pressed("build") and terrain_grid != null:
 		build_requested.emit(terrain_grid.coords.world_to_cell(global_position + aim_direction * 16.0))
 
@@ -226,11 +245,13 @@ func _shoot(delta: float) -> void:
 		return
 	_cooldown_left = weapon.fire_cooldown
 
-	var bullet: Bullet = weapon.projectile_scene.instantiate() as Bullet
-	bullet.setup(aim_direction, weapon.projectile_speed, weapon.damage, weapon.projectile_lifetime)
-	bullet.global_position = _muzzle.global_position
-	# Bullets live in the level, not under the player, so they don't move with it.
-	get_parent().add_child(bullet)
+	# One projectile per pellet, fanned over the weapon's spread cone (seeded jitter inside each slice).
+	for i: int in weapon.pellets:
+		var bullet: Bullet = weapon.projectile_scene.instantiate() as Bullet
+		bullet.setup(_pellet_direction(i), weapon.projectile_speed, weapon.damage, weapon.projectile_lifetime)
+		bullet.global_position = _muzzle.global_position
+		# Bullets live in the level, not under the player, so they don't move with it.
+		get_parent().add_child(bullet)
 	# Gunshots are loud: enemies in range learn where the player WAS, not where they go next.
 	EventBus.noise_emitted.emit(global_position, weapon.noise_radius)
 	seconds_since_shot = 0.0
@@ -243,6 +264,12 @@ func _shoot(delta: float) -> void:
 func take_damage(amount: float) -> float:
 	if is_dead or is_invulnerable or amount <= 0.0:
 		return 0.0
+	if shield > 0.0:  # the shield soaks first; only what gets through counts as damage dealt
+		var soaked: float = minf(shield, amount)
+		shield -= soaked
+		amount -= soaked
+		if amount <= 0.0:
+			return 0.0
 	var dealt: float = minf(amount, health)
 	health -= dealt
 	_body.modulate = Color(1.0, 0.3, 0.3)
@@ -261,6 +288,9 @@ func take_damage(amount: float) -> float:
 func revive() -> void:
 	is_dead = false
 	health = stats.max_health
+	shield = 0.0
+	shield_left = 0.0
+	modifiers.clear_temporary()  # temporary effects don't survive a lost attempt
 	_invuln_left = 0.0
 	_body.modulate = Color.WHITE
 
@@ -271,9 +301,82 @@ func revive() -> void:
 ## effect on the next frame. Extra max health is also added to current health.
 func _apply_skills() -> void:
 	var old_max: float = stats.max_health
-	stats = skills.apply(_base_stats, SkillNode.Target.PLAYER) as PlayerStats
-	weapon = skills.apply(_base_weapon, SkillNode.Target.WEAPON) as WeaponStats
+	stats = modifiers.apply(skills.apply(_base_stats, SkillNode.Target.PLAYER), StatModifier.Target.PLAYER) as PlayerStats
+	weapon = modifiers.apply(skills.apply(_base_weapon, SkillNode.Target.WEAPON), StatModifier.Target.WEAPON) as WeaponStats
 	health = minf(health + maxf(stats.max_health - old_max, 0.0), stats.max_health)
+
+
+# --- Weapons, research, power-ups ----------------------------------------------------------
+
+## Direction of pellet `index` of the current shot: an even fan across the spread cone plus a
+## small seeded jitter inside the pellet's slice. A single pellet with no spread flies straight.
+func _pellet_direction(index: int) -> Vector2:
+	if weapon.spread_degrees <= 0.0:
+		return aim_direction
+	var slice: float = weapon.spread_degrees / weapon.pellets
+	var centre: float = -weapon.spread_degrees * 0.5 + slice * (index + 0.5)
+	var jitter: float = spread_rng.randf_range(-0.5, 0.5) * slice
+	return aim_direction.rotated(deg_to_rad(centre + jitter))
+
+
+## Takes this loadout (weapons owned / equipped) and puts the first slot in hand.
+func apply_loadout(new_loadout: PlayerLoadout) -> void:
+	loadout = new_loadout
+	active_slot = 0
+	_equip_active()
+
+
+## Q: switch to the other carried weapon. It needs its draw time before it can fire.
+func swap_weapon() -> void:
+	var carried: Array[StringName] = loadout.carried()
+	if carried.size() < 2:
+		return
+	active_slot = 1 - active_slot
+	if loadout.equipped[active_slot] == &"":
+		active_slot = 1 - active_slot
+	_equip_active()
+	_cooldown_left = maxf(_cooldown_left, WeaponLibrary.get_weapon(loadout.equipped[active_slot]).draw_time)
+
+
+func active_weapon_id() -> StringName:
+	return loadout.equipped[active_slot]
+
+
+func _equip_active() -> void:
+	var data: WeaponStats = WeaponLibrary.get_weapon(loadout.equipped[active_slot])
+	_base_weapon = data if data != null else _base_weapon
+	_apply_skills()
+	weapon_changed.emit()
+
+
+## Permanent research effects (from ResearchState), on top of the base stats. Extra max health is
+## added to current health, as it was for skills.
+func set_research(mods: Array[StatModifier]) -> void:
+	modifiers.set_research(mods)
+
+
+## Instant heal, never above max health. Returns the HP restored.
+func heal(amount: float) -> float:
+	if is_dead or amount <= 0.0:
+		return 0.0
+	var restored: float = minf(amount, stats.max_health - health)
+	health += restored
+	return restored
+
+
+## Power-up shield: absorbs up to `amount` damage for `seconds`. A shield already up is refreshed to
+## at least this much, never added to (no stacking).
+func add_shield(amount: float, seconds: float) -> void:
+	shield = maxf(shield, amount)
+	shield_left = maxf(shield_left, seconds)
+
+
+func _tick_shield(delta: float) -> void:
+	if shield > 0.0:
+		shield_left -= delta
+		if shield_left <= 0.0:
+			shield = 0.0
+			shield_left = 0.0
 
 
 # --- Save / load ---------------------------------------------------------------------

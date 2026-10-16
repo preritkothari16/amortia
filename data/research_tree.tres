@@ -1,0 +1,69 @@
+[gd_resource type="Resource" script_class="ResearchTree" format=3]
+
+[ext_resource type="Script" path="res://world/research/research_tree.gd" id="1_tree"]
+[ext_resource type="Script" path="res://world/research/research_node.gd" id="2_node"]
+[ext_resource type="Script" path="res://entities/player/modifiers/stat_modifier.gd" id="3_mod"]
+
+[sub_resource type="Resource" id="Mod_0"]
+script = ExtResource("3_mod")
+target = 0
+property = &"max_health"
+mode = 1
+amount = 10.0
+
+[sub_resource type="Resource" id="Mod_1"]
+script = ExtResource("3_mod")
+target = 0
+property = &"max_health"
+mode = 1
+amount = 10.0
+
+[sub_resource type="Resource" id="Mod_2"]
+script = ExtResource("3_mod")
+target = 0
+property = &"max_health"
+mode = 1
+amount = 10.0
+
+[sub_resource type="Resource" id="Node_0"]
+script = ExtResource("2_node")
+id = &"vaccine_1"
+display_name = "Vaccine I"
+description = "A first serum made from the strains you collected. +10 maximum HP."
+cost_samples = 10
+cost_scrap = 60
+requires = Array[StringName]([])
+min_zone = 1
+cap_group = &"health"
+modifiers = Array[ExtResource("3_mod")]([SubResource("Mod_0")])
+
+[sub_resource type="Resource" id="Node_1"]
+script = ExtResource("2_node")
+id = &"vaccine_2"
+display_name = "Vaccine II"
+description = "A stronger serum. +10 maximum HP."
+cost_samples = 20
+cost_scrap = 120
+requires = Array[StringName]([&"vaccine_1"])
+min_zone = 2
+cap_group = &"health"
+modifiers = Array[ExtResource("3_mod")]([SubResource("Mod_1")])
+
+[sub_resource type="Resource" id="Node_2"]
+script = ExtResource("2_node")
+id = &"vaccine_3"
+display_name = "Vaccine III"
+description = "The final serum. +10 maximum HP (the permanent limit is +30)."
+cost_samples = 30
+cost_scrap = 180
+requires = Array[StringName]([&"vaccine_2"])
+min_zone = 3
+cap_group = &"health"
+modifiers = Array[ExtResource("3_mod")]([SubResource("Mod_2")])
+
+[resource]
+script = ExtResource("1_tree")
+nodes = Array[ExtResource("2_node")]([SubResource("Node_0"), SubResource("Node_1"), SubResource("Node_2")])
+group_caps = Dictionary[StringName, float]({
+&"health": 30.0
+})

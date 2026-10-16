@@ -97,6 +97,24 @@ func _on_wave_started(_wave: int) -> void:
 		objective.wave_started(waves_done + 1)
 		if objective.exit_open_from_start():
 			main.open_exit()
+	_place_blueprint()
+
+
+## The level's blueprint (exploration reward) lies on a far, reachable cell of the LAST area, as a
+## pickup. Skipped when the player already knows the weapon. Seeded, so Retry puts it in the same place.
+func _place_blueprint() -> void:
+	var id: StringName = config.blueprint_weapon
+	if id == &"" or waves_done + 1 < config.waves or main.loadout_knows(id):
+		return
+	var grid: TerrainGrid = main.terrain_grid
+	var origin: Vector2i = grid.coords.world_to_cell(main.current_map().get_entry())
+	var cells: Array[Vector2i] = ReachableCells.farther_than(ReachableCells.from(grid, origin), origin, 20.0)
+	if cells.is_empty():
+		return
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = hash(str(config.id)) + waves_done * 31
+	var cell: Vector2i = cells[rng.randi_range(0, cells.size() - 1)]
+	main.call_deferred("add_child", Pickup.create_blueprint(id, grid.coords.cell_to_world(cell)))
 
 
 func _physics_process(delta: float) -> void:

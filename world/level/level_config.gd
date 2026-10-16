@@ -57,3 +57,6 @@ func has_areas() -> bool:
 @export_range(0.0, 1.0) var sample_chance: float = 0.5
 @export var scrap_min: int = 1
 @export var scrap_max: int = 3
+## A weapon blueprint hidden in this level's last area (exploration reward): a pickup on a far,
+## reachable cell. Found blueprints are kept; the Safehouse Workbench builds them. "" = none.
+@export var blueprint_weapon: StringName = &""

@@ -11,11 +11,18 @@ extends Node
 const GAME_SCENE: String = "res://world/main.tscn"
 const SAFEHOUSE_SCENE: String = "res://ui/menus/safehouse.tscn"
 const CAMPAIGN_PATH: String = "res://data/campaign/campaign.tres"
-const SAVE_FORMAT: int = 1
+## Campaign save format. 2 added the loadout (weapons) and research; format 1 files still load.
+const SAVE_FORMAT: int = 2
+const RESEARCH_PATH: String = "res://data/research_tree.tres"
 
 ## Collected this run (GDD 7.5 samples for research, 7.6 scrap for the Safehouse).
 var samples: int = 0
 var scrap: int = 0
+## Weapons owned / equipped / blueprinted (permanent, saved). Research is `research()`.
+var loadout: PlayerLoadout = PlayerLoadout.new()
+var _research: ResearchState
+## Resources and blueprints as they were when the current wave started; a lost attempt returns to them.
+var _resource_snapshot: Dictionary = {}
 ## Level the next main.tscn load should play (null = prototype loop). Set by menus / campaign.
 var pending_level: LevelConfig
 
@@ -73,6 +80,55 @@ func add_pickup(kind: StringName, amount: int) -> void:
 		&"scrap": scrap += amount
 
 
+## Finished Safehouse research (permanent, saved).
+func research() -> ResearchState:
+	if _research == null:
+		_research = ResearchState.new(load(RESEARCH_PATH))
+	return _research
+
+
+## A weapon blueprint was found (pickup or zone reward). False if already known.
+func collect_blueprint(id: StringName) -> bool:
+	return loadout.add_blueprint(id)
+
+
+## Safehouse Lab: starts research `id`, paying its samples and scrap. False if not allowed.
+func buy_research(id: StringName) -> bool:
+	if not research().unlock(id, scrap, samples, current_zone):
+		return false
+	var node: ResearchNode = research().tree.get_node_by_id(id)
+	scrap -= node.cost_scrap
+	samples -= node.cost_samples
+	return true
+
+
+## Safehouse Workbench: builds a blueprinted weapon, paying its scrap. False if not allowed.
+func build_weapon(id: StringName) -> bool:
+	if not loadout.build(id, scrap):
+		return false
+	scrap -= WeaponLibrary.get_weapon(id).unlock_cost_scrap
+	return true
+
+
+## Gives the player its weapons and permanent research (a level calls this when it starts).
+func apply_to_player(player: Player) -> void:
+	player.apply_loadout(loadout)
+	player.set_research(research().modifiers())
+
+
+## Remembers resources + blueprints at the start of a wave; restore_resource_snapshot() undoes a lost attempt.
+func take_resource_snapshot() -> void:
+	_resource_snapshot = {"scrap": scrap, "samples": samples, "blueprints": loadout.blueprints.duplicate()}
+
+
+func restore_resource_snapshot() -> void:
+	if _resource_snapshot.is_empty():
+		return
+	scrap = _resource_snapshot["scrap"]
+	samples = _resource_snapshot["samples"]
+	loadout.blueprints.assign(_resource_snapshot["blueprints"])
+
+
 func reset_inventory() -> void:
 	samples = 0
 	scrap = 0
@@ -122,6 +178,9 @@ func start_new_campaign(as_ng_plus: bool = false) -> void:
 	zone_elite.clear()
 	side_done.clear()
 	player_data = keep_player
+	if not as_ng_plus:  # New Game+ keeps the weapons and research of the finished run
+		loadout = PlayerLoadout.new()
+		_research = null
 	campaign_won = false  # the previous run's win only hid Continue for the new run; the unlocks stay
 	safehouse_pending = false
 	reset_inventory()
@@ -160,6 +219,9 @@ func finish_level(evolution: Dictionary, player: Dictionary) -> String:
 			destination = "safehouse"
 		safehouse_mode = "victory" if destination == "victory" else "zone"
 		safehouse_pending = destination == "safehouse"
+		var reward: StringName = campaign().zones[current_zone - 1].reward_blueprint
+		if reward != &"":
+			loadout.add_blueprint(reward)  # the zone's guaranteed blueprint
 	else:
 		level_index += 1
 	save_campaign()
@@ -218,13 +280,15 @@ func to_dict() -> Dictionary:
 		"player": player_data, "samples": samples, "scrap": scrap, "side_done": side_done,
 		"won": campaign_won, "endless_unlocked": endless_unlocked, "ng_plus_unlocked": ng_plus_unlocked,
 		"ng_plus": ng_plus, "endless_best_wave": endless_best_wave, "safehouse_pending": safehouse_pending,
+		"loadout": loadout.to_dict(), "research": research().to_array(),
 	}
 
 
 ## Restores from a saved dictionary. False (state untouched) if it isn't a campaign save.
 ## Zone keys come back from JSON as strings; they are turned back into ints.
 func from_dict(d: Dictionary) -> bool:
-	if _num(d.get("format"), 0) != SAVE_FORMAT:
+	var format: int = _num(d.get("format"), 0)
+	if format < 1 or format > SAVE_FORMAT:
 		return false
 	campaign_active = _flag(d.get("active"))
 	current_zone = clampi(_num(d.get("zone"), 1), 1, 4)
@@ -246,6 +310,11 @@ func from_dict(d: Dictionary) -> bool:
 	ng_plus = _flag(d.get("ng_plus"))
 	endless_best_wave = _num(d.get("endless_best_wave"), 0)
 	safehouse_pending = _flag(d.get("safehouse_pending"))
+	# Format 1 (before weapons and research) has neither: the starting pistol, nothing researched.
+	loadout = PlayerLoadout.from_dict(d.get("loadout"))
+	_research = null
+	for note: String in research().restore(d.get("research")):
+		push_warning("Campaign save: " + note)
 	return true
 
 

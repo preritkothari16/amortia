@@ -23,6 +23,7 @@
 [sub_resource type="Resource" id="Resource_b0c22"]
 script = ExtResource("2_dcaxd")
 title = "Maple Hollow"
+reward_blueprint = &"shotgun"
 levels = Array[ExtResource("3_gp1k8")]([ExtResource("4_86gkw"), ExtResource("5_i34fe"), ExtResource("6_rmdhg"), ExtResource("7_ov5g6")])
 
 [sub_resource type="Resource" id="Resource_thge2"]

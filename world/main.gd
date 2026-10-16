@@ -115,6 +115,7 @@ func _ready() -> void:
 	_game_over.restart_level_requested.connect(_on_restart_level)
 	_player_status.player = _player
 
+	GameState.apply_to_player(_player)
 	_set_camera_limits()
 	_put_player_on_spawn()
 	attack_ring.update(_player.global_position, 0.0)
@@ -146,6 +147,9 @@ func _ready() -> void:
 	_player.died.connect(_on_player_died, CONNECT_DEFERRED)
 	_wave_manager.wave_restarting.connect(func(_wave: int) -> void: _put_player_on_spawn())
 	_wave_manager.wave_started.connect(func(_wave: int) -> void: _player.revive())
+	# Resources and blueprints picked up in a lost attempt are not kept: Retry starts from the wave's start.
+	_wave_manager.wave_started.connect(func(_wave: int) -> void: GameState.take_resource_snapshot())
+	_wave_manager.wave_restarting.connect(func(_wave: int) -> void: GameState.restore_resource_snapshot())
 	_terrain_view.grid = terrain_grid
 	_terrain_view.layer = _map.terrain_layer
 	_terrain_view.rules = terrain_costs
@@ -160,6 +164,11 @@ func _ready() -> void:
 	_wave_manager.setup(_map.get_enemy_spawns(), context)
 	if level_config != null:
 		_wave_manager.set_spawn_points(_map.get_enemy_spawns(), _map.get_behind_spawns())
+
+
+## True if the player already owns or has a blueprint for weapon `id`.
+func loadout_knows(id: StringName) -> bool:
+	return GameState.loadout.is_owned(id) or GameState.loadout.blueprints.has(id)
 
 
 ## The level's first map: the first ZoneMap child (Maple Hollow in the prototype scene).
@@ -290,6 +299,7 @@ func _load_campaign_state() -> void:
 ## Game Over -> "Restart level": the same level from its first wave, keeping XP and the
 ## zone's evolution (GDD 7.2).
 func _on_restart_level() -> void:
+	GameState.restore_resource_snapshot()
 	var player: Dictionary = SaveGame.capture(_player.progression, _player.skills, {})["player"]
 	GameState.restart_level(_wave_manager.get_save_state(), player)
 	GameState.start_current_level(get_tree())
