@@ -14,6 +14,9 @@ extends Resource
 ## Budget at the first wave of a zone: points to spend over the four stat genes. 20 = four
 ## neutral genes (5 each), so an average enemy equals the archetype's base values.
 @export var budget_start: int = 20
+## Every later zone starts this many points higher (zone 1: 20, zone 2: 23, zone 3: 26, zone 4: 29),
+## so the enemies keep getting stronger while the player's own stats stay flat.
+@export var budget_zone_step: int = 3
 ## Budget grows by this much every wave...
 @export var budget_per_wave: int = 1
 ## ...up to this cap.
@@ -54,4 +57,10 @@ extends Resource
 
 ## Stat budget for a wave number (1 = first wave of the zone).
 func budget_for_wave(wave: int) -> int:
-	return mini(budget_start + budget_per_wave * maxi(wave - 1, 0), budget_max)
+	return budget_for(1, wave)
+
+
+## Stat budget for wave `wave` (1 = first wave of the zone) of zone `zone` (1..4):
+## start + zone_step per zone after the first + per_wave per wave after the first, capped.
+func budget_for(zone: int, wave: int) -> int:
+	return mini(budget_start + budget_zone_step * maxi(zone - 1, 0) + budget_per_wave * maxi(wave - 1, 0), budget_max)

@@ -73,6 +73,7 @@ func _ready() -> void:
 	in_campaign = level_config != null and GameState.campaign_active and level_config == GameState.current_level()
 	if level_config != null:
 		start_wave = clampi(GameState.pending_start_wave, 0, level_config.waves - 1)
+		_wave_manager.zone = GameState.current_zone if in_campaign else level_config.zone
 	GameState.pending_start_wave = 0
 	if level_config != null and level_config.has_areas():
 		_swap_map_node(level_config.area_scene(start_wave))
@@ -274,7 +275,7 @@ func _load_campaign_state() -> void:
 				_player.skill_tree, warnings))
 	var evolution: Variant = GameState.zone_evolution.get(GameState.current_zone)
 	if evolution is Dictionary:
-		var checked: Dictionary = SaveGame._validate_evolution(evolution, genome_rules, warnings)
+		var checked: Dictionary = SaveGame._validate_evolution(evolution, genome_rules, warnings, GameState.current_zone)
 		if checked.has("error"):
 			push_warning("Campaign population unusable (%s); new population" % checked["error"])
 		else:

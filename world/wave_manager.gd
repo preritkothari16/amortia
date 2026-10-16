@@ -74,8 +74,10 @@ var use_behind_spawns: bool = false
 ## something else (escort, nests, hold timer, boss) turn this off and call end_wave() themselves.
 var auto_end_when_all_dead: bool = true
 
-## Waves spawned so far in this zone (the first wave is 1). Sets the stat budget.
+## Waves spawned so far in this zone (the first wave is 1). Sets the stat budget together with `zone`.
 var wave_number: int = 0
+## Zone being played (1..4); the level sets it. Each zone starts the stat budget higher.
+var zone: int = 1
 
 ## Living enemies. Shared with every enemy for separation, so only add/remove here.
 var alive: Array[Enemy] = []
@@ -384,7 +386,7 @@ func _evolve(results: Array[Dictionary]) -> void:
 	var parents: Array[Genome] = []
 	for r: Dictionary in results:
 		parents.append(r["genome"])
-	var budget: int = _context.genome_rules.budget_for_wave(wave_number + 1)
+	var budget: int = _context.genome_rules.budget_for(zone, wave_number + 1)
 	var children: Array[Genome] = _ga.next_generation_from_results(results, budget)
 	if children.is_empty():
 		return
@@ -444,7 +446,7 @@ func make_genome() -> Genome:
 	var rules: GenomeRules = _context.genome_rules
 	if not random_genomes or rules == null:
 		return null
-	return Genome.random(_rng, rules, rules.budget_for_wave(maxi(wave_number, 1)))
+	return Genome.random(_rng, rules, rules.budget_for(zone, maxi(wave_number, 1)))
 
 
 func spawn_enemy(near: Vector2, genome: Genome = null, record: FitnessRecord = null) -> Enemy:
@@ -488,7 +490,7 @@ func _wave_summary(genomes: Array[Genome]) -> String:
 			total += v
 		parts.append("%s %.2f-%.2f (avg %.2f)" % [gene, lo, hi, total / genomes.size()])
 	return "[Wave %d] %d enemies, budget %d | %s" % [
-		wave_number, genomes.size(), _context.genome_rules.budget_for_wave(wave_number), " | ".join(parts)]
+		wave_number, genomes.size(), _context.genome_rules.budget_for(zone, wave_number), " | ".join(parts)]
 
 
 ## Freezes every record of the current wave, scores it and reports, then breeds the next

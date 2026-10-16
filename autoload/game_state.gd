@@ -178,7 +178,7 @@ func restart_level(evolution: Dictionary, player: Dictionary) -> void:
 func enter_next_zone() -> void:
 	var rules: GenomeRules = load("res://data/genome_rules.tres")
 	var size: int = (load("res://data/ga.tres") as GASettings).population_size
-	var budget: int = rules.budget_for_wave(1)
+	var budget: int = rules.budget_for(current_zone + 1, 1)  # the new zone's first-wave budget
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = 1000 + current_zone
 	var population: Array = []

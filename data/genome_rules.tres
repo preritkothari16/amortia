@@ -8,6 +8,7 @@ stat_min = 1.0
 stat_max = 10.0
 stat_neutral = 5.0
 budget_start = 20
+budget_zone_step = 3
 budget_per_wave = 1
 budget_max = 32
 speed_per_point = 0.1

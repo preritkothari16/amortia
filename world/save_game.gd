@@ -40,7 +40,7 @@ static func capture(progression: PlayerProgression, skills: PlayerSkills, evolut
 ## Broken structure (wrong version, missing sections, unreadable genomes) -> ok = false, the
 ## save is not used. Values that are only out of range are fixed and reported as warnings.
 static func validate(data: Variant, settings: ProgressionSettings, tree: SkillTree,
-		rules: GenomeRules) -> Dictionary:
+		rules: GenomeRules, zone: int = 1) -> Dictionary:
 	var warnings: PackedStringArray = PackedStringArray()
 	if not data is Dictionary:
 		return _fail("save is not a dictionary")
@@ -51,7 +51,7 @@ static func validate(data: Variant, settings: ProgressionSettings, tree: SkillTr
 		return _fail("save is missing the player or evolution section")
 
 	var player: Dictionary = _validate_player(d["player"], settings, tree, warnings)
-	var evolution: Dictionary = _validate_evolution(d["evolution"], rules, warnings)
+	var evolution: Dictionary = _validate_evolution(d["evolution"], rules, warnings, zone)
 	if evolution.has("error"):
 		return _fail(evolution["error"])
 	return {"ok": true, "error": "", "warnings": warnings,
@@ -106,14 +106,14 @@ static func _cost_of(ids: Array[StringName], tree: SkillTree) -> int:
 
 # --- Evolution ---------------------------------------------------------------------
 
-static func _validate_evolution(e: Dictionary, rules: GenomeRules, warnings: PackedStringArray) -> Dictionary:
+static func _validate_evolution(e: Dictionary, rules: GenomeRules, warnings: PackedStringArray, zone: int = 1) -> Dictionary:
 	var next_wave: int = _int_in(e, "next_wave", 1, MAX_WAVE, 1, warnings)
 	var generation: int = _int_in(e, "generation", 0, next_wave - 1, 0, warnings)
 
 	var raw_pop: Variant = e.get("population")
 	if not raw_pop is Array or (raw_pop as Array).is_empty() or (raw_pop as Array).size() > MAX_POPULATION:
 		return {"error": "population missing, empty or too large"}
-	var budget: int = rules.budget_for_wave(next_wave)
+	var budget: int = rules.budget_for(zone, next_wave)
 	var population: Array[Dictionary] = []
 	for i: int in (raw_pop as Array).size():
 		var g: Variant = raw_pop[i]

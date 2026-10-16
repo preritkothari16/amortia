@@ -59,7 +59,7 @@ static func prepare(zone: int, level_index: int, last_wave: bool) -> void:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = SEED
 	for z: int in range(1, zone + 1):
-		_record_stand_in_wave(rng)
+		_record_stand_in_wave(rng, z)
 		if z < zone:
 			GameState.enter_next_zone()
 	GameState.level_index = level_index
@@ -81,10 +81,10 @@ static func player_for_zone(zone: int) -> Dictionary:
 
 ## One wave's results for the current zone made of random genomes (best first), recorded as
 ## if it had been played: zone best (Apex / Seed boss) and zone elite (next zone's seed).
-static func _record_stand_in_wave(rng: RandomNumberGenerator) -> void:
+static func _record_stand_in_wave(rng: RandomNumberGenerator, zone: int) -> void:
 	var rules: GenomeRules = load("res://data/genome_rules.tres")
 	var size: int = (load("res://data/ga.tres") as GASettings).population_size
 	var results: Array[Dictionary] = []
 	for i: int in size:
-		results.append({"fitness": 1.0 - float(i) / size, "genome": Genome.random(rng, rules, rules.budget_for_wave(1))})
+		results.append({"fitness": 1.0 - float(i) / size, "genome": Genome.random(rng, rules, rules.budget_for(zone, 1))})
 	GameState.record_wave_best(results)

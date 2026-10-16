@@ -116,7 +116,7 @@ func test_campaign_walks_through_levels_safehouse_and_zones() -> void:
 	assert_eq((evo["population"] as Array).size(), 20)
 	var rules: GenomeRules = load("res://data/genome_rules.tres")
 	var first: Genome = Genome.from_dict(evo["population"][0])
-	assert_true(first.spends_budget(rules, rules.budget_for_wave(1)), "elites repaired to the new budget")
+	assert_true(first.spends_budget(rules, rules.budget_for(2, 1)), "elites repaired to the new zone's first-wave budget")
 	assert_gt(first.speed, 6.0, "the best genome's proportions carried over")
 	# Zones 2-4.
 	for zone: int in [2, 3, 4]:
