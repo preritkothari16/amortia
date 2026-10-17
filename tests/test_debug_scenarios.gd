@@ -1,25 +1,10 @@
 extends GutTest
 ## Test scenarios (main menu -> Test Scenarios): GameState is put right before a campaign
 ## moment, test mode never writes the campaign save, and a level can start at its last wave.
-## The real user://campaign.json is backed up and restored around these tests.
-
-var _backup: String = ""
-var _had_save: bool = false
-
-
-func before_all() -> void:
-	_had_save = FileAccess.file_exists(SaveSystem.CAMPAIGN_PATH)
-	if _had_save:
-		_backup = FileAccess.get_file_as_string(SaveSystem.CAMPAIGN_PATH)
-
+## Saves go to the SaveSystem sandbox (the real user://campaign.json is never touched).
 
 func after_all() -> void:
-	if _had_save:
-		var f: FileAccess = FileAccess.open(SaveSystem.CAMPAIGN_PATH, FileAccess.WRITE)
-		f.store_string(_backup)
-		f.close()
-	else:
-		SaveSystem.delete_save(SaveSystem.CAMPAIGN_PATH)
+	SaveSystem.delete_save(SaveSystem.CAMPAIGN_PATH)  # the sandbox copy: tests never reach the real save
 
 
 func after_each() -> void:
@@ -95,7 +80,7 @@ func test_test_mode_never_writes_the_campaign_save() -> void:
 	DebugScenarios.prepare(2, 0, false)  # runs enter_next_zone(), which saves
 	assert_eq(GameState.save_campaign(), OK)
 	assert_eq(GameState.finish_level({}), "level")
-	assert_false(FileAccess.file_exists(SaveSystem.CAMPAIGN_PATH))
+	assert_false(SaveSystem.has_save(SaveSystem.CAMPAIGN_PATH))
 
 
 func test_end_test_mode_forgets_the_test_and_reloads_the_save() -> void:

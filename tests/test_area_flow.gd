@@ -197,13 +197,19 @@ func test_retry_reloads_the_same_area_and_wave() -> void:
 	await wait_physics_frames(2)
 	assert_true(wm.failed)
 	assert_true(main.get_node("HUD/GameOverScreen").visible)
+	var old_map: ZoneMap = main.current_map()
 	main.get_node("HUD/GameOverScreen")._retry_button.pressed.emit()
 	assert_eq(wm.wave_number, 1)
 	assert_eq(wm.population, population, "same genomes")
 	assert_eq(main.current_map().scene_file_path, AREAS[0], "same area")
+	assert_ne(main.current_map(), old_map, "a fresh instance of the area")
 	assert_eq(grid.get_terrain(Vector2i(6, 16)), "road", "fresh area: the barricade is gone")
 	assert_eq(main.level_flow.phase, LevelFlow.Phase.ENTERING)
 	assert_eq(grid.coords.world_to_cell(player.global_position), Vector2i(2, 16))
+	# The replaced map leaves the tree at once and is freed at the end of the frame (no leak).
+	assert_true(old_map.is_queued_for_deletion())
+	await wait_process_frames(1)
+	assert_false(is_instance_valid(old_map), "the old area was freed")
 
 
 func test_downed_after_clearing_keeps_the_wave() -> void:

@@ -11,7 +11,8 @@ extends Node2D
 ## Campaign level to play (areas, waves, objective, events). null = the prototype loop on
 ## Maple Hollow; GameState.pending_level fills it when a menu starts a level.
 @export var level_config: LevelConfig
-## Save to user://save.json between waves (prototype loop: after each wave is bred or lost). Off for tests that shouldn't touch the save file.
+## Save to user://save.json between waves (prototype loop: after each wave is bred or lost). Tests,
+## scripts and headless runs save into the SaveSystem sandbox instead, never the real file.
 @export var autosave: bool = true
 ## Experiments / tests: make runs repeatable. The PathQueue normally stops after 2 ms of A*
 ## per frame, so how many paths finish each frame depends on CPU speed -> same seed, different

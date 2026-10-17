@@ -1,27 +1,12 @@
 extends GutTest
 ## Player progression redesign, phase 2: modifier layers, weapons and the shotgun, loadout,
 ## research, resources, blueprints, saves, Safehouse screens. Permanent research, weapon equipment
-## and temporary effects are separate layers. The real user://campaign.json is backed up and restored.
+## and temporary effects are separate layers. Saves go to the SaveSystem sandbox.
 
 const AREA: String = "res://world/zones/maple_hollow/areas/area_1.tscn"
 
-var _backup: String = ""
-var _had_save: bool = false
-
-
-func before_all() -> void:
-	_had_save = FileAccess.file_exists(SaveSystem.CAMPAIGN_PATH)
-	if _had_save:
-		_backup = FileAccess.get_file_as_string(SaveSystem.CAMPAIGN_PATH)
-
-
 func after_all() -> void:
-	if _had_save:
-		var f: FileAccess = FileAccess.open(SaveSystem.CAMPAIGN_PATH, FileAccess.WRITE)
-		f.store_string(_backup)
-		f.close()
-	else:
-		SaveSystem.delete_save(SaveSystem.CAMPAIGN_PATH)
+	SaveSystem.delete_save(SaveSystem.CAMPAIGN_PATH)  # the sandbox copy: tests never reach the real save
 
 
 func after_each() -> void:

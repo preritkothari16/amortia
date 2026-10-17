@@ -1,26 +1,10 @@
 extends GutTest
 ## Expansion phase 8: campaign data (16 levels), GameState campaign flow (levels, Safehouse,
 ## zone transitions with 20 % elite carry-over, victory and unlocks), the campaign save slot,
-## side objectives, and the level hooks in main.gd. The real user://campaign.json is backed up
-## and restored around these tests.
-
-var _backup: String = ""
-var _had_save: bool = false
-
-
-func before_all() -> void:
-	_had_save = FileAccess.file_exists(SaveSystem.CAMPAIGN_PATH)
-	if _had_save:
-		_backup = FileAccess.get_file_as_string(SaveSystem.CAMPAIGN_PATH)
-
+## side objectives, and the level hooks in main.gd. Saves go to the SaveSystem sandbox.
 
 func after_all() -> void:
-	if _had_save:
-		var f: FileAccess = FileAccess.open(SaveSystem.CAMPAIGN_PATH, FileAccess.WRITE)
-		f.store_string(_backup)
-		f.close()
-	else:
-		SaveSystem.delete_save(SaveSystem.CAMPAIGN_PATH)
+	SaveSystem.delete_save(SaveSystem.CAMPAIGN_PATH)  # the sandbox copy: tests never reach the real save
 
 
 func after_each() -> void:

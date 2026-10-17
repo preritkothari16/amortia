@@ -1,25 +1,10 @@
 extends GutTest
 ## Regression tests for the 2026-10-15 audit (docs/audit/BUG_FIXES.md): campaign continuity
 ## (New Game+ Continue, Safehouse resume, Endless best wave), damaged saves, Safehouse layout.
-## The real user://campaign.json is backed up and restored around these tests.
-
-var _backup: String = ""
-var _had_save: bool = false
-
-
-func before_all() -> void:
-	_had_save = FileAccess.file_exists(SaveSystem.CAMPAIGN_PATH)
-	if _had_save:
-		_backup = FileAccess.get_file_as_string(SaveSystem.CAMPAIGN_PATH)
-
+## Saves go to the SaveSystem sandbox (the real user://campaign.json is never touched).
 
 func after_all() -> void:
-	if _had_save:
-		var f: FileAccess = FileAccess.open(SaveSystem.CAMPAIGN_PATH, FileAccess.WRITE)
-		f.store_string(_backup)
-		f.close()
-	else:
-		SaveSystem.delete_save(SaveSystem.CAMPAIGN_PATH)
+	SaveSystem.delete_save(SaveSystem.CAMPAIGN_PATH)  # the sandbox copy: tests never reach the real save
 
 
 func after_each() -> void:
@@ -217,8 +202,8 @@ func test_endless_from_the_menu_is_a_test_run_that_saves_nothing() -> void:
 	add_child_autofree(menu)
 	GameState.start_new_campaign()
 	GameState.save_campaign()
-	var before: String = FileAccess.get_file_as_string(SaveSystem.CAMPAIGN_PATH)
+	var before: String = FileAccess.get_file_as_string(SaveSystem.resolve(SaveSystem.CAMPAIGN_PATH))
 	GameState.test_mode = true
 	GameState.endless_mode = true
 	GameState.note_endless_wave(9)
-	assert_eq(FileAccess.get_file_as_string(SaveSystem.CAMPAIGN_PATH), before, "campaign save untouched")
+	assert_eq(FileAccess.get_file_as_string(SaveSystem.resolve(SaveSystem.CAMPAIGN_PATH)), before, "campaign save untouched")
