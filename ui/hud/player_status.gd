@@ -1,14 +1,15 @@
 class_name PlayerStatus
 extends Control
-## Greybox player panel, bottom-left above the XP bar: HP bar, dodge cooldown, HIDDEN (stealth).
+## Greybox player panel, bottom-left: HP bar, dodge cooldown, HIDDEN (stealth); above it the
+## weapon in hand, shield and temporary power-ups.
 ## Ammo is not shown because weapons have no ammo yet.
 
 const FONT_SIZE: int = 8
 const BAR_SIZE: Vector2 = Vector2(70, 5)
 const DODGE_SIZE: Vector2 = Vector2(36, 5)
 const MARGIN: float = 4.0
-## Distance from the bottom edge, leaving room for the XP bar and its text.
-const BOTTOM_OFFSET: float = 22.0
+## Distance from the bottom edge to the HP row's baseline.
+const BOTTOM_OFFSET: float = 6.0
 const COLOR_BACK: Color = Color(0, 0, 0, 0.6)
 const COLOR_HP: Color = Color(0.85, 0.25, 0.25)
 const COLOR_DODGE_READY: Color = Color(0.5, 0.9, 0.5)

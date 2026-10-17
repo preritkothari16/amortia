@@ -339,3 +339,69 @@ func test_walking_over_a_pickup_applies_it_and_a_refused_one_stays() -> void:
 	shield._on_body_entered(player)
 	assert_false(shield.is_queued_for_deletion(), "at the limit the pickup stays for later")
 	assert_eq(player.shield, 0.0)
+
+
+func test_the_map_list_forgets_pickups_that_vanished() -> void:
+	var lvl: Dictionary = await _level(true, 100.0)
+	var main: Node = lvl["main"]
+	var pm: PowerUpManager = lvl["pm"]
+	var a: PowerUpPickup = pm.spawn_one()
+	var b: PowerUpPickup = pm.spawn_one()
+	assert_eq(pm._on_map.size(), 2)
+	a.free()
+	pm._physics_process(0.01)
+	assert_eq(pm._on_map.size(), 1, "the freed one is dropped from the list (no typed-array error)")
+	assert_true(pm._on_map.has(b))
+	b.queue_free()
+	await wait_physics_frames(2)
+	pm._physics_process(0.01)
+	assert_eq(pm._on_map.size(), 0)
+	assert_eq(_pickups(main).size(), 0)
+
+
+## Regression (bug in d958db4): expired pickups stayed in the manager's list, so after max_on_map
+## pickups nothing spawned again for the rest of the wave.
+func test_expired_pickups_vanish_and_spawning_continues() -> void:
+	var lvl: Dictionary = await _level(true, 0.05)
+	var main: Node = lvl["main"]
+	var pm: PowerUpManager = lvl["pm"]
+	pm.settings.interval = 0.1
+	pm.settings.lifetime = 0.2
+	pm.settings.max_per_wave = 6
+	var seen: Dictionary = {}
+	for i: int in 150:
+		await wait_physics_frames(1)
+		for pickup: PowerUpPickup in _pickups(main):
+			seen[pickup.get_instance_id()] = true
+		assert_lte(pm._on_map.size(), pm.settings.max_on_map)
+		if pm.spawned_this_wave >= pm.settings.max_per_wave and _pickups(main).is_empty():
+			break
+	assert_eq(pm.spawned_this_wave, 6, "spawning went on past max_on_map (2) once the first ones expired")
+	assert_eq(seen.size(), 6, "every spawned pickup appeared on the map")
+	assert_eq(_pickups(main).size(), 0, "each one vanished after its lifetime")
+	pm._physics_process(0.01)
+	assert_eq(pm._on_map.size(), 0, "the manager's list is empty again")
+
+
+func test_spawning_continues_after_pickups_are_collected() -> void:
+	var lvl: Dictionary = await _level(true, 0.05)
+	var main: Node = lvl["main"]
+	var player: Player = lvl["player"]
+	var pm: PowerUpManager = lvl["pm"]
+	pm.settings.interval = 0.05
+	pm.settings.max_per_wave = 5
+	pm.settings.max_concurrent = 10
+	var collected: int = 0
+	for i: int in 200:
+		await wait_physics_frames(1)
+		for pickup: PowerUpPickup in _pickups(main):
+			pickup._on_body_entered(player)  # walk over it
+			if pickup.is_queued_for_deletion():
+				collected += 1
+		if pm.spawned_this_wave >= pm.settings.max_per_wave and _pickups(main).is_empty():
+			break
+	assert_eq(pm.spawned_this_wave, 5, "a collected pickup frees its place on the map")
+	assert_eq(collected, 5)
+	await wait_physics_frames(1)
+	pm._physics_process(0.01)
+	assert_eq(pm._on_map.size(), 0)

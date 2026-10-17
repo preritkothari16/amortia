@@ -1,11 +1,11 @@
 extends Node
 ## Campaign-wide state that outlives a level scene (GDD 8, 10.1): where the player is in the
 ## campaign, each zone's evolving population, the best genomes (for Apex bosses), what the
-## player carries (samples, scrap), XP / skills between levels, and post-game unlocks.
+## player carries (samples, scrap, weapons, research) between levels, and post-game unlocks.
 ## Saved to its own slot (SaveSystem.CAMPAIGN_PATH) at level boundaries.
 ##
 ## Flow:  start_new_campaign() -> start_current_level() loads main.tscn with the level
-##        level done -> finish_level(evolution, player) -> next level / Safehouse / victory
+##        level done -> finish_level(evolution) -> next level / Safehouse / victory
 ##        Safehouse -> enter_next_zone(): new population = 20 % of the last zone's best + random
 
 const GAME_SCENE: String = "res://world/main.tscn"
@@ -38,8 +38,9 @@ var campaign_active: bool = false
 var level_index: int = 0
 ## zone -> WaveManager.get_save_state() at the end of the zone's last finished level.
 var zone_evolution: Dictionary = {}
-## SaveGame "player" section (XP, level, skills) carried between level scenes.
-var player_data: Dictionary = {}
+## Set when an old (format 1) save is loaded that had XP or skills: they were retired. Shown once by
+## the main menu; cleared by the next save.
+var legacy_notice: String = ""
 ## Side objectives completed (ids).
 var side_done: Array[String] = []
 ## The Seed is destroyed: Endless and New Game+ unlock.
@@ -117,6 +118,13 @@ func apply_to_player(player: Player) -> void:
 
 
 ## Remembers resources + blueprints at the start of a wave; restore_resource_snapshot() undoes a lost attempt.
+## Scrap and samples found since the current wave started (what a Retry gives back).
+func attempt_gain() -> Dictionary:
+	if _resource_snapshot.is_empty():
+		return {"scrap": 0, "samples": 0}
+	return {"scrap": maxi(scrap - int(_resource_snapshot["scrap"]), 0), "samples": maxi(samples - int(_resource_snapshot["samples"]), 0)}
+
+
 func take_resource_snapshot() -> void:
 	_resource_snapshot = {"scrap": scrap, "samples": samples, "blueprints": loadout.blueprints.duplicate()}
 
@@ -166,9 +174,8 @@ func run_best_genome() -> Genome:
 
 # --- Campaign flow -------------------------------------------------------------------
 
-## Fresh campaign (New Game+: keeps XP / skills, raises the mutation rate).
+## Fresh campaign (New Game+: keeps weapons and research, raises the mutation rate).
 func start_new_campaign(as_ng_plus: bool = false) -> void:
-	var keep_player: Dictionary = player_data if as_ng_plus else {}
 	campaign_active = true
 	ng_plus = as_ng_plus
 	current_zone = 1
@@ -177,7 +184,6 @@ func start_new_campaign(as_ng_plus: bool = false) -> void:
 	zone_best.clear()
 	zone_elite.clear()
 	side_done.clear()
-	player_data = keep_player
 	if not as_ng_plus:  # New Game+ keeps the weapons and research of the finished run
 		loadout = PlayerLoadout.new()
 		_research = null
@@ -202,12 +208,10 @@ func is_apex_level() -> bool:
 	return level_index == campaign().zones[current_zone - 1].levels.size() - 1
 
 
-## A campaign level was completed. Stores the zone's evolution and the player's progress,
-## advances, saves, and returns where to go: "level" (next level), "safehouse" (zone done)
+## A campaign level was completed. Stores the zone's evolution, advances, saves, and returns where to go: "level" (next level), "safehouse" (zone done)
 ## or "victory" (the Seed is destroyed).
-func finish_level(evolution: Dictionary, player: Dictionary) -> String:
+func finish_level(evolution: Dictionary) -> String:
 	zone_evolution[current_zone] = evolution
-	player_data = player
 	var destination: String = "level"
 	if is_apex_level():
 		if current_zone >= campaign().zones.size():
@@ -228,10 +232,9 @@ func finish_level(evolution: Dictionary, player: Dictionary) -> String:
 	return destination
 
 
-## Same level again from its first wave; evolution and XP so far are kept (GDD 7.2).
-func restart_level(evolution: Dictionary, player: Dictionary) -> void:
+## Same level again from its first wave; the zone's evolution so far is kept.
+func restart_level(evolution: Dictionary) -> void:
 	zone_evolution[current_zone] = evolution
-	player_data = player
 	save_campaign()
 
 
@@ -277,7 +280,7 @@ func to_dict() -> Dictionary:
 	return {
 		"format": SAVE_FORMAT, "active": campaign_active, "zone": current_zone, "level_index": level_index,
 		"zone_evolution": zone_evolution, "zone_best": zone_best, "zone_elite": zone_elite,
-		"player": player_data, "samples": samples, "scrap": scrap, "side_done": side_done,
+		"samples": samples, "scrap": scrap, "side_done": side_done,
 		"won": campaign_won, "endless_unlocked": endless_unlocked, "ng_plus_unlocked": ng_plus_unlocked,
 		"ng_plus": ng_plus, "endless_best_wave": endless_best_wave, "safehouse_pending": safehouse_pending,
 		"loadout": loadout.to_dict(), "research": research().to_array(),
@@ -296,7 +299,7 @@ func from_dict(d: Dictionary) -> bool:
 	zone_evolution = _int_keys(d.get("zone_evolution", {}))
 	zone_best = _int_keys(d.get("zone_best", {}))
 	zone_elite = _int_keys(d.get("zone_elite", {}))
-	player_data = d.get("player", {}) if d.get("player") is Dictionary else {}
+	legacy_notice = _legacy_progress_note(d.get("player"))
 	samples = _num(d.get("samples"), 0)
 	scrap = _num(d.get("scrap"), 0)
 	side_done.clear()
@@ -321,6 +324,7 @@ func from_dict(d: Dictionary) -> bool:
 func save_campaign() -> Error:
 	if test_mode:
 		return OK  # test scenarios never touch the real campaign save
+	legacy_notice = ""
 	return SaveSystem.write_save(to_dict(), SaveSystem.CAMPAIGN_PATH)
 
 
@@ -330,7 +334,7 @@ func end_test_mode() -> void:
 	pending_start_wave = 0
 	start_new_campaign()
 	campaign_active = false
-	player_data = {}
+	legacy_notice = ""
 	campaign_won = false
 	endless_unlocked = false
 	ng_plus_unlocked = false
@@ -351,6 +355,18 @@ static func _num(v: Variant, fallback: int) -> int:
 
 static func _flag(v: Variant) -> bool:
 	return v is bool and v
+
+
+## Format 1 saves carried XP, a level and skills in a "player" section. They were retired: everything
+## else (zone, evolution, scrap, samples) loads. Returns the message for the menu, or "" if nothing was lost.
+static func _legacy_progress_note(player: Variant) -> String:
+	if not player is Dictionary:
+		return ""
+	var had_level: bool = _num(player.get("level"), 1) > 1
+	var had_skills: bool = player.get("unlocked") is Array and not (player["unlocked"] as Array).is_empty()
+	if not had_level and not had_skills:
+		return ""
+	return "XP, levels and skills no longer exist. Your campaign, enemy evolution, scrap and samples are kept."
 
 
 static func _int_keys(d: Variant) -> Dictionary:

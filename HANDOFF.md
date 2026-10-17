@@ -1,7 +1,13 @@
 # Amortia — session handoff
 
 Read this first in a new session, together with `CLAUDE.md` and `Game Design Document.md`.
-It is updated at the end of every prompt. Last update: 2026-10-15.
+It is updated at the end of every prompt. Last update: 2026-10-17.
+
+> **Latest (2026-10-17): player progression redesign done, steps 48–51** (`docs/PROGRESSION.md` = design + numbers;
+> `docs/PROGRESSION_RECOVERY_AUDIT.md` = audit of the interrupted step 51). The player has NO XP, levels or skill tree:
+> fixed base stats + capped Vaccine research + weapons (shotgun) + temporary power-ups. Enemy budget 20/23/26/29 per
+> zone, +1/wave, cap 32. 551 GUT tests pass. Not pushed. Next: the manual playtest checklist in the audit doc (no
+> windowed playtest of steps 48–51 yet), then whatever the user picks. Rows 22–23 / 25 / 30 below are history.
 
 > **Resume here:** steps 1–43 done on `main` (41–43 not pushed). 525 GUT tests pass. Step 47 = debug keys gated to debug builds (`DebugKeys`). Step 46 = enemy behaviour: caution / path_mode / diversity guard removed, ferocity (4th stat, budget 20 -> 32), cohesion = pack coordination, Escort survivor hunting. Step 45 = main menu: New Game / Continue are the CAMPAIGN, Endless moved into Test Scenarios (no saves). Step 44 = P1-a wave-stall fix (hunger ramp + 75 s deadline; see below and docs/graded_ai_notes.md). Step 43 = full audit (docs/audit/: AUDIT_REPORT, BUG_FIXES, REMAINING_ISSUES — read REMAINING_ISSUES before choosing the next step). Step 42: campaign halved to 20 waves. On 2026-10-13 the user asked
 > to "build all": expansion Phases 1–8 were built in one evening (steps 32–39). Open decisions: "Open items" below.
@@ -78,6 +84,10 @@ When something looks odd, check if it's a gene effect first; flag formula proble
 | 45 | Menu restructure (user: the prototype must follow the level/wave table; keep Endless in Test Scenarios). Main menu = New Game (campaign z1_l1), Continue (campaign, shows the level or Safehouse), New Game+ (once unlocked), Test Scenarios, Settings, Quit. The old prototype New Game / Continue and the Campaign submenu are gone. Endless = button in Test Scenarios, runs in test_mode (nothing saved, best wave not persisted). This also closes the Endless-overwrites-prototype-save issue. Safehouse victory text no longer mentions Endless. The prototype loop code (main.gd with no level_config, `user://save.json` helpers) is still there for Endless / tests. 2 tests. | `ui/menus/main_menu.gd`, `ui/menus/safehouse.gd`, `world/campaign/debug_scenarios.gd`, `tests/test_audit_regressions.gd` |
 | 46 | Enemy behaviour (user-approved). **Removed** `caution`, `path_mode` and the GA diversity guard (genome, mutation, crossover, GA stats, WaveManager summaries, Wave Report path-mode bars / detail line, GeneInfo). Navigation code untouched. **Ferocity** = 4th budgeted stat: budget 20 -> 32, +1/wave; damage 8 x (1 + (f-5) x 0.08), cooldown 1.2 x (1 - (f-5) x 0.04) >= 0.5 (gene 10: x1.75 DPS = health at 10); XP reference total 15 -> 20. **Saves:** removed keys ignored, missing ferocity = 5, a legacy genome that fits the new budget keeps its stats exactly (validate no longer requires ferocity / path_mode). **Cohesion** = `PackCoordination` (ai/decision) + `RegroupAction`: first sighting calls packmates within 128 px (lead strength = min(cohesions) x 0.8, an ordinary `hear`), a lonely cohesive enemy regroups (score = cohesion x 0.7 x (1 - wave_pressure) while pack < 3, never boosts Chase), `RegroupBudget` caps waiting at 4 s per chase (reset only after 6 s unseen); the 3-token ring is untouched. **Escort:** `HuntSurvivorAction`; enemies perceive the survivor with the player's sight rules (`EnemyContext.escort`, `WaveManager.set_escort`), route straight or via A* (`Enemy._route_to`, shared with Investigate), `EscortObjective` lets the 3 nearest enemies hit with their own cooldown and ferocity-scaled damage (`escort_max_attackers`). Overlay letters R / S. 33 new tests (`tests/test_enemy_tactics.gd`, genome / GA / save / report tests updated for 4 stats). Seed 4242 runs byte-identical in two parallel processes. Full suite now ~170 s (the scenario tests run in real time). | `ai/decision/*`, `ai/evolution/*`, `data/genome_rules.tres`, `data/utility_ai.tres`, `data/ga.tres`, `data/progression.tres`, `entities/enemies/enemy.gd`, `enemy_context.gd`, `world/objectives/escort_objective.gd`, `objective_config.gd`, `world/wave_manager.gd`, `world/save_game.gd`, `ui/menus/wave_report.gd`, `gene_info.gd`, `tests/*`, `docs/graded_ai_notes.md` |
 | 47 | Debug keys F1-F10 (overlays, F3 next wave, F8 end wave, F9 restart, F10 ignite) only work when `OS.is_debug_build()` (editor / debug export); `ui/debug/debug_keys.gd` (`DebugKeys.enabled()`, `override` for tests). Test Scenarios text mentions F8 only when enabled. 4 tests. Endless-save separation was done in step 45. | `ui/debug/*`, `world/wave_manager.gd`, `world/terrain/terrain_events.gd`, `ui/menus/main_menu.gd`, `tests/test_debug_keys.gd` |
+| 48 | Progression 1 (`93974a1`): enemy stat budget per zone. `GenomeRules.budget_for(zone, wave)` = 20 + 3 × (zone − 1) + (wave − 1), cap 32 (`budget_zone_step` in data/genome_rules.tres); `WaveManager.zone`; zone populations saved before are repaired to the zone's budget on load. GA, fitness, genome allocation untouched. | `ai/evolution/genome_rules.gd`, `data/genome_rules.tres`, `world/wave_manager.gd`, `world/save_game.gd`, `autoload/game_state.gd`, `tests/test_progression.gd` |
+| 49 | Progression 2 (`679f7ce`): modifier layers (`StatModifier`, `PlayerModifiers`: base → permanent research → temporary, always on copies), weapons (`WeaponStats` pellets / spread / draw time, `WeaponLibrary`, `data/weapons/shotgun.tres`), `PlayerLoadout` (owned, blueprints, 2 slots, Q swap), research (`ResearchNode/Tree/State`, Vaccine I–III +10 HP each, hard cap +30, samples + scrap, zone gated), blueprint pickups (z1_l1 last area, zone 1 Apex reward, `ReachableCells`), Safehouse Workbench + Lab, campaign save format 2 (loadout, research). Lost attempt gives back scrap / samples / blueprints. | `entities/player/modifiers/*`, `player_loadout.gd`, `entities/projectiles/weapon_*.gd`, `world/research/*`, `data/research_tree.tres`, `ui/menus/safehouse.gd`, `autoload/game_state.gd`, `tests/test_loadout_research.gd` |
+| 50 | Progression 3 (`d958db4`): temporary power-ups (heal, shield, haste, rapid fire, damage) in the 16 campaign levels (`LevelConfig.powerups_enabled`): seeded per wave, reachable cells 8–40 from the player, first after 12 s then every 25 s, max 3/wave and 2 on the map, ≤ 12 s, same kind refreshes, max 3 timed effects, cleared on revive, never saved. **Had a bug** (fixed in 51): freed pickups stayed in `_on_map`, so after 2 pickups nothing spawned again and every frame logged a typed-array error. | `world/powerups/*`, `data/power_up_set.tres`, `world/main.gd`, `tests/test_power_ups.gd` |
+| 51 | Progression 4: XP, levels and the skill tree removed (PlayerProgression, ProgressionSettings, SkillNode/Tree, PlayerSkills, XpBar, SkillTreeMenu, data/progression.tres, data/skill_tree.tres, data/skills/*, K input, Skills buttons on Wave Report / Downed / Pause). Downed screen shows scrap / samples found this attempt. **Migration:** campaign format 1 loads, XP/skills dropped, one-time menu notice (`GameState.legacy_notice`, cleared by the next save); prototype `save.json` `player` section ignored (warning). Debug scenarios give gear per zone (shotgun + one vaccine per cleared zone) instead of skill points. Power-up list fix (`_on_map.assign(filter(Variant))`). Cleanup: stale XP comments, unused `_legacy_player` params, unused `_pulse`, HUD `BOTTOM_OFFSET` 22 → 6 (the XP bar gap). Editor re-save noise in terrain_costs.tres / greybox_tileset.tres reverted. Tests 577 → 551 (−27 XP/skill tests, save tests reworked, +4: kills never raise stats, legacy notice, expired pickups vanish + spawning continues, collected pickups free their place). Recovery audit: `docs/PROGRESSION_RECOVERY_AUDIT.md`. | `entities/player/player.gd/.tscn`, `autoload/game_state.gd`, `world/main.gd/.tscn`, `world/save_game.gd`, `world/campaign/debug_scenarios.gd`, `world/powerups/power_up_manager.gd`, `ui/menus/*`, `ui/hud/player_status.gd`, `project.godot`, GDD, `docs/PROGRESSION*.md`, tests |
 
 ### Next recommended step (old plan; user now drives the order)
 **Runner attack + player HP → fitness term D.** Evolution-loop test (scratch `evolution_loop.gd`,
@@ -172,8 +182,8 @@ many enemies use A*. Flow rebuilds could move to `WorkerThreadPool` later if the
 `TerrainGrid.get_neighbors` allocates per call; hot loops should use `build_cost_array` + indices.
 
 ## Current controls
-Between waves: Enter skip motion / Continue / Retry · D details · K skills
-WASD move · mouse aim · LMB shoot · Space dodge · F open/close door · B barricade (campaign opening) · F10 ignite tile under mouse (debug) · player down → Game Over screen (Enter = Retry the same wave, K skills) · F1 terrain-cost overlay · F2 flow-field arrows · F3 spawn a wave · F4 attack-ring overlay · F6 noise / awareness / utility-action overlay · F7 genome + live fitness overlay · F8 end wave and print the fitness report · F9 restart current wave (debug) · K skill tree · Esc pause menu (closes the skill tree first if open). HUD top: wave / generation / objective (left), Bloomed traits (right). HUD bottom: HP, dodge cooldown, level, XP bar, skill points. Game starts at the main menu.
+Between waves: Enter skip motion / Continue / Retry · D details
+WASD move · mouse aim · LMB shoot · Space dodge · F open/close door · B barricade (campaign opening) · F10 ignite tile under mouse (debug) · player down → Game Over screen (Enter = Retry the same wave) · F1 terrain-cost overlay · F2 flow-field arrows · F3 spawn a wave · F4 attack-ring overlay · F6 noise / awareness / utility-action overlay · F7 genome + live fitness overlay · F8 end wave and print the fitness report · F9 restart current wave (debug) · Q swap weapon (when two are carried) · Esc pause menu. HUD top: wave / generation / objective (left), Bloomed traits (right). HUD bottom: HP, dodge cooldown, HIDDEN; above it the weapon in hand, shield and active power-ups. Game starts at the main menu.
 
 ## Scene / code map
 - `world/main.tscn` (main scene, script `main.gd`): `MapleHollow`, `WaveManager` (enemies are its
@@ -251,7 +261,7 @@ WASD move · mouse aim · LMB shoot · Space dodge · F open/close door · B bar
 - `ZoneMap` API: `get_grid_size()`, `get_terrain_at(cell)`, `get_terrain_rows()` (plain data for AI),
   `world_to_cell()`, `cell_to_world()`, `get_world_rect()`, `get_player_spawn()`, `get_enemy_spawns()`.
 - Tuning lives in Resources: `PlayerStats` (`data/player_stats.tres`), `WeaponStats` (`data/pistol.tres`).
-- Input actions in `project.godot`: `move_left/right/up/down`, `shoot`, `dodge`, `debug_overlay` (F1), `debug_flow_field` (F2), `debug_spawn_wave` (F3), `debug_attack_ring` (F4), `debug_awareness` (F6), `debug_genome` (F7), `debug_end_wave` (F8), `debug_restart_wave` (F9), `skill_tree` (K).
+- Input actions in `project.godot`: `move_left/right/up/down`, `shoot`, `dodge`, `debug_overlay` (F1), `debug_flow_field` (F2), `debug_spawn_wave` (F3), `debug_attack_ring` (F4), `debug_awareness` (F6), `debug_genome` (F7), `debug_end_wave` (F8), `debug_restart_wave` (F9), `swap_weapon` (Q), `report_details` (D), `interact` / `build` etc.
 - Physics layers: 1 world, 2 player, 3 enemies, 4 player_bullets, 5 enemy_attacks, 6 barricades, 7 water.
   (Layer 6 is still unused: barricades are tiles on layer 1.)
   Player: layer 2, mask 1+7. Enemy: layer 3, mask 1+3+7. Bullet: layer 4, mask 1+3. SOLID tiles: layer 1,
@@ -292,7 +302,8 @@ Spawns are 15–32 tiles from the player; all 1383 walkable cells reachable (che
   (that compiles game scripts early → "Identifier not found: EventBus"). Use untyped vars.
 - `Performance.TIME_PHYSICS_PROCESS` is coarse/stale headless; measure frame time with
   `Time.get_ticks_usec()` between consecutive frames instead.
-- XP/leveling lives in `entities/player/` (not graded `ai/`), so it was written directly.
+- Player progression (loadout, modifiers, research) lives outside graded `ai/`, so it was written directly.
+- Tests that write `user://campaign.json` back it up in before_all and restore it in after_all; keep that pattern.
 - Learning-mode files written on request so far: astar.gd, flow_field.gd, path_queue.gd (ai/nav),
   awareness.gd, utility_ai.gd, utility_action.gd, actions/*.gd, flank_planner.gd, decision_inputs.gd,
   behaviour_weights.gd, utility_settings.gd (ai/decision), genome.gd, genome_rules.gd, fitness*.gd,
@@ -336,7 +347,7 @@ Spawns are 15–32 tiles from the player; all 1383 walkable cells reachable (che
   1. Proposed numbers: fire 15 / toxic 6 dps, footstep radii 24 / 48 / 96 px, shot exposure 1.5 s, night hearing
      +25 % (+50 % night-sense), adaptation budget 1.5, straggler pacing, Hold / Escort / Nest HP, boss ×12 HP ×2 dmg.
   2. Death after clearing a wave: wave stays cleared, next area (alternative: retry).
-  3. Campaign death: Retry wave or Restart level, both keep XP + evolution.
+  3. Campaign death: Retry wave or Restart level, both keep evolution (and give back resources found in the attempt).
   4. Grass burnable (GDD 4.4; the 4.2 table lists only tall grass).
   5. Enemies not slowed by mud / tall grass; terrain only changes their route.
   6. Fences shootable (40 HP) in the prototype too.
@@ -385,8 +396,8 @@ Spawns are 15–32 tiles from the player; all 1383 walkable cells reachable (che
 - (Resolved step 31: player death now shows a Game Over screen and the wave is replayed.)
 - Evolution only uses CLEARED waves: a lost attempt is scored for display but its fitness is thrown
   away (D is highest exactly in the waves the player loses). If the GA should also learn from deaths,
-  that's a design decision (e.g. breed but keep the wave number). Repeated deaths farm XP by design
-  (the Game Over screen offers the skill tree). F9 now also moves the player back to the spawn.
+  that's a design decision (e.g. breed but keep the wave number). Repeated deaths farm nothing: a lost
+  attempt gives back its resources (step 49). F9 now also moves the player back to the spawn.
 - Headless timing on this laptop (i7-13700HX) is unreliable: Windows schedules background consoles on
   E-cores. Calibrate with a reference loop, or measure windowed/foreground.
 - Scripted tests that load `world/main.tscn` now WRITE `user://save.json` at every wave end
@@ -395,13 +406,5 @@ Spawns are 15–32 tiles from the player; all 1383 walkable cells reachable (che
 - Headless/`-s` test scripts: the main scene is now the menu — load `res://world/main.tscn` directly.
   `root.push_input(InputEventAction)` does NOT update `Input.is_action_just_pressed`; use
   `Input.action_press/action_release` to simulate gameplay keys.
-- XP bonus for evolved enemies uses the genome's *stat total*. Measured (step 22, 9 waves, all 20
-  killed each wave): budget rose 15 → 23 but XP per kill only 10 → 10–13, ~200–211 XP per wave,
-  because GA children are only repaired *down* when over budget and never fill a bigger budget, so
-  stat totals stay near wave-1 values (and D = 0 gives no pressure). Gene/GA fact, not an XP bug —
-  decide later whether XP should follow the wave budget/generation instead.
-- Pace at the current curve: level 13 after 9 full waves; level 30 needs 9 280 XP (~45 waves).
-- 5th-level bonus perk choice (GDD 7.2), XP pickups/popups, saving XP/skills: not built.
-- Skill tree is the 6-node prototype; one effect per node. Thick Skin / Safe Roll only matter once
-  the player can take damage (HP exists, no damage source yet). No respec.
+- (Retired step 51: XP curve, XP per kill, skill tree notes. See `docs/PROGRESSION.md`.)
 - Terrain cost profiles exist; wiring genes → profiles happens with the genome (GDD §5.3). Adaptation budget (sum ≤ 1.5) is the genome's job, not the grid's.

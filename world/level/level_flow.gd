@@ -8,10 +8,10 @@ extends Node
 ##             -> scored and bred by the WaveManager as always
 ##   CLEARED   the right-hand exit gate opens; the player may stay to pick up samples / scrap;
 ##             after straggler_delay_seconds stragglers come, faster and faster (not scored)
-##   EXITED    player walked through the exit -> Wave Report (+ skill tree) -> Continue loads the
+##   EXITED    player walked through the exit -> Wave Report -> Continue loads the
 ##             next area variant and the next wave
-##   COMPLETE  after the level's last wave: the Wave Report still opens (it is where evolution and
-##             the skill points show, and most levels are 1-2 waves), Continue -> level_completed
+##   COMPLETE  after the level's last wave: the Wave Report still opens (it is where evolution
+##             shows, and most levels are 1-2 waves), Continue -> level_completed
 ##
 ## Separation of concerns: the WaveManager owns waves, scoring and evolution; this node only
 ## sequences areas around it. Losing a wave (player down, objective failed) uses the same

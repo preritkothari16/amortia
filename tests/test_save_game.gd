@@ -1,27 +1,18 @@
 extends GutTest
 ## Tests for SaveGame (capture + validation) and the SaveSystem file round trip.
 
-var _settings: ProgressionSettings
-var _tree: SkillTree
 var _rules: GenomeRules
 var _rng: RandomNumberGenerator
 
 
 func before_each() -> void:
-	_settings = ProgressionSettings.new()
-	_tree = load("res://data/skill_tree.tres") as SkillTree
 	_rules = GenomeRules.new()
 	_rng = RandomNumberGenerator.new()
 	_rng.seed = 99
 
 
-## A good save: level 4 (3 points earned), Rapid Fire + Thick Skin bought (2), 1 left.
+## A good save: wave 4 of the prototype loop, generation 3, 20 genomes.
 func _good_save() -> Dictionary:
-	var progression: PlayerProgression = PlayerProgression.new(_settings)
-	progression.add_xp(40 + 60 + 80 + 25)
-	var skills: PlayerSkills = PlayerSkills.new(_tree, progression)
-	skills.unlock(&"rapid_fire")
-	skills.unlock(&"thick_skin")
 	var pop: Array[Dictionary] = []
 	for i: int in 20:
 		pop.append(Genome.random(_rng, _rules, _rules.budget_for_wave(4)).to_dict())
@@ -30,7 +21,7 @@ func _good_save() -> Dictionary:
 		"history": [{"from_wave": 1, "best_fitness": 0.15, "mean_fitness": 0.12}],
 		"ga_seed": "123", "ga_rng_state": "9223372036854775807", "spawn_rng_state": "-5",
 	}
-	return SaveGame.capture(progression, skills, evolution)
+	return SaveGame.capture(evolution)
 
 
 ## Simulates writing to disk and reading back: all ints become floats.
@@ -39,18 +30,14 @@ func _through_json(d: Dictionary) -> Dictionary:
 
 
 func _validate(d: Variant) -> Dictionary:
-	return SaveGame.validate(d, _settings, _tree, _rules)
+	return SaveGame.validate(d, _rules)
 
 
 func test_round_trip_through_json_is_clean() -> void:
 	var r: Dictionary = _validate(_through_json(_good_save()))
 	assert_true(r["ok"], r["error"])
 	assert_eq(r["warnings"].size(), 0, str(r["warnings"]))
-	var p: Dictionary = r["data"]["player"]
-	assert_eq(p["level"], 4)
-	assert_eq(p["xp"], 25)
-	assert_eq(p["skill_points"], 1)
-	assert_eq(p["unlocked"], [&"rapid_fire", &"thick_skin"] as Array[StringName])
+	assert_false(r["data"].has("player"), "XP and skills are gone from the validated save")
 	var e: Dictionary = r["data"]["evolution"]
 	assert_eq(e["next_wave"], 4)
 	assert_eq(e["generation"], 3)
@@ -191,63 +178,37 @@ func test_over_budget_genome_repaired() -> void:
 	assert_eq(g.aggression, 1.0)
 
 
-func test_level_and_xp_clamped() -> void:
+# --- Old saves with XP and skills (retired) -------------------------------------------------
+
+func _old_player_section() -> Dictionary:
+	return {"level": 9, "xp": 12, "total_xp": 1500, "skill_points": 3, "unlocked": ["rapid_fire", "thick_skin"]}
+
+
+func test_old_save_with_xp_and_skills_still_loads_and_keeps_its_evolution() -> void:
 	var d: Dictionary = _good_save()
-	d["player"]["level"] = 500
-	d["player"]["xp"] = 99999
-	var r: Dictionary = _validate(d)
-	assert_true(r["ok"])
-	assert_eq(r["data"]["player"]["level"], 30)
-	assert_eq(r["data"]["player"]["xp"], 0, "no XP at the cap")
-	assert_gt(r["warnings"].size(), 0)
+	d["player"] = _old_player_section()
+	var r: Dictionary = _validate(_through_json(d))
+	assert_true(r["ok"], r["error"])
+	assert_eq(r["data"]["evolution"]["next_wave"], 4)
+	assert_eq(r["data"]["evolution"]["population"].size(), 20)
+	assert_true(str(r["warnings"]).contains("no longer exist"), "the player is told once: %s" % str(r["warnings"]))
+	assert_false(r["data"].has("player"))
 
 
-func test_negative_xp_clamped() -> void:
+func test_new_save_has_an_empty_player_section_and_no_warning() -> void:
 	var d: Dictionary = _good_save()
-	d["player"]["xp"] = -10
-	assert_eq(_validate(d)["data"]["player"]["xp"], 0)
+	assert_eq(d["player"], {})
+	assert_eq(_validate(_through_json(d))["warnings"].size(), 0)
 
 
-func test_missing_numbers_use_fallbacks() -> void:
-	var d: Dictionary = _good_save()
-	d["player"] = {}
-	var r: Dictionary = _validate(d)
-	assert_true(r["ok"])
-	assert_eq(r["data"]["player"]["level"], 1)
-	assert_eq(r["data"]["player"]["skill_points"], 0)
-
-
-func test_unknown_and_duplicate_skills_dropped() -> void:
-	var d: Dictionary = _good_save()
-	d["player"]["unlocked"] = ["rapid_fire", "laser_eyes", "rapid_fire", 7]
-	var r: Dictionary = _validate(d)
-	assert_eq(r["data"]["player"]["unlocked"], [&"rapid_fire"] as Array[StringName])
-	assert_eq(r["data"]["player"]["skill_points"], 2, "3 earned - 1 spent")
-
-
-func test_skill_without_prerequisite_dropped() -> void:
-	var d: Dictionary = _good_save()
-	d["player"]["unlocked"] = ["hollow_points"]
-	var r: Dictionary = _validate(d)
-	assert_eq(r["data"]["player"]["unlocked"].size(), 0)
-	assert_eq(r["data"]["player"]["skill_points"], 3)
-
-
-func test_skills_level_cannot_pay_for_are_dropped() -> void:
-	var d: Dictionary = _good_save()
-	d["player"]["level"] = 2  # 1 point earned
-	d["player"]["xp"] = 0
-	var r: Dictionary = _validate(d)
-	assert_eq(r["data"]["player"]["unlocked"], [&"rapid_fire"] as Array[StringName])
-	assert_eq(r["data"]["player"]["skill_points"], 0)
-
-
-func test_edited_skill_points_corrected() -> void:
-	var d: Dictionary = _good_save()
-	d["player"]["skill_points"] = 50
-	var r: Dictionary = _validate(d)
-	assert_eq(r["data"]["player"]["skill_points"], 1)
-	assert_gt(r["warnings"].size(), 0)
+func test_garbage_player_section_is_ignored() -> void:
+	for junk: Variant in [null, "x", 5, [1, 2], {"level": "high", "unlocked": 3}]:
+		var d: Dictionary = _good_save()
+		d["player"] = junk
+		assert_true(_validate(d)["ok"])
+	var no_player: Dictionary = _good_save()
+	no_player.erase("player")
+	assert_true(_validate(no_player)["ok"], "the section is optional")
 
 
 func test_generation_not_above_waves_played() -> void:

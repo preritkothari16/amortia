@@ -263,7 +263,7 @@ Later: Hold for pack, Retreat, Break obstacle. Because the GA evolves the weight
 
 ## 7. Player and progression
 
-One fixed player character: a **ranged shooter**, no classes and no melee. All extra abilities come from the skill tree; the player grows through levels, the skill tree, research and the Safehouse.
+One fixed player character: a **ranged shooter**, no classes and no melee. **The player has no automatic stat progression: no XP, no levels, no skill tree.** Base HP, speed and the other innate stats stay constant. The player gets stronger by playing better, by finding and building different weapons, by collecting resources, and by rare, capped research at the Safehouse. Enemies are the ones who grow: they evolve every wave (Section 5) and their stat budget rises (7.2).
 
 ### 7.1 Player basics
 
@@ -271,39 +271,39 @@ One fixed player character: a **ranged shooter**, no classes and no melee. All e
 
 | Item | Value (starting point) |
 | --- | --- |
-| Controls | WASD move · mouse aim · LMB shoot · Space dodge roll · R reload · Q/E skills · F interact · B build · Tab map |
-| Health | 100 HP; healing from Safehouse and medkits |
+| Controls | WASD move · mouse aim · LMB shoot · Space dodge roll · Q swap weapon · F interact · B build |
+| Health | 100 HP (constant; the only permanent change is Vaccine research, +30 HP at most); healing from medkit power-ups |
 | Dodge roll | Movement only (no damage): 0.3 s invulnerable, 1.2 s cooldown |
-| Loadout | 2 guns + up to 2 unlocked skills |
+| Loadout | Two weapon slots (pistol always owned) |
 
-### 7.2 XP and levels
+### 7.2 No XP: what the player earns and how enemy strength ramps
 
-- XP from kills (more for highly evolved enemies), objectives and research.
-- Level cap 30; each level = 1 skill point. Every 5th level = bonus perk choice (pick 1 of 3).
-- Death in a level: keep XP and research, restart the level. The enemies' evolution is kept too.
+- Kills drop **scrap** and **samples** (and rare blueprints are found on levels); resources found in a lost attempt are given back on Retry.
+- Death in a level: keep what you earned in earlier levels, replay the wave; the enemies' evolution is kept.
+- **Enemy stat budget** (points spent on speed, health, vision, ferocity): zone 1 starts at 20, zone 2 at 23, zone 3 at 26, zone 4 at 29, **+1 per wave**, capped at 32. So the enemies keep getting stronger across the whole campaign while the player's own stats stay flat; the player's answer is skill, weapons and research.
 
-### 7.3 Skill tree — 3 branches
+### 7.3 Progression sources (replaces the skill tree)
 
-The branches are upgrade paths for the same shooter, not classes; players can mix them freely.
-
-| Branch | Sample nodes | Capstone (level 20+) |
+| Source | What it gives | Limits |
 | --- | --- | --- |
-| **Firepower** | Faster reload, piercing rounds, bonus damage on weak spots, bigger magazine | **Overclock** — 5 s of double fire rate |
-| **Fortify** | Stronger barricades, auto-turret, spike traps, repair kit | **Fortress** — deploy walls + turret instantly |
-| **Adapt** | Faster dodge, quieter footsteps, stealth in tall grass, slow regen | **Mimic** — enemies lose track of you for 6 s |
+| Skill | Aiming, dodging, positioning, reading the Wave Report | none — this is the main progression |
+| Weapons | Different tools with trade-offs, not strict upgrades (shotgun: devastating up close, short range, slow, loud, slow to draw) | two slots; blueprint found or earned → built at the Workbench for scrap |
+| Research (Lab) | Permanent, rare, capped improvements: Vaccine I–III = +10 max HP each | total +30 HP; costs samples + scrap; unlocked by zone and by finishing the earlier vaccine; no routine speed, dodge or damage upgrades |
+| Temporary power-ups | Heal, shield, haste, fire rate, damage: brief boosts (≤ 12 s) that spawn on reachable cells | never stack (same kind refreshes), at most 3 timed effects at once, never saved |
 
-\~8 nodes per branch in v1 (24 total). Prototype: 6 nodes. Respec at the Safehouse.
+Permanent research, weapon equipment and temporary effects are separate layers: a temporary effect can never change saved or base stats.
 
 ### 7.4 Weapons
 
-- **Prototype:** pistol + one unlockable gun (shotgun).
+- **Pistol** (always owned): 10 damage, 4 shots a second, range about 20 tiles.
+- **Shotgun** (first blueprint: hidden in the first level or handed over by the first Apex; 80 scrap to build): 8 pellets × 6 damage in a 16° cone, one shot per 0.85 s, range about 6 tiles, noise radius 256 (pistol 192), 0.4 s to draw.
 - **Later:** SMG, crossbow (silent), flamethrower (sets terrain on fire), nail gun; 2 mod slots each.
-- **Power-ups: dropped from the prototype.** Possible later addition, not planned yet.
+- **Temporary power-ups are in** (7.3), kept separate from permanent progression.
 
 ### 7.5 Research — counter the evolution
 
 - Killed enemies drop **samples** tagged with their strain.
-- At the Safehouse lab, samples unlock: the strain's bestiary entry → its gene readout in the HUD → a **counter-item** (e.g. anti-swarm grenade vs. high-Cohesion strains, sonic lure vs. Night-sense strains).
+- At the Safehouse lab, samples (and scrap) unlock: the strain's bestiary entry → its gene readout in the HUD → a **counter-item** (e.g. anti-swarm grenade vs. high-Cohesion strains, sonic lure vs. Night-sense strains).
 - The arms race made explicit: they adapt, you study, you counter.
 
 ### 7.6 Safehouse (hub)

@@ -125,8 +125,7 @@ func test_old_save_without_terrain_genes_validates() -> void:
 		"player": {"level": 1, "xp": 0, "total_xp": 0, "skill_points": 0, "unlocked": []},
 		"evolution": {"next_wave": 2, "generation": 1, "population": population, "history": []},
 	}
-	var result: Dictionary = SaveGame.validate(data, load("res://data/progression.tres"),
-			load("res://data/skill_tree.tres"), _rules)
+	var result: Dictionary = SaveGame.validate(data, _rules)
 	assert_true(result["ok"], str(result.get("error", "")))
 
 

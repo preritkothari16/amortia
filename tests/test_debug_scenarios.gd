@@ -35,7 +35,8 @@ func test_level_end_scenario_starts_at_the_last_wave() -> void:
 	assert_true(GameState.campaign_active)
 	assert_eq(GameState.current_level().id, "z1_l1")
 	assert_eq(GameState.pending_start_wave, GameState.current_level().waves - 1)
-	assert_eq(GameState.player_data["level"], 1, "zone 1: a fresh player")
+	assert_eq(GameState.loadout.owned, [&"pistol"] as Array[StringName], "zone 1: the starting pistol only")
+	assert_eq(GameState.research().unlocked.size(), 0)
 
 
 func test_every_menu_scenario_prepares() -> void:
@@ -60,8 +61,8 @@ func test_later_zone_is_reached_through_the_real_zone_transition() -> void:
 	assert_eq(GameState.zone_evolution[3]["generation"], 0)
 	for z: int in [1, 2, 3]:
 		assert_true(GameState.zone_best.has(z), "zone %d has a best genome (Apex boss)" % z)
-	assert_eq(GameState.player_data["level"], 1 + 2 * DebugScenarios.PLAYER_LEVELS_PER_ZONE)
-	assert_eq(GameState.player_data["skill_points"], 2 * DebugScenarios.PLAYER_LEVELS_PER_ZONE)
+	assert_true(GameState.loadout.is_owned(&"shotgun"), "a player who cleared two zones has the shotgun")
+	assert_eq(GameState.research().unlocked, [&"vaccine_1", &"vaccine_2"] as Array[StringName], "one vaccine per cleared zone")
 
 
 func test_seed_scenario_has_a_run_best_genome() -> void:
@@ -78,20 +79,22 @@ func test_prepare_is_deterministic() -> void:
 	assert_eq(GameState.zone_evolution[2], a)
 
 
-func test_player_data_passes_save_validation() -> void:
-	var settings: ProgressionSettings = load("res://data/progression.tres")
-	var warnings: PackedStringArray = PackedStringArray()
-	var tree: SkillTree = load("res://data/skill_tree.tres")
-	var p: Dictionary = DebugScenarios.player_for_zone(4)
-	SaveGame._validate_player(p, settings, tree, warnings)
-	assert_eq(warnings.size(), 0, ", ".join(warnings))
+func test_preset_gear_is_legal_for_every_zone() -> void:
+	for zone: int in [1, 2, 3, 4]:
+		DebugScenarios.prepare(zone, 0, false)
+		var l: PlayerLoadout = GameState.loadout
+		assert_eq(PlayerLoadout.from_dict(l.to_dict()).to_dict(), l.to_dict(), "zone %d loadout survives a save round trip" % zone)
+		var again: ResearchState = ResearchState.new(GameState.research().tree)
+		assert_eq(again.restore(GameState.research().to_array()).size(), 0, "zone %d research is consistent" % zone)
+		assert_eq(GameState.research().unlocked.size(), zone - 1)
+		assert_lte(GameState.research().group_total(&"health"), 30.0)
 
 
 func test_test_mode_never_writes_the_campaign_save() -> void:
 	SaveSystem.delete_save(SaveSystem.CAMPAIGN_PATH)
 	DebugScenarios.prepare(2, 0, false)  # runs enter_next_zone(), which saves
 	assert_eq(GameState.save_campaign(), OK)
-	assert_eq(GameState.finish_level({}, {}), "level")
+	assert_eq(GameState.finish_level({}), "level")
 	assert_false(FileAccess.file_exists(SaveSystem.CAMPAIGN_PATH))
 
 

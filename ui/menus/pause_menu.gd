@@ -1,6 +1,6 @@
 class_name PauseMenu
 extends Control
-## Greybox pause menu (Esc): Resume, Skills, Main Menu, Quit, plus a controls reminder.
+## Greybox pause menu (Esc): Resume, Main Menu, Quit, plus a controls reminder.
 ## Pauses the game and restores the previous pause state on Resume (the Wave Report may
 ## already have paused it). The save is a between-waves checkpoint, so leaving mid-wave loses
 ## only that wave's progress; the menu says so.
@@ -8,10 +8,9 @@ extends Control
 const MAIN_MENU_SCENE: String = "res://ui/menus/main_menu.tscn"
 const FONT_SIZE: int = 8
 const BUTTON_SIZE: Vector2 = Vector2(110, 16)
-const CONTROLS: String = "WASD move  ·  mouse aim  ·  LMB shoot  ·  Space dodge\nK skill tree  ·  Esc pause"
+const CONTROLS: String = "WASD move  ·  mouse aim  ·  LMB shoot  ·  Space dodge\nQ swap weapon  ·  Esc pause"
 
 var wave_manager: WaveManager
-var skill_menu: SkillTreeMenu
 
 var _resume_button: Button
 var _note: Label
@@ -43,7 +42,6 @@ func _ready() -> void:
 
 	_add_label(column, "PAUSED", 10, Color.WHITE)
 	_resume_button = _add_button(column, "Resume", close)
-	_add_button(column, "Skills", _on_skills)
 	_add_button(column, "Main Menu", _on_main_menu)
 	_add_button(column, "Quit", _on_quit)
 	_note = _add_label(column, "", FONT_SIZE, Color(1.0, 0.7, 0.45))
@@ -73,12 +71,6 @@ func close() -> void:
 		return
 	visible = false
 	get_tree().paused = _was_paused
-
-
-func _on_skills() -> void:
-	close()
-	if skill_menu != null:
-		skill_menu.open()
 
 
 func _on_main_menu() -> void:

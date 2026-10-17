@@ -55,7 +55,7 @@ func _physics_process(delta: float) -> void:
 	if not enabled or settings == null or wave_manager == null or not wave_manager.is_wave_running() \
 			or wave_manager.is_arriving() or player == null or player.is_dead:
 		return
-	_on_map = _on_map.filter(func(p: PowerUpPickup) -> bool: return is_instance_valid(p) and not p.is_queued_for_deletion())
+	_on_map.assign(_on_map.filter(func(p: Variant) -> bool: return is_instance_valid(p) and not (p as Node).is_queued_for_deletion()))
 	_timer -= delta
 	if _timer > 0.0:
 		return

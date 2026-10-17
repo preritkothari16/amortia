@@ -2,9 +2,8 @@ class_name ReportScreen
 extends Control
 ## Shared frame of the between-wave screens (Wave Report, Downed): dim full-screen backdrop,
 ## a panel anchored to the screen with margins (no fixed positions - containers lay it out),
-## pages that swap inside the panel (overview / details / ...), slide-in motion, the Skills
-## button with its points badge, and the keys: Enter = skip the motion, then the primary
-## action; D = details; K = skill tree (handled by SkillTreeMenu).
+## pages that swap inside the panel (overview / details / ...), slide-in motion, and the keys:
+## Enter = skip the motion, then the primary action; D = details.
 ##
 ## The node tree is built ONCE in _ready; every wave only refills it (set_* calls, pages shown
 ## or hidden), so nothing piles up between waves. Look: ui/theme/ui_theme.tres
@@ -16,12 +15,6 @@ const SLIDE_SECONDS: float = 0.25
 const BAR_SECONDS: float = 0.6
 const CHIP_STAGGER: float = 0.06
 
-## Opens the skill tree (connected by the level).
-signal skills_requested
-
-## Set by the level: unspent skill points on the Skills badge.
-var player: Player
-
 var _backdrop: ColorRect
 var _frame: MarginContainer
 var _panel: PanelContainer
@@ -30,10 +23,6 @@ var _pages: Dictionary = {}
 var _page_box: VBoxContainer
 var _current_page: String = ""
 var _details_button: Button
-var _skills_button: Button
-var _badge: PanelContainer
-var _badge_label: Label
-var _pulse: Tween
 var _tweens: Array[Tween] = []
 
 
@@ -114,16 +103,10 @@ func _primary_button() -> Button:
 func present() -> void:
 	show_page(_pages.keys()[0])
 	visible = true
-	_update_skills()
 	_play_in()
 	var primary: Button = _primary_button()
 	if primary != null:
 		primary.grab_focus.call_deferred()
-
-
-func _process(_delta: float) -> void:
-	if visible:
-		_update_skills()  # points change while the skill tree is open on top
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -220,34 +203,6 @@ func stagger_in(controls: Array) -> void:
 		var c: CanvasItem = controls[i]
 		c.modulate.a = 0.0
 		motion().tween_property(c, "modulate:a", 1.0, 0.15).set_delay(SLIDE_SECONDS * 0.5 + CHIP_STAGGER * i)
-
-
-# --- Skills button + badge ----------------------------------------------------------------
-
-func add_skills_button(parent: Container) -> void:
-	_skills_button = add_button(parent, "Skills (K)", skills_requested.emit, &"")
-	_badge = PanelContainer.new()
-	_badge.theme_type_variation = &"Badge"
-	_badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_badge_label = label(_badge, "", &"BadgeLabel")
-	parent.add_child(_badge)
-
-
-func _update_skills() -> void:
-	if _skills_button == null:
-		return
-	var points: int = player.progression.skill_points if player != null else 0
-	_badge.visible = points > 0
-	_badge_label.text = "%d point%s" % [points, "" if points == 1 else "s"]
-	_skills_button.tooltip_text = "Spend skill points (K)" if points > 0 else "Skill tree (K)"
-	if points > 0 and (_pulse == null or not _pulse.is_valid()):
-		_pulse = create_tween().set_loops()
-		_pulse.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
-		_pulse.tween_property(_badge, "modulate:a", 0.45, 0.6)
-		_pulse.tween_property(_badge, "modulate:a", 1.0, 0.6)
-	elif points == 0 and _pulse != null and _pulse.is_valid():
-		_pulse.kill()
-		_badge.modulate.a = 1.0
 
 
 func add_details_button(parent: Container) -> void:

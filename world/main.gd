@@ -11,8 +11,7 @@ extends Node2D
 ## Campaign level to play (areas, waves, objective, events). null = the prototype loop on
 ## Maple Hollow; GameState.pending_level fills it when a menu starts a level.
 @export var level_config: LevelConfig
-## Save to user://save.json between waves (after each wave is bred, and when a skill is bought
-## between waves). Off for tests that shouldn't touch the save file.
+## Save to user://save.json between waves (prototype loop: after each wave is bred or lost). Off for tests that shouldn't touch the save file.
 @export var autosave: bool = true
 ## Experiments / tests: make runs repeatable. The PathQueue normally stops after 2 ms of A*
 ## per frame, so how many paths finish each frame depends on CPU speed -> same seed, different
@@ -41,8 +40,8 @@ var level_flow: LevelFlow
 var objective: Objective
 ## Temporary power-ups (null when the level has none).
 var power_up_manager: PowerUpManager
-## True when this level is the campaign's current level (GameState): XP and the zone's
-## population come from GameState and go back to it when the level is done.
+## True when this level is the campaign's current level (GameState): the zone's
+## population comes from GameState and goes back to it when the level is done.
 var in_campaign: bool = false
 ## Waves of the level counted as done at the start (test scenarios: GameState.pending_start_wave).
 var start_wave: int = 0
@@ -59,9 +58,7 @@ var last_flow_build_msec: float = 0.0
 @onready var _genome_overlay: GenomeOverlay = $GenomeOverlay
 @onready var _wave_hud: WaveHud = $HUD/WaveHud
 @onready var _wave_report: WaveReport = $HUD/WaveReport
-@onready var _xp_bar: XpBar = $HUD/XpBar
 @onready var _player_status: PlayerStatus = $HUD/PlayerStatus
-@onready var _skill_menu: SkillTreeMenu = $HUD/SkillTreeMenu
 @onready var _pause_menu: PauseMenu = $HUD/PauseMenu
 @onready var _game_over: GameOverScreen = $HUD/GameOverScreen
 @onready var _terrain_view: TerrainView = $TerrainView
@@ -103,15 +100,8 @@ func _ready() -> void:
 	_wave_hud.wave_manager = _wave_manager
 	_wave_hud.terrain_events = _terrain_events
 	_wave_report.wave_manager = _wave_manager
-	_xp_bar.progression = _player.progression
-	_skill_menu.player = _player
 	_pause_menu.wave_manager = _wave_manager
-	_pause_menu.skill_menu = _skill_menu
-	_wave_report.player = _player
-	_wave_report.skills_requested.connect(_skill_menu.open)
 	_game_over.wave_manager = _wave_manager
-	_game_over.player = _player
-	_game_over.skills_requested.connect(_skill_menu.open)
 	_game_over.retry_requested.connect(_wave_manager.continue_to_next_wave)
 	_game_over.main_menu_requested.connect(_on_main_menu)
 	_game_over.restart_level_requested.connect(_on_restart_level)
@@ -140,9 +130,8 @@ func _ready() -> void:
 	_wave_manager.generation_bred.connect(func(_summary: Dictionary) -> void: save_game())
 	# Apex bosses are built from the zone's fittest genome (failed waves count: the attempt was real).
 	_wave_manager.wave_ended.connect(GameState.record_wave_best)
-	# A lost wave is saved too (XP from the attempt kept, the save replays that wave).
+	# A lost wave is saved too (the save replays that wave).
 	_wave_manager.wave_failed.connect(func(_summary: Dictionary) -> void: save_game())
-	_player.skills.changed.connect(_on_skills_changed)
 	# Player down -> the wave is lost (Game Over screen, not bred) and Retry replays it.
 	# Deferred so the attack that killed the player finishes first. Every wave starts with
 	# full HP; a replayed wave also starts from the player spawn.
@@ -275,21 +264,16 @@ func _on_level_completed() -> void:
 	EventBus.level_completed.emit(level_config)
 	if not in_campaign:
 		return
-	var player: Dictionary = SaveGame.capture(_player.progression, _player.skills, {})["player"]
-	var destination: String = GameState.finish_level(_wave_manager.get_save_state(), player)
+	var destination: String = GameState.finish_level(_wave_manager.get_save_state())
 	if destination == "level":
 		GameState.call_deferred("start_current_level", get_tree())
 	else:
 		get_tree().call_deferred("change_scene_to_file", GameState.SAFEHOUSE_SCENE)
 
 
-## Campaign: XP / skills from the previous level, the zone's population so far (validated the
-## same way as a save), New Game+ mutation rate.
+## Campaign: the zone's population so far (validated the same way as a save), New Game+ mutation rate.
 func _load_campaign_state() -> void:
 	var warnings: PackedStringArray = PackedStringArray()
-	if not GameState.player_data.is_empty():
-		_player.apply_save(SaveGame._validate_player(GameState.player_data, _player.progression_settings,
-				_player.skill_tree, warnings))
 	var evolution: Variant = GameState.zone_evolution.get(GameState.current_zone)
 	if evolution is Dictionary:
 		var checked: Dictionary = SaveGame._validate_evolution(evolution, genome_rules, warnings, GameState.current_zone)
@@ -304,12 +288,11 @@ func _load_campaign_state() -> void:
 		push_warning("Campaign: " + w)
 
 
-## Game Over -> "Restart level": the same level from its first wave, keeping XP and the
-## zone's evolution (GDD 7.2).
+## Game Over -> "Restart level": the same level from its first wave, keeping the zone's
+## evolution. Resources found in the lost attempt are given back.
 func _on_restart_level() -> void:
 	GameState.restore_resource_snapshot()
-	var player: Dictionary = SaveGame.capture(_player.progression, _player.skills, {})["player"]
-	GameState.restart_level(_wave_manager.get_save_state(), player)
+	GameState.restart_level(_wave_manager.get_save_state())
 	GameState.start_current_level(get_tree())
 
 
@@ -344,22 +327,14 @@ func _on_main_menu() -> void:
 
 # --- Save / load ---------------------------------------------------------------------
 
-## Writes the checkpoint: player XP/level/skills + the population for the next wave.
+## Writes the checkpoint (prototype loop): the population for the next wave.
 func save_game() -> void:
 	if not autosave or level_config != null or GameState.test_mode:
 		return  # campaign levels save at level boundaries (GameState), not per wave; tests never save
-	var data: Dictionary = SaveGame.capture(_player.progression, _player.skills, _wave_manager.get_save_state())
+	var data: Dictionary = SaveGame.capture(_wave_manager.get_save_state())
 	if SaveSystem.write_save(data) == OK:
-		print("[Save] saved: level %d, %d skills, next wave %d, generation %d" % [
-			_player.progression.level, _player.skills.unlocked.size(),
-			data["evolution"]["next_wave"], data["evolution"]["generation"]])
+		print("[Save] saved: next wave %d, generation %d" % [data["evolution"]["next_wave"], data["evolution"]["generation"]])
 
-
-## Skills bought between waves are saved right away; during a wave they are saved with the
-## next checkpoint (the save always describes the start of a wave).
-func _on_skills_changed() -> void:
-	if not _wave_manager.is_wave_running() and _wave_manager.wave_number > 0:
-		save_game()
 
 
 ## Continue from the main menu: check the save, then hand its parts to the player and the
@@ -369,14 +344,12 @@ func _load_pending_save() -> void:
 	SaveSystem.pending_state = {}
 	if pending.is_empty():
 		return
-	var result: Dictionary = SaveGame.validate(pending, _player.progression_settings,
-		_player.skill_tree, genome_rules)
+	var result: Dictionary = SaveGame.validate(pending, genome_rules)
 	for w: String in result["warnings"]:
 		push_warning("Save: " + w)
 	if not result["ok"]:
 		push_error("Save could not be loaded (%s); starting a new game." % result["error"])
 		return
-	_player.apply_save(result["data"]["player"])
 	_wave_manager.load_state(result["data"]["evolution"])
 
 

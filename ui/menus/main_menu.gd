@@ -42,6 +42,15 @@ func _ready() -> void:
 	column.add_child(_menu)
 	# A test scenario run keeps its state in memory (e.g. the victory unlocks) and is never saved.
 	var has_campaign: bool = GameState.test_mode or GameState.load_campaign()
+	if GameState.legacy_notice != "":
+		var notice: Label = Label.new()
+		notice.text = GameState.legacy_notice
+		notice.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		notice.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		notice.custom_minimum_size = Vector2(260, 0)
+		notice.add_theme_font_size_override("font_size", FONT_SIZE)
+		notice.add_theme_color_override("font_color", Color(1.0, 0.85, 0.5))
+		_menu.add_child(notice)
 	if GameState.test_mode:
 		_add_label(_menu, "TEST MODE - nothing is saved", FONT_SIZE, Color(1.0, 0.6, 0.4))
 		_add_button(_menu, "Leave test mode", _on_leave_test_mode)

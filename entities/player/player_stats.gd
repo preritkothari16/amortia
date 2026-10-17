@@ -2,7 +2,7 @@ class_name PlayerStats
 extends Resource
 ## Tuning values for the player. Edit data/player_stats.tres, not this file.
 
-## Hit points. Nothing damages the player yet; the Fortify skills already raise it.
+## Hit points. Constant; only Vaccine research raises it (capped, see ResearchTree).
 @export var max_health: float = 100.0
 ## Top speed in pixels per second (16 px = 1 tile).
 @export var move_speed: float = 90.0

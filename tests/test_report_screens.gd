@@ -148,22 +148,17 @@ func test_enter_skips_the_motion_then_continues() -> void:
 	assert_eq(wm.wave_number, 2)
 
 
-func test_skills_badge_shows_unspent_points() -> void:
+func test_reports_have_no_skills_button_or_xp_any_more() -> void:
 	var lvl: Dictionary = await _level()
 	var report: WaveReport = lvl["report"]
-	lvl["player"].progression.skill_points = 2
 	await _end_wave(lvl)
+	report.skip_motion()
 	await wait_frames(2)
-	assert_true(report._badge.visible)
-	assert_eq(report._badge_label.text, "2 points")
-	watch_signals(report)
-	report._skills_button.pressed.emit()
-	assert_signal_emitted(report, "skills_requested")
-	lvl["player"].progression.skill_points = 0
-	# The badge follows the points in _process: count process frames (physics frames can run
-	# twice per process frame when the machine is busy, which made this test flaky).
-	await wait_process_frames(2)
-	assert_false(report._badge.visible)
+	var text: String = _visible_text(report)
+	assert_false(text.contains("Skills"), "no Skills button")
+	assert_false(text.contains("XP"), "no XP")
+	assert_false(lvl["downed"].find_children("*", "Button", true, false).any(
+			func(b: Node) -> bool: return (b as Button).text.begins_with("Skills")))
 
 
 # --- Downed --------------------------------------------------------------------------------

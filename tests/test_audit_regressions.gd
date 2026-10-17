@@ -45,8 +45,8 @@ func _evolution() -> Dictionary:
 func _finish_zone_one() -> String:
 	GameState.start_new_campaign()
 	for n: int in 3:
-		GameState.finish_level(_evolution(), {})
-	return GameState.finish_level(_evolution(), {})
+		GameState.finish_level(_evolution())
+	return GameState.finish_level(_evolution())
 
 
 # --- New Game+ / second run: Continue must come back ---------------------------------------
@@ -91,7 +91,7 @@ func test_entering_the_next_zone_clears_the_pending_safehouse() -> void:
 
 func test_a_normal_level_does_not_set_the_pending_safehouse() -> void:
 	GameState.start_new_campaign()
-	GameState.finish_level(_evolution(), {})
+	GameState.finish_level(_evolution())
 	assert_false(GameState.safehouse_pending)
 
 
@@ -99,7 +99,7 @@ func test_the_victory_is_not_a_pending_safehouse() -> void:
 	GameState.start_new_campaign()
 	GameState.current_zone = 4
 	GameState.level_index = 3
-	assert_eq(GameState.finish_level(_evolution(), {}), "victory")
+	assert_eq(GameState.finish_level(_evolution()), "victory")
 	assert_false(GameState.safehouse_pending)
 
 
@@ -144,7 +144,6 @@ func test_campaign_save_with_wrong_types_loads_with_defaults() -> void:
 	assert_false(GameState.campaign_won)
 	assert_false(GameState.safehouse_pending)
 	assert_eq(GameState.endless_best_wave, 0)
-	assert_true(GameState.player_data.is_empty())
 
 
 func test_side_done_keeps_only_text_ids() -> void:
@@ -163,8 +162,7 @@ func test_save_with_an_unreadable_terrain_gene_is_repaired_not_crashed() -> void
 	g["crawler"] = [1]
 	var data: Dictionary = {"version": 1, "player": {"level": 1},
 		"evolution": {"next_wave": 1, "generation": 0, "population": [g]}}
-	var r: Dictionary = SaveGame.validate(data, load("res://data/progression.tres"),
-			load("res://data/skill_tree.tres"), rules)
+	var r: Dictionary = SaveGame.validate(data, rules)
 	assert_true(r["ok"], r["error"])
 	var healed: Genome = Genome.from_dict(r["data"]["evolution"]["population"][0])
 	assert_eq(healed.swimmer, 0.0)

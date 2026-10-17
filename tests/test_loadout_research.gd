@@ -111,6 +111,48 @@ func test_player_applies_research_and_power_up_layers_without_changing_base_stat
 	assert_eq((load("res://data/player_stats.tres") as PlayerStats).max_health, 100.0)
 
 
+## Every exported number of the player's stats and weapon (what kills used to raise through XP and skills).
+func _stat_values(p: Player) -> Dictionary:
+	var out: Dictionary = {}
+	for res: Resource in [p.stats, p.weapon]:
+		for prop: Dictionary in res.get_property_list():
+			if prop["usage"] & PROPERTY_USAGE_SCRIPT_VARIABLE and prop["type"] in [TYPE_FLOAT, TYPE_INT, TYPE_BOOL]:
+				out["%s.%s" % [res.get_script().get_global_name(), prop["name"]]] = res.get(prop["name"])
+	return out
+
+
+func test_kills_never_raise_permanent_player_stats() -> void:
+	var c: LevelConfig = LevelConfig.new()
+	c.id = "test_no_xp"
+	c.areas = [load(AREA)]
+	c.waves = 1
+	c.spawn_delay_seconds = 0.1
+	c.objective = ObjectiveConfig.new()
+	var main: Node = load("res://world/main.tscn").instantiate()
+	main.autosave = false
+	main.level_config = c
+	var wm: WaveManager = main.get_node("WaveManager")
+	wm.log_waves = false
+	wm.spawn_seed = 21
+	add_child_autofree(main)
+	await wait_physics_frames(12)
+	var p: Player = main.get_node("Player")
+	var before: Dictionary = _stat_values(p)
+	var research_before: Array = GameState.research().to_array()
+	assert_gt(before.size(), 10, "the snapshot covers the stats and the weapon")
+	assert_false("progression" in p, "no XP / level object on the player")
+	assert_false("skills" in p, "no skill tree on the player")
+	var victims: Array = wm.alive.slice(0, 5)
+	assert_eq(victims.size(), 5)
+	for e: Enemy in victims:
+		e.take_damage(10000.0)
+	await wait_physics_frames(3)
+	assert_eq(wm.alive.size(), 15, "five Bloomed died (enemy_killed was emitted)")
+	assert_eq(_stat_values(p), before, "kills change no permanent stat")
+	assert_eq(p.stats.max_health, 100.0)
+	assert_eq(GameState.research().to_array(), research_before, "kills unlock no research")
+
+
 # --- Shotgun and weapons ---------------------------------------------------------------------
 
 func test_shotgun_data_and_the_trade_offs() -> void:
@@ -379,7 +421,7 @@ func test_zone_one_apex_hands_over_the_shotgun_blueprint() -> void:
 	GameState.start_new_campaign()
 	GameState.level_index = 3
 	var evo: Dictionary = {"next_wave": 6, "generation": 5, "population": [], "history": []}
-	assert_eq(GameState.finish_level(evo, {}), "safehouse")
+	assert_eq(GameState.finish_level(evo), "safehouse")
 	assert_true(GameState.loadout.blueprints.has(&"shotgun"))
 
 
@@ -426,7 +468,19 @@ func test_old_format_1_campaign_save_still_loads() -> void:
 	assert_eq(GameState.samples, 14)
 	assert_eq(GameState.loadout.owned, [&"pistol"] as Array[StringName], "the starting pistol")
 	assert_eq(GameState.research().unlocked.size(), 0)
+	assert_true(GameState.legacy_notice.contains("no longer exist"), "the menu can tell the player once")
+	assert_eq(GameState.save_campaign(), OK)
+	assert_eq(GameState.legacy_notice, "", "the next save drops the notice")
+	assert_false(GameState.to_dict().has("player"), "XP and skills are not written any more")
 	assert_false(GameState.from_dict({"format": 3}), "a newer format is not guessed at")
+
+
+func test_a_format_1_save_without_progress_gives_no_notice() -> void:
+	var old: Dictionary = {"format": 1, "active": true, "zone": 1, "level_index": 0, "player": {"level": 1, "unlocked": []}}
+	assert_true(GameState.from_dict(old))
+	assert_eq(GameState.legacy_notice, "")
+	assert_true(GameState.from_dict({"format": 1, "player": 5}))
+	assert_eq(GameState.legacy_notice, "")
 
 
 func test_damaged_loadout_and_research_in_a_save_are_cleaned() -> void:

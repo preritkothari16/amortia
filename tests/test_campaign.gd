@@ -94,7 +94,7 @@ func test_campaign_walks_through_levels_safehouse_and_zones() -> void:
 	GameState.start_new_campaign()
 	assert_eq(GameState.current_level().id, "z1_l1")
 	for n: int in 3:
-		assert_eq(GameState.finish_level(_evolution(20), {}), "level")
+		assert_eq(GameState.finish_level(_evolution(20)), "level")
 	assert_eq(GameState.current_level().id, "z1_l4")
 	assert_true(GameState.is_apex_level())
 	# Elite of the zone (top 20 % of a wave), then the Apex.
@@ -105,7 +105,7 @@ func test_campaign_walks_through_levels_safehouse_and_zones() -> void:
 		results.append({"genome": g, "fitness": 1.0 - i * 0.01})
 	GameState.record_wave_best(results)
 	assert_eq((GameState.zone_elite[1] as Array).size(), 4, "20 % of 20")
-	assert_eq(GameState.finish_level(_evolution(20), {}), "safehouse")
+	assert_eq(GameState.finish_level(_evolution(20)), "safehouse")
 	assert_eq(GameState.safehouse_mode, "zone")
 	GameState.enter_next_zone()
 	assert_eq(GameState.current_zone, 2)
@@ -121,8 +121,8 @@ func test_campaign_walks_through_levels_safehouse_and_zones() -> void:
 	# Zones 2-4.
 	for zone: int in [2, 3, 4]:
 		for n: int in 3:
-			GameState.finish_level(_evolution(20), {})
-		var dest: String = GameState.finish_level(_evolution(20), {})
+			GameState.finish_level(_evolution(20))
+		var dest: String = GameState.finish_level(_evolution(20))
 		if zone < 4:
 			assert_eq(dest, "safehouse")
 			GameState.enter_next_zone()
@@ -135,7 +135,7 @@ func test_campaign_walks_through_levels_safehouse_and_zones() -> void:
 
 func test_campaign_save_round_trip() -> void:
 	GameState.start_new_campaign()
-	GameState.finish_level(_evolution(20), {"level": 5, "xp": 3, "total_xp": 200, "skill_points": 4, "unlocked": []})
+	GameState.finish_level(_evolution(20))
 	GameState.zone_best = {1: {"fitness": 0.5, "genome": Genome.new().to_dict()}}
 	GameState.scrap = 17
 	assert_eq(GameState.save_campaign(), OK)
@@ -155,11 +155,9 @@ func test_campaign_save_is_separate_from_the_prototype_save() -> void:
 	assert_false(GameState.from_dict({"version": 1, "player": {}, "evolution": {}}), "a prototype save is not a campaign")
 
 
-func test_new_game_plus_keeps_xp_and_marks_the_run() -> void:
-	GameState.player_data = {"level": 9}
+func test_new_game_plus_marks_the_run() -> void:
 	GameState.start_new_campaign(true)
 	assert_true(GameState.ng_plus)
-	assert_eq(GameState.player_data, {"level": 9})
 	assert_eq(GameState.level_index, 0)
 
 
@@ -185,7 +183,6 @@ func test_side_objective_challenges() -> void:
 
 func _campaign_level(ng_plus: bool = false) -> Dictionary:
 	GameState.start_new_campaign(ng_plus)
-	GameState.player_data = {"level": 4, "xp": 0, "total_xp": 180, "skill_points": 3, "unlocked": []}
 	GameState.zone_evolution[1] = _evolution(20)
 	GameState.pending_level = GameState.current_level()
 	var main: Node = load("res://world/main.tscn").instantiate()
@@ -197,13 +194,12 @@ func _campaign_level(ng_plus: bool = false) -> Dictionary:
 	return {"main": main, "wm": wm, "player": main.get_node("Player")}
 
 
-func test_campaign_level_restores_xp_and_the_zone_population() -> void:
+func test_campaign_level_restores_the_zone_population() -> void:
 	var lvl: Dictionary = await _campaign_level()
 	var main: Node = lvl["main"]
 	var wm: WaveManager = lvl["wm"]
 	assert_true(main.in_campaign)
 	assert_eq(main.level_config.id, "z1_l1")
-	assert_eq((lvl["player"] as Player).progression.level, 4, "XP carried between levels")
 	assert_eq(wm.wave_number, 4, "the zone's wave count continues (budget ramp)")
 	assert_eq(wm.generation, 3)
 	assert_eq(wm.population[0].to_dict()["speed"], GameState.zone_evolution[1]["population"][0]["speed"])

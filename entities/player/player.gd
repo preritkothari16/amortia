@@ -5,19 +5,11 @@ extends CharacterBody2D
 
 @export var stats: PlayerStats
 @export var weapon: WeaponStats
-## XP curve and enemy XP values (data/progression.tres).
-@export var progression_settings: ProgressionSettings
-## The skill nodes the player can buy (data/skill_tree.tres).
-@export var skill_tree: SkillTree
 ## Temporary: print dodge state changes and tint the body while invulnerable.
 @export var debug_dodge: bool = false
 ## Noise and stealth rules (data/perception.tres). null = no footsteps, never concealed.
 @export var perception: PerceptionSettings
 
-## XP, level and skill points. Lives on the player, so it carries over between waves.
-var progression: PlayerProgression
-## Bought skill nodes. `stats` and `weapon` are rebuilt from the base data whenever this changes.
-var skills: PlayerSkills
 ## Permanent research + temporary power-up effects, applied on top of the base data (never saved
 ## into it). See PlayerModifiers.
 var modifiers: PlayerModifiers = PlayerModifiers.new()
@@ -42,7 +34,7 @@ signal build_requested(cell: Vector2i)
 var health: float = 0.0
 ## True from the killing hit until revive(): no moving, shooting or taking damage.
 var is_dead: bool = false
-## The untouched data resources; skills are applied to copies of these.
+## The untouched data resources; research and power-ups are applied to copies of these.
 var _base_stats: PlayerStats
 var _base_weapon: WeaponStats
 ## Unit vector from the player towards the mouse.
@@ -81,16 +73,11 @@ var _dodge_direction: Vector2 = Vector2.ZERO
 
 
 func _ready() -> void:
-	progression = PlayerProgression.new(progression_settings)
-	progression.leveled_up.connect(_on_leveled_up)
 	_base_stats = stats
 	_base_weapon = weapon
 	health = stats.max_health
-	skills = PlayerSkills.new(skill_tree, progression)
-	skills.changed.connect(_apply_skills)
-	modifiers.changed.connect(_apply_skills)
+	modifiers.changed.connect(_rebuild_stats)
 	spread_rng.seed = 20261016
-	EventBus.enemy_killed.connect(_on_enemy_killed)
 
 
 func _physics_process(delta: float) -> void:
@@ -295,14 +282,14 @@ func revive() -> void:
 	_body.modulate = Color.WHITE
 
 
-# --- Skills --------------------------------------------------------------------------
+# --- Stats ---------------------------------------------------------------------------
 
-## Rebuilds stats and weapon from the base data + every owned skill, so a purchase takes
-## effect on the next frame. Extra max health is also added to current health.
-func _apply_skills() -> void:
+## Rebuilds stats and weapon from the base data + permanent research + temporary effects, so a
+## change takes effect on the next frame. Extra max health is also added to current health.
+func _rebuild_stats() -> void:
 	var old_max: float = stats.max_health
-	stats = modifiers.apply(skills.apply(_base_stats, SkillNode.Target.PLAYER), StatModifier.Target.PLAYER) as PlayerStats
-	weapon = modifiers.apply(skills.apply(_base_weapon, SkillNode.Target.WEAPON), StatModifier.Target.WEAPON) as WeaponStats
+	stats = modifiers.apply(_base_stats, StatModifier.Target.PLAYER) as PlayerStats
+	weapon = modifiers.apply(_base_weapon, StatModifier.Target.WEAPON) as WeaponStats
 	health = minf(health + maxf(stats.max_health - old_max, 0.0), stats.max_health)
 
 
@@ -345,12 +332,12 @@ func active_weapon_id() -> StringName:
 func _equip_active() -> void:
 	var data: WeaponStats = WeaponLibrary.get_weapon(loadout.equipped[active_slot])
 	_base_weapon = data if data != null else _base_weapon
-	_apply_skills()
+	_rebuild_stats()
 	weapon_changed.emit()
 
 
 ## Permanent research effects (from ResearchState), on top of the base stats. Extra max health is
-## added to current health, as it was for skills.
+## added to current health.
 func set_research(mods: Array[StatModifier]) -> void:
 	modifiers.set_research(mods)
 
@@ -378,25 +365,3 @@ func _tick_shield(delta: float) -> void:
 			shield = 0.0
 			shield_left = 0.0
 
-
-# --- Save / load ---------------------------------------------------------------------
-
-## Restores XP, level and skills from a validated save's "player" section (SaveGame.validate).
-func apply_save(p: Dictionary) -> void:
-	progression.restore(p["level"], p["xp"], p["total_xp"], p["skill_points"])
-	skills.restore(p["unlocked"])
-	health = stats.max_health
-
-
-# --- XP ------------------------------------------------------------------------------
-
-## Every kill gives XP; enemies with more stat points (later, more evolved waves) give a bit more.
-func _on_enemy_killed(enemy: Node2D) -> void:
-	var genome: Genome = enemy.get("genome") as Genome
-	var stat_total: float = genome.stat_total() if genome != null else progression_settings.reference_stat_total
-	progression.add_xp(progression_settings.enemy_xp(stat_total))
-
-
-func _on_leveled_up(new_level: int) -> void:
-	print("[XP] level up -> %d  (skill points %d, total XP %d)" % [
-		new_level, progression.skill_points, progression.total_xp])

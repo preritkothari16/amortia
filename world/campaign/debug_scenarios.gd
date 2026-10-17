@@ -7,11 +7,10 @@ extends RefCounted
 ## Earlier zones are stood in for by seeded random genomes, recorded through the real
 ## GameState.record_wave_best() and carried over by the real GameState.enter_next_zone(), so a
 ## later zone starts the way it would in a campaign (only the genomes are not evolved).
-## The player gets PLAYER_LEVELS_PER_ZONE levels per zone already cleared, as unspent skill
-## points (test convenience only, not a balance number).
+## The player gets the gear of a player who cleared the earlier zones (the shotgun, one vaccine per
+## cleared zone, some resources): test convenience only, not a balance number.
 
 const SEED: int = 4242
-const PLAYER_LEVELS_PER_ZONE: int = 5
 
 ## Transitions offered by the menu. zone 1..4, level = 0-based index (3 = Apex),
 ## scene "level" / "safehouse" / "victory", last_wave = start at the level's final wave.
@@ -63,20 +62,23 @@ static func prepare(zone: int, level_index: int, last_wave: bool) -> void:
 		if z < zone:
 			GameState.enter_next_zone()
 	GameState.level_index = level_index
-	GameState.player_data = player_for_zone(zone)
+	_gear_for_zone(zone)
 	var level: LevelConfig = GameState.current_level()
 	GameState.pending_start_wave = level.waves - 1 if last_wave and level != null else 0
 
 
-## A player who has cleared zone - 1 zones: the levels as unspent skill points.
-static func player_for_zone(zone: int) -> Dictionary:
-	var settings: ProgressionSettings = load("res://data/progression.tres")
-	var level: int = mini(1 + PLAYER_LEVELS_PER_ZONE * (zone - 1), settings.level_cap)
-	var total_xp: int = 0
-	for l: int in range(1, level):
-		total_xp += settings.xp_to_next(l)
-	return {"level": level, "xp": 0, "total_xp": total_xp,
-		"skill_points": (level - 1) * settings.skill_points_per_level, "unlocked": []}
+## The gear of a player who has cleared zone - 1 zones: from zone 2 on the shotgun (spare slot) and one
+## vaccine per cleared zone, plus some resources to spend in the Safehouse.
+static func _gear_for_zone(zone: int) -> void:
+	GameState.loadout = PlayerLoadout.new()
+	GameState.research().restore([])
+	if zone >= 2:
+		GameState.loadout.owned.append(&"shotgun")
+		GameState.loadout.equip(&"shotgun", 1)
+		var vaccines: Array = ["vaccine_1", "vaccine_2", "vaccine_3"].slice(0, zone - 1)
+		GameState.research().restore(vaccines)
+	GameState.scrap = 60 * (zone - 1)
+	GameState.samples = 12 * (zone - 1)
 
 
 ## One wave's results for the current zone made of random genomes (best first), recorded as

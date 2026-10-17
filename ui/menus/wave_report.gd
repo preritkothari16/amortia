@@ -134,7 +134,6 @@ func _build_footer(root: VBoxContainer) -> void:
 	var row: HBoxContainer = hbox(root)
 	add_details_button(row)
 	spacer(row)
-	add_skills_button(row)
 	_continue_button = add_button(row, "Continue (Enter)", _on_continue, &"PrimaryButton")
 
 

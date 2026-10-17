@@ -1,36 +1,35 @@
-[gd_scene load_steps=28 format=3]
+[gd_scene format=3 uid="uid://c6q28dm6fabv"]
 
-[ext_resource type="Script" path="res://world/main.gd" id="1_main"]
+[ext_resource type="Script" uid="uid://bc28x536axy0p" path="res://world/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://world/zones/maple_hollow/maple_hollow.tscn" id="2_map"]
 [ext_resource type="PackedScene" path="res://entities/player/player.tscn" id="3_player"]
 [ext_resource type="Resource" path="res://data/terrain_costs.tres" id="4_costs"]
-[ext_resource type="Script" path="res://ui/debug/terrain_cost_overlay.gd" id="5_overlay"]
-[ext_resource type="Script" path="res://ui/debug/flow_field_overlay.gd" id="6_flow"]
-[ext_resource type="Script" path="res://world/wave_manager.gd" id="7_waves"]
+[ext_resource type="Script" uid="uid://m3fd21qkance" path="res://ui/debug/terrain_cost_overlay.gd" id="5_overlay"]
+[ext_resource type="Script" uid="uid://ch1j3w5k0uvc7" path="res://ui/debug/flow_field_overlay.gd" id="6_flow"]
+[ext_resource type="Script" uid="uid://mmklwkamsbm6" path="res://world/wave_manager.gd" id="7_waves"]
 [ext_resource type="PackedScene" path="res://entities/enemies/runner.tscn" id="8_runner"]
 [ext_resource type="Resource" path="res://data/attack_ring.tres" id="9_ring"]
-[ext_resource type="Script" path="res://ui/debug/attack_ring_overlay.gd" id="10_ring_overlay"]
-[ext_resource type="Script" path="res://ui/debug/awareness_overlay.gd" id="11_awareness"]
+[ext_resource type="Script" uid="uid://cdpbwgiivbb4c" path="res://ui/debug/attack_ring_overlay.gd" id="10_ring_overlay"]
+[ext_resource type="Script" uid="uid://dxseulpyknidi" path="res://ui/debug/awareness_overlay.gd" id="11_awareness"]
 [ext_resource type="Resource" path="res://data/genome_rules.tres" id="12_genome_rules"]
-[ext_resource type="Script" path="res://ui/debug/genome_overlay.gd" id="13_genome_overlay"]
+[ext_resource type="Script" uid="uid://r6nd8qsu38vx" path="res://ui/debug/genome_overlay.gd" id="13_genome_overlay"]
+[ext_resource type="Script" uid="uid://cthckvy7wsejm" path="res://world/events/terrain_event.gd" id="14_6lvsd"]
 [ext_resource type="Resource" path="res://data/fitness.tres" id="14_fitness"]
 [ext_resource type="Resource" path="res://data/ga.tres" id="15_ga"]
-[ext_resource type="Script" path="res://ui/hud/wave_hud.gd" id="16_hud"]
+[ext_resource type="Script" uid="uid://cqw5ndsxh8xk6" path="res://ui/hud/wave_hud.gd" id="16_hud"]
 [ext_resource type="PackedScene" path="res://ui/menus/wave_report.tscn" id="17_report"]
-[ext_resource type="Script" path="res://ui/hud/xp_bar.gd" id="18_xp_bar"]
-[ext_resource type="Script" path="res://ui/menus/skill_tree_menu.gd" id="19_skills"]
-[ext_resource type="Script" path="res://ui/hud/player_status.gd" id="20_status"]
-[ext_resource type="Script" path="res://ui/menus/pause_menu.gd" id="21_pause"]
+[ext_resource type="Script" uid="uid://dekrmntmhicw0" path="res://ui/hud/player_status.gd" id="20_status"]
+[ext_resource type="Script" uid="uid://dmhsqd5o60jnr" path="res://ui/menus/pause_menu.gd" id="21_pause"]
 [ext_resource type="PackedScene" path="res://ui/menus/game_over_screen.tscn" id="22_game_over"]
 [ext_resource type="Resource" path="res://data/perception.tres" id="23_perception"]
-[ext_resource type="Script" path="res://world/terrain/terrain_view.gd" id="24_terrain_view"]
-[ext_resource type="Script" path="res://world/terrain/terrain_events.gd" id="25_terrain_events"]
-[ext_resource type="Script" path="res://world/events/fire_spread.gd" id="26_fire"]
+[ext_resource type="Script" uid="uid://jkd1ju0ejpsu" path="res://world/terrain/terrain_view.gd" id="24_terrain_view"]
+[ext_resource type="Script" uid="uid://ct5ne186nm0f6" path="res://world/terrain/terrain_events.gd" id="25_terrain_events"]
+[ext_resource type="Script" uid="uid://csqpajb17mnaa" path="res://world/events/fire_spread.gd" id="26_fire"]
 
 [sub_resource type="Resource" id="Resource_fire"]
 script = ExtResource("26_fire")
 
-[node name="Main" type="Node2D"]
+[node name="Main" type="Node2D" unique_id=1559253050]
 script = ExtResource("1_main")
 terrain_costs = ExtResource("4_costs")
 attack_ring_settings = ExtResource("9_ring")
@@ -38,40 +37,40 @@ genome_rules = ExtResource("12_genome_rules")
 fitness_settings = ExtResource("14_fitness")
 perception_settings = ExtResource("23_perception")
 
-[node name="MapleHollow" parent="." instance=ExtResource("2_map")]
+[node name="MapleHollow" parent="." unique_id=354189700 instance=ExtResource("2_map")]
 
-[node name="WaveManager" type="Node2D" parent="."]
+[node name="WaveManager" type="Node2D" parent="." unique_id=67455718]
 script = ExtResource("7_waves")
 enemy_scene = ExtResource("8_runner")
 ga_settings = ExtResource("15_ga")
 
-[node name="Player" parent="." instance=ExtResource("3_player")]
+[node name="Player" parent="." unique_id=495231202 instance=ExtResource("3_player")]
 
-[node name="TerrainView" type="Node2D" parent="."]
+[node name="TerrainView" type="Node2D" parent="." unique_id=1044421523]
 script = ExtResource("24_terrain_view")
 
-[node name="TerrainEvents" type="Node" parent="."]
+[node name="TerrainEvents" type="Node" parent="." unique_id=1016055402]
 script = ExtResource("25_terrain_events")
-events = Array[Object]([SubResource("Resource_fire")])
+events = Array[ExtResource("14_6lvsd")]([SubResource("Resource_fire")])
 
-[node name="TerrainCostOverlay" type="Node2D" parent="."]
+[node name="TerrainCostOverlay" type="Node2D" parent="." unique_id=594913726]
 script = ExtResource("5_overlay")
 
-[node name="FlowFieldOverlay" type="Node2D" parent="."]
+[node name="FlowFieldOverlay" type="Node2D" parent="." unique_id=205457999]
 script = ExtResource("6_flow")
 
-[node name="AttackRingOverlay" type="Node2D" parent="."]
+[node name="AttackRingOverlay" type="Node2D" parent="." unique_id=478230765]
 script = ExtResource("10_ring_overlay")
 
-[node name="AwarenessOverlay" type="Node2D" parent="."]
+[node name="AwarenessOverlay" type="Node2D" parent="." unique_id=717052930]
 script = ExtResource("11_awareness")
 
-[node name="GenomeOverlay" type="Node2D" parent="."]
+[node name="GenomeOverlay" type="Node2D" parent="." unique_id=132928807]
 script = ExtResource("13_genome_overlay")
 
-[node name="HUD" type="CanvasLayer" parent="."]
+[node name="HUD" type="CanvasLayer" parent="." unique_id=758714177]
 
-[node name="WaveHud" type="Control" parent="HUD"]
+[node name="WaveHud" type="Control" parent="HUD" unique_id=2002029002]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -81,7 +80,7 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("16_hud")
 
-[node name="PlayerStatus" type="Control" parent="HUD"]
+[node name="PlayerStatus" type="Control" parent="HUD" unique_id=1395727635]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -91,21 +90,11 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("20_status")
 
-[node name="XpBar" type="Control" parent="HUD"]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-script = ExtResource("18_xp_bar")
+[node name="WaveReport" parent="HUD" unique_id=505396830 instance=ExtResource("17_report")]
 
-[node name="WaveReport" parent="HUD" instance=ExtResource("17_report")]
+[node name="GameOverScreen" parent="HUD" unique_id=373745267 instance=ExtResource("22_game_over")]
 
-[node name="GameOverScreen" parent="HUD" instance=ExtResource("22_game_over")]
-
-[node name="PauseMenu" type="Control" parent="HUD"]
+[node name="PauseMenu" type="Control" parent="HUD" unique_id=1488524036]
 process_mode = 3
 layout_mode = 3
 anchors_preset = 15
@@ -115,12 +104,3 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("21_pause")
 
-[node name="SkillTreeMenu" type="Control" parent="HUD"]
-process_mode = 3
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-script = ExtResource("19_skills")

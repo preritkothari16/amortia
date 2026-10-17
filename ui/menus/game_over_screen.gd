@@ -2,16 +2,16 @@ class_name GameOverScreen
 extends ReportScreen
 ## Downed screen: shown when the player goes down. The wave is lost (not bred, see
 ## WaveManager.fail_wave), so the way on is Retry, which replays the same wave with the same
-## Bloomed. Shows how the attempt went (time, kills, XP), what got you (the Bloomed that dealt
-## the most damage, in plain words, with one tip), and has the skill tree so XP earned in the
-## attempt can be spent before retrying. Raw genome in Details (D). Pauses the game while open.
+## Bloomed. Shows how the attempt went (time, kills, scrap and samples found, which a lost
+## attempt gives back), and what got you (the Bloomed that dealt the most damage, in plain words,
+## with one tip). Raw genome in Details (D). Pauses the game while open.
 ## Layout and keys: ReportScreen. One scene (game_over_screen.tscn), built once, refilled.
 
 ## Retry pressed (button, Enter or Space). The level replays the wave.
 signal retry_requested
 ## Main Menu pressed.
 signal main_menu_requested
-## Restart level pressed (campaign: the whole level from wave 1, XP and evolution kept).
+## Restart level pressed (campaign: the whole level from wave 1, the zone's evolution kept).
 signal restart_level_requested
 
 ## Show the Restart level button (campaign levels).
@@ -34,15 +34,10 @@ var _subtitle: Label
 var _time: Label
 var _kills_bar: UiBar
 var _kills: Label
-var _level: Label
-var _xp_bar: UiBar
-var _xp: Label
-var _xp_gain: Label
+var _found: Label
 var _culprit: Label
 var _tip: Label
 var _details: VBoxContainer
-## Player's total XP when the attempt started, for "+XP this attempt".
-var _xp_at_wave_start: int = 0
 
 
 func _ready() -> void:
@@ -78,26 +73,17 @@ func _build_pages() -> void:
 	grid.add_child(_kills_bar)
 	_kills = label(grid, "")
 	_kills.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_level = label(grid, "", &"MutedLabel")
-	_xp_bar = UiBar.new()
-	_xp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_xp_bar.fill_color = &"down"
-	grid.add_child(_xp_bar)
-	var xp_row: HBoxContainer = hbox(grid)
-	xp_row.alignment = BoxContainer.ALIGNMENT_END
-	_xp = label(xp_row, "")
-	var gain: PanelContainer = PanelContainer.new()
-	gain.theme_type_variation = &"AccentChip"
-	gain.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	xp_row.add_child(gain)
-	_xp_gain = label(gain, "", &"AccentLabel")
+	label(grid, "Found this attempt", &"MutedLabel")
+	spacer(grid)
+	_found = label(grid, "")
+	_found.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
 	var got: VBoxContainer = card(page, "What got you", true)
 	_culprit = label(got, "", &"", true)
 	_tip = label(got, "", &"AccentLabel", true)
 
 	var strip: VBoxContainer = card(page)
-	label(strip, "Retry replays this wave with the same Bloomed. They only evolve when you clear it. Your XP and skills are kept.",
+	label(strip, "Retry replays this wave with the same Bloomed. They only evolve when you clear it. Scrap and samples found in a lost attempt are given back.",
 		&"MutedLabel", true)
 
 	var details: VBoxContainer = card(add_page("details"), "", true)
@@ -112,7 +98,6 @@ func _build_footer(root: VBoxContainer) -> void:
 	spacer(row)
 	_restart_button = add_button(row, "Restart level", _on_restart_level, &"")
 	_restart_button.visible = allow_level_restart
-	add_skills_button(row)
 	_retry_button = add_button(row, "Retry (Enter)", _on_retry, &"PrimaryButton")
 
 
@@ -127,8 +112,6 @@ func _primary_action() -> void:
 # --- Opening / closing --------------------------------------------------------------------
 
 func _on_wave_started(_wave: int) -> void:
-	if player != null:
-		_xp_at_wave_start = player.progression.total_xp
 	if visible:
 		visible = false
 		get_tree().paused = false
@@ -164,13 +147,8 @@ func fill(s: Dictionary) -> void:
 	_time.text = "%d:%02d" % [seconds / 60, seconds % 60]
 	count_up(_kills, "%d / " + str(total), s["killed"])
 	tween_bar(_kills_bar, "value", 0.0, float(s["killed"]) / maxf(total, 1))
-	if player != null:
-		var p: PlayerProgression = player.progression
-		var need: int = p.xp_to_next()
-		_level.text = "Level %d" % p.level
-		_xp.text = "%d / %d XP" % [p.xp, need] if need > 0 else "Max level"
-		_xp_gain.text = "+%d XP" % (p.total_xp - _xp_at_wave_start)
-		tween_bar(_xp_bar, "value", 0.0, float(p.xp) / need if need > 0 else 1.0)
+	var gain: Dictionary = GameState.attempt_gain()
+	_found.text = "+%d scrap  +%d samples" % [gain["scrap"], gain["samples"]]
 
 	var culprit: Dictionary = deadliest()
 	if culprit.is_empty():
