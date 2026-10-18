@@ -38,6 +38,14 @@ var current_target: Vector2 = Vector2.INF
 var nav_mode: StringName = &"idle"
 ## Sight range after fog and night this frame (for the F6 overlay).
 var effective_sight_range: float = 0.0
+## Where the enemy is looking (unit vector): the view cone points this way (Reactive Survival V1).
+## Moving = the way it walks; chasing = at the player; standing = sweeping around `rest_facing`.
+var facing: Vector2 = Vector2.ZERO
+## The direction an idle / searching enemy sweeps around: its last walking direction, or the
+## last noise it heard. Starts from the spawn position (deterministic, no RNG draw).
+var rest_facing: Vector2 = Vector2.ZERO
+## Seconds of looking around (drives the sweep).
+var _scan_time: float = 0.0
 
 var _ctx: EnemyContext
 ## Base-profile field: attack-ring engagement and the "close to the player" checks use it so
@@ -117,6 +125,10 @@ func _ready() -> void:
 	if shape != null:
 		_body_radius = shape.radius
 	EventBus.noise_emitted.connect(_on_noise_emitted)
+	if rest_facing == Vector2.ZERO:
+		var c: Vector2 = (global_position / 16.0).floor()
+		rest_facing = Vector2.from_angle(TAU * fposmod(c.x * 0.618034 + c.y * 0.381966, 1.0))
+	facing = rest_facing
 	# Golden-ratio phase from the id spreads decisions of many enemies across the 0.2 s window.
 	brain = UtilityAI.new(stats.utility_settings, stats.behaviour, fposmod(get_instance_id() * 0.618034, 1.0))
 
@@ -191,6 +203,7 @@ func _try_attack(delta: float, role: AttackRing.Role) -> void:
 ## provocation: strength 0, so only patient (hungry) enemies act on it.
 func alert(position: Vector2) -> void:
 	awareness.hear(position, 0.0)
+	_look_towards(position)
 
 
 ## Every enemy within earshot learns where the noise was. How loud it was here (1 right next to
@@ -203,6 +216,7 @@ func _on_noise_emitted(noise_position: Vector2, radius: float) -> void:
 	var distance: float = global_position.distance_to(noise_position)
 	if distance <= radius:
 		awareness.hear(noise_position, 1.0 - distance / radius)
+		_look_towards(noise_position)  # even a lazy enemy that stays put turns to look
 
 
 func _physics_process(delta: float) -> void:
@@ -263,19 +277,70 @@ func _physics_process(delta: float) -> void:
 # --- Perception ----------------------------------------------------------------------
 
 ## Sight check: the only place the enemy reads the player's real position.
+## In view within sense_radius = sure at once (CHASE). In view further out = suspicion rises
+## (Awareness.notice; full = CHASE). Out of view = suspicion drains, a chase becomes a lead.
+## No perception settings (bare test scenes) = the old rule: in view means CHASE.
 func _update_awareness(delta: float) -> void:
-	var sees_player: bool = _can_perceive_player()
-	if sees_player:
-		awareness.see(_target.global_position)
-		if not _was_chasing:
-			_call_pack()  # first sighting: tell the packmates where the player is
+	_update_facing(delta)
+	var in_view: bool = _can_perceive_player()
+	var player_pos: Vector2 = _target.global_position
+	var p: PerceptionSettings = _ctx.perception if _ctx != null else null
+	if in_view:
+		var distance: float = global_position.distance_to(player_pos)
+		if p == null or distance <= stats.sense_radius:
+			awareness.see(player_pos)
+		else:
+			var rate: float = Perception.suspicion_rate(distance, stats.sense_radius, effective_sight_range,
+					awareness.is_alert(), p)
+			awareness.notice(player_pos, rate, delta, p.suspicion_investigate_threshold)
 	else:
-		awareness.lose_sight(stats.utility_settings.lost_sight_strength)
+		awareness.unnoticed(delta, stats.utility_settings.lost_sight_strength,
+				p.suspicion_decay_per_second if p != null else 1.0)
+	var sees_player: bool = awareness.state == Awareness.State.CHASE
+	if sees_player and not _was_chasing:
+		_call_pack()  # first sighting: tell the packmates where the player is
 	_was_chasing = sees_player
 	awareness.tick(delta)
 	_share_cooldown = maxf(_share_cooldown - delta, 0.0)
 	_regroup_budget.tick(delta, brain.current == UtilityAction.Type.REGROUP, sees_player, stats.utility_settings)
 	_update_survivor_sight()
+	if facing != Vector2.ZERO:
+		queue_redraw()  # view cone and suspicion marker
+
+
+## Turns the gaze (at most turn_speed_degrees per second): at the player while chasing (it sees
+## them), the walking direction while moving, at the glimpse spot while suspicion lasts, else a
+## sweep around rest_facing (wider and faster while searching).
+func _update_facing(delta: float) -> void:
+	var p: PerceptionSettings = _ctx.perception if _ctx != null else null
+	if p == null:
+		return
+	_scan_time += delta
+	if awareness.state == Awareness.State.CHASE:
+		facing = global_position.direction_to(_target.global_position)
+		rest_facing = facing
+		return
+	var desired: Vector2
+	if velocity.length() > 5.0:
+		desired = velocity.normalized()
+		rest_facing = desired
+	elif awareness.suspicion > 0.0 and awareness.glimpse != Vector2.INF and awareness.glimpse != global_position:
+		desired = global_position.direction_to(awareness.glimpse)  # something caught its eye: stare at it
+	elif awareness.state == Awareness.State.SEARCH:
+		desired = Perception.scan_facing(rest_facing, _scan_time, p.search_scan_degrees, p.search_scan_period)
+	else:
+		desired = Perception.scan_facing(rest_facing, _scan_time, p.idle_scan_degrees, p.idle_scan_period)
+	if facing == Vector2.ZERO:
+		facing = desired
+		return
+	var max_turn: float = deg_to_rad(p.turn_speed_degrees) * delta
+	facing = facing.rotated(clampf(facing.angle_to(desired), -max_turn, max_turn)).normalized()
+
+
+## A sound or an order: look that way from now on (the sweep centres on it).
+func _look_towards(position: Vector2) -> void:
+	if position != global_position:
+		rest_facing = global_position.direction_to(position)
 
 
 # --- Pack tactics (cohesion) ----------------------------------------------------------
@@ -326,7 +391,7 @@ func _update_survivor_sight() -> void:
 	var distance: float = global_position.distance_to(_survivor_pos)
 	if distance <= stats.sense_radius:
 		survivor_visible = true
-	elif distance <= effective_sight_range:
+	elif distance <= effective_sight_range and _in_cone(_survivor_pos):
 		survivor_visible = _grid.has_line_of_sight(global_position, _survivor_pos)
 
 
@@ -346,10 +411,17 @@ func _can_perceive_player() -> bool:
 		concealed = _target.has_method("is_concealed") and _target.is_concealed()
 	if distance <= stats.sense_radius:
 		return true
-	if concealed or distance > effective_sight_range:
+	if concealed or distance > effective_sight_range or not _in_cone(player_pos):
 		return false  # cheap checks first; the line only runs when it can matter
 	return Perception.can_see(distance, stats.sense_radius, effective_sight_range,
 			_grid.has_line_of_sight(global_position, player_pos), concealed)
+
+
+## Inside this enemy's view cone (always true without perception settings).
+func _in_cone(point: Vector2) -> bool:
+	if _ctx == null or _ctx.perception == null:
+		return true
+	return Perception.in_view_cone(point - global_position, facing, _ctx.perception.view_cone_degrees)
 
 
 func _night_sense() -> float:
@@ -821,11 +893,38 @@ func make_boss(health_multiplier: float, damage_multiplier: float, size: float) 
 	is_boss = true
 
 
-## Greybox health bar, shown once damaged.
+## Greybox view cone (tinted white -> yellow -> red by suspicion), the suspicion marker
+## ("?" with a fill bar, "!" once it sees you) and the health bar once damaged.
 func _draw() -> void:
+	_draw_senses()
 	if health >= stats.max_health or health <= 0.0:
 		return
 	var width: float = 12.0
 	var top_left: Vector2 = Vector2(-width / 2.0, -10.0)
 	draw_rect(Rect2(top_left, Vector2(width, 2)), Color(0.1, 0.1, 0.1))
 	draw_rect(Rect2(top_left, Vector2(width * health / stats.max_health, 2)), Color(0.4, 1, 0.4))
+
+
+func _draw_senses() -> void:
+	if _dead or facing == Vector2.ZERO or _ctx == null or _ctx.perception == null:
+		return
+	var s: float = awareness.suspicion
+	var tint: Color = Color.WHITE.lerp(Color(1, 0.9, 0.2), clampf(s * 2.0, 0.0, 1.0)) \
+			.lerp(Color(1, 0.2, 0.2), clampf(s * 2.0 - 1.0, 0.0, 1.0))
+	var reach: float = effective_sight_range if effective_sight_range > 0.0 else stats.sight_range
+	var half: float = deg_to_rad(_ctx.perception.view_cone_degrees) * 0.5
+	if half < PI:
+		var points: PackedVector2Array = PackedVector2Array([Vector2.ZERO])
+		for i: int in 13:
+			points.append(facing.rotated(lerpf(-half, half, i / 12.0)) * reach)
+		draw_colored_polygon(points, Color(tint, 0.06 + 0.12 * s))
+	if s <= 0.05:
+		return
+	var font: Font = ThemeDB.fallback_font
+	var chasing: bool = awareness.state == Awareness.State.CHASE
+	var mark: String = "!" if chasing else "?"
+	draw_string_outline(font, Vector2(-2, -13), mark, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, 2, Color.BLACK)
+	draw_string(font, Vector2(-2, -13), mark, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, tint)
+	if not chasing:
+		draw_rect(Rect2(-6, -21, 12, 2), Color(0, 0, 0, 0.7))
+		draw_rect(Rect2(-6, -21, 12 * s, 2), tint)

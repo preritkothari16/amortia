@@ -260,3 +260,66 @@ part of the fixed fitness formula; weights untouched).
 are gone from genomes, mutation, crossover, reports. Flow field, A* and the greedy straight line stay
 in the code for the comparison experiments. Old saves: removed keys ignored; missing ferocity = 5
 (old stats + 5 = the new wave-1 budget, so nothing is boosted or rescaled while it fits the budget).
+
+## Reactive Survival V1 — vision cone, suspicion, safe survivor routes, objective fairness (2026-10-18)
+
+**Vision cone and suspicion** (`ai/decision/perception.gd`, `awareness.gd`, settings in
+`data/perception.tres`). Before V1 an enemy saw all around and one frame in view meant CHASE. Now:
+```
+in_view_cone(to_target, facing, cone):  cone >= 360 or facing == 0 -> true
+                                        else |angle(facing, to_target)| <= cone / 2        (cone 120)
+
+each frame, per enemy (Enemy._update_awareness):
+    in_view = within sense_radius (32 px, any direction, even in tall grass)          # GDD 4.3 unchanged
+              or (in cone and not concealed and distance <= effective range and clear grid line)
+    if in_view and distance <= sense_radius:  awareness.see(p)            # no doubt: CHASE now
+    elif in_view:                              awareness.notice(p, rate, dt, 0.5)
+    else:                                      awareness.unnoticed(dt, ..., decay 0.5 / s)
+
+suspicion_rate(d) = 1 / lerp(0.5 s, 1.8 s, (d - sense) / (range - sense))   x1.5 if already investigating / searching
+
+notice:    glimpse = p; suspicion += rate * dt
+           suspicion >= 1                      -> see(p)              = CHASE = "it sees you" (the alarm)
+           crossed 0.5 (not chasing yet)       -> hear(p, suspicion)  = an ordinary lead to the glimpse spot
+unnoticed: lose_sight()  (CHASE -> INVESTIGATE the last seen spot, unchanged); suspicion -= 0.5 * dt
+```
+The lead at 0.5 goes through the normal Investigate score, so the patience gene still decides
+whether an enemy bothers (no new genes, fitness untouched). No live tracking: `glimpse` is only
+updated while the player is really in view.
+
+**Facing** (Enemy, Node side; numbers in perception settings): chasing -> at the player; moving ->
+walking direction (becomes the rest direction); suspicion > 0 -> stare at the glimpse spot; idle ->
+sweep +-30 degrees around the rest direction every 5 s; searching -> +-70 degrees every 2 s; a heard
+noise turns the rest direction towards it. Turn speed 300 degrees/s. Spawn facing comes from the
+spawn cell (no RNG draw, so seeded runs stay reproducible).
+
+**SafePath** (`ai/nav/safe_path.gd`, new) — the Escort survivor's route:
+```
+A*, 4-way, player walking rules (gate counts as walkable)
+step_cost(c) = 1 + threat_weight(8) * danger(c)
+danger(c)    = sum over seen enemies t of max(0, 1 - |c - t| / 4 cells)
+h(c)         = Manhattan(c, goal)           admissible: every step costs >= 1
+```
+No threats = shortest walk. Threats = detour if one exists; danger never blocks (a corridor with an
+enemy in it is still walked). Re-planned every 0.5 s while following. Separately (objective code, not
+graded): an enemy within 32 px makes the survivor step away, biased towards the player.
+
+**ObjectiveFairness** (`ai/levelgen/objective_fairness.gd`, new) — generated Stealth / Escort areas:
+```
+route = SafePath(entry -> exit, no threats);  none -> reject "exit unreachable"
+cover_ratio = share of route cells with tall grass or a sight blocker within 2 cells;  < 0.65 -> reject
+stealth only:
+    watchers(c) = spawn markers within 240 px with a clear line, unless c is tall grass
+                  (worst case: all-round vision, by day, best vision gene)
+    least-exposed route = Dijkstra, step cost 1 + 50 * |watchers(c)|
+    distinct spawns watching it > 4 -> reject
+rejected -> GeneratedArea tries seed + k * 104729 (k = 1..7), first that passes is used;
+            none passes -> keep the first (warning). Same level -> same map, always.
+```
+Thresholds from 200 generator seeds: cover p05 0.62 / p50 0.74; watching spawns 3: 13 %, 4: 39 %,
+5: 40 %, 6: 9 %. So it rejects the worse half for Stealth and the least-covered ~8 %, not everything.
+Enemies, GA, fitness and navigation are untouched: only which layout a level uses can change.
+
+Tuning note: the first fill times (0.35 s / 1.6 s, x2 alert) gave a scripted walk-through only
+0.4-0.7 s between the first "?" and the alarm (footsteps had already made nearby enemies alert), so
+they were raised to 0.5 s / 1.8 s, x1.5 before committing.

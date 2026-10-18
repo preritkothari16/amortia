@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="NoiseMakerSettings" format=3]
+
+[ext_resource type="Script" path="res://entities/projectiles/noise_maker_settings.gd" id="1_noise_maker"]
+
+[resource]
+script = ExtResource("1_noise_maker")
+count_per_area = 2
+max_range = 128.0
+noise_radius = 160.0
+flight_time = 0.45

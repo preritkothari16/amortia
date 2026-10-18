@@ -107,6 +107,11 @@ func _ready() -> void:
 	_game_over.main_menu_requested.connect(_on_main_menu)
 	_game_over.restart_level_requested.connect(_on_restart_level)
 	_player_status.player = _player
+	var indicators: ThreatIndicators = ThreatIndicators.new()
+	indicators.name = "ThreatIndicators"
+	indicators.wave_manager = _wave_manager
+	$HUD.add_child(indicators)
+	$HUD.move_child(indicators, _player_status.get_index() + 1)  # under the report and menus
 
 	GameState.apply_to_player(_player)
 	_set_camera_limits()
@@ -139,6 +144,7 @@ func _ready() -> void:
 	_player.died.connect(_on_player_died, CONNECT_DEFERRED)
 	_wave_manager.wave_restarting.connect(func(_wave: int) -> void: _put_player_on_spawn())
 	_wave_manager.wave_started.connect(func(_wave: int) -> void: _player.revive())
+	_wave_manager.wave_started.connect(func(_wave: int) -> void: _player.refill_throwables())
 	# Resources and blueprints picked up in a lost attempt are not kept: Retry starts from the wave's start.
 	_wave_manager.wave_started.connect(func(_wave: int) -> void: GameState.take_resource_snapshot())
 	_wave_manager.wave_restarting.connect(func(_wave: int) -> void: GameState.restore_resource_snapshot())
@@ -202,6 +208,8 @@ func _setup_level() -> void:
 		objective.name = "Objective"
 		add_child(objective)
 		objective.setup(c.objective, terrain_grid, _player, _wave_manager, terrain_health)
+		if objective is EscortObjective:
+			($HUD/ThreatIndicators as ThreatIndicators).escort = objective
 	if c.powerups_enabled:
 		var power_ups: PowerUpManager = PowerUpManager.new()
 		power_ups.name = "PowerUps"

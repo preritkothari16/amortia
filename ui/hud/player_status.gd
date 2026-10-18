@@ -1,7 +1,7 @@
 class_name PlayerStatus
 extends Control
 ## Greybox player panel, bottom-left: HP bar, dodge cooldown, HIDDEN (stealth); above it the
-## weapon in hand, shield and temporary power-ups.
+## weapon in hand, noise-makers left, shield and temporary power-ups.
 ## Ammo is not shown because weapons have no ammo yet.
 
 const FONT_SIZE: int = 8
@@ -65,6 +65,9 @@ func _draw() -> void:
 	if weapon_data != null:
 		var tag: String = weapon_data.display_name + (" [Q]" if player.loadout.carried().size() > 1 else "")
 		x2 = _text(font, Vector2(x2, y2), tag, Color(0.9, 0.85, 0.6)) + 8.0
+	if player.noise_maker != null:
+		x2 = _text(font, Vector2(x2, y2), "Noise-maker %s x%d" % [KeyHint.tag(&"throw_noise"), player.noise_makers_left],
+				Color(0.6, 0.9, 1.0) if player.noise_makers_left > 0 else COLOR_DODGE_WAIT) + 8.0
 	if player.shield > 0.0:
 		x2 = _text(font, Vector2(x2, y2), "SHIELD %d" % ceili(player.shield), Color(0.5, 0.8, 1.0)) + 8.0
 	for id: StringName in player.modifiers.temporary_ids():

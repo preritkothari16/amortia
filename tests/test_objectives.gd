@@ -112,10 +112,15 @@ func test_escort_walks_with_the_player_and_can_die() -> void:
 	var escort: EscortObjective = lvl["objective"]
 	var wm: WaveManager = lvl["wm"]
 	var player: Player = lvl["player"]
+	var grid: TerrainGrid = lvl["main"].terrain_grid
 	_freeze(wm)
 	var start: Vector2 = escort.survivor
+	var route: Array[Vector2i] = escort.walk_path(grid.coords.world_to_cell(start),
+			grid.coords.world_to_cell(lvl["main"].current_map().get_exit()))
+	player.global_position = grid.coords.cell_to_world(route[5])  # 5 tiles ahead: within the leash
 	await wait_physics_frames(60)
-	assert_gt(escort.survivor.distance_to(start), 10.0, "walks while the player is close")
+	assert_eq(escort.mode, EscortObjective.Mode.FOLLOW, "follows by default")
+	assert_gt(escort.survivor.distance_to(start), 10.0, "walks after the player")
 	player.global_position = lvl["main"].current_map().get_exit()
 	await wait_physics_frames(3)
 	assert_true(wm.is_wave_running(), "the player leaving alone completes nothing")
@@ -128,15 +133,21 @@ func test_escort_walks_with_the_player_and_can_die() -> void:
 	assert_almost_eq(biter.fitness_record.objective_score, escort.config.escort_hit_damage * biter.attack_scale, 0.0001,
 			"O = damage to the survivor (scaled by the biter's ferocity)")
 	escort.survivor_health = 1.0
-	await wait_physics_frames(int(biter.stats.attack_cooldown * 60) + 5)
-	assert_true(wm.failed, "survivor dead = wave lost")
+	for f: int in int(biter.stats.attack_cooldown * 60) + 5:
+		biter.global_position = escort.survivor  # it backs away; the frozen biter is kept on it
+		await wait_physics_frames(1)
+	assert_true(escort.downed, "0 HP the first time: down, not dead")
+	assert_false(wm.failed, "not lost yet - it can be revived")
+	escort.downed_left = 0.05
+	await wait_physics_frames(6)
+	assert_true(wm.failed, "nobody revived it in time = wave lost")
 
 
 func test_escort_reaching_the_exit_completes() -> void:
 	var lvl: Dictionary = await _level(_config(ObjectiveConfig.Type.ESCORT))
 	var escort: EscortObjective = lvl["objective"]
 	_freeze(lvl["wm"])
-	escort._path_index = escort._path.size()
+	escort.survivor = lvl["main"].current_map().get_exit()
 	await wait_physics_frames(2)
 	assert_false(lvl["wm"].is_wave_running())
 	assert_eq(lvl["flow"].phase, LevelFlow.Phase.CLEARED)
@@ -189,11 +200,16 @@ func test_stealth_alarm_fails_and_exit_completes() -> void:
 	for g: Vector2i in lvl["main"].current_map().get_gate_cells():
 		assert_eq(lvl["main"].terrain_grid.get_terrain(g), "road", "exit open from the start")
 	var watcher: Enemy = wm.alive[0]
-	watcher.global_position = lvl["player"].global_position + Vector2(20, 0)
+	watcher.global_position = lvl["player"].global_position + Vector2(20, 0)  # within 2 tiles: no doubt
 	await wait_physics_frames(3)
 	assert_eq(stealth.alarms, 1)
 	assert_eq(watcher.fitness_record.objective_score, stealth.config.alarm_points)
-	assert_true(wm.failed)
+	assert_false(wm.failed, "a SPOTTED countdown first (recovery)")
+	assert_gt(stealth.grace_left, 0.0)
+	assert_string_contains(stealth.hud_text(), "SPOTTED")
+	_freeze(wm)  # the watcher keeps seeing the player
+	await wait_physics_frames(int(stealth.config.alarm_grace_seconds * 60) + 5)
+	assert_true(wm.failed, "still seen when the countdown ends = level lost")
 
 
 func test_stealth_reaching_the_exit_completes() -> void:

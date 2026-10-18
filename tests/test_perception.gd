@@ -195,6 +195,10 @@ func _watcher(lvl: Dictionary, at: Vector2i, night_sense: float = 0.0) -> Enemy:
 	g.night_sense = night_sense
 	var e: Enemy = (lvl["wm"] as WaveManager).spawn_enemy(_cell(at), g)
 	e.global_position = _cell(at)
+	e.velocity = Vector2.ZERO
+	# Looking at the player: these tests are about range, fog, night and cover, not the view cone.
+	e.rest_facing = e.global_position.direction_to((lvl["player"] as Player).global_position)
+	e.facing = e.rest_facing
 	return e
 
 
@@ -203,11 +207,12 @@ func test_concealed_player_unseen_at_5_tiles_but_seen_inside_2() -> void:
 	var player: Player = lvl["player"]
 	player.global_position = _cell(Vector2i(25, 23))  # tall grass
 	var e: Enemy = _watcher(lvl, Vector2i(25, 28))      # 5 tiles south, clear line
-	await wait_physics_frames(3)
+	await wait_physics_frames(60)
 	assert_true(player.is_concealed())
 	assert_ne(e.awareness.state, Awareness.State.CHASE, "hidden in the grass")
-	player.seconds_since_shot = 0.0  # a shot gives the position away
-	await wait_physics_frames(2)
+	assert_eq(e.awareness.suspicion, 0.0, "not even a glimpse")
+	player.seconds_since_shot = 0.0  # a shot gives the position away (for 1.5 s)
+	await wait_physics_frames(90)  # 80 px: suspicion fills in about 1.0 s (shot exposure lasts 1.5 s)
 	assert_eq(e.awareness.state, Awareness.State.CHASE)
 
 
@@ -226,16 +231,19 @@ func test_night_shortens_sight_and_night_sense_restores_it() -> void:
 	var player: Player = lvl["player"]
 	player.global_position = _cell(Vector2i(30, 10))
 	var plain: Enemy = _watcher(lvl, Vector2i(30, 18))  # 8 tiles = 128 px down the road
-	await wait_physics_frames(3)
+	await wait_physics_frames(110)  # 128 px: suspicion fills in about 1.5 s
 	assert_eq(plain.awareness.state, Awareness.State.CHASE, "day: 128 px < 160 px")
 	plain.despawn()
 	(lvl["wm"] as WaveManager).alive.erase(plain)
 	lvl["main"].conditions.is_night = true
 	var blind: Enemy = _watcher(lvl, Vector2i(30, 18))
 	var owl: Enemy = _watcher(lvl, Vector2i(31, 18), 1.0)
-	await wait_physics_frames(3)
+	await wait_physics_frames(30)  # before the owl is sure (and could call the other one over)
 	assert_almost_eq(blind.effective_sight_range, 96.0, 0.01)
 	assert_ne(blind.awareness.state, Awareness.State.CHASE, "night: 128 px > 96 px")
+	assert_eq(blind.awareness.suspicion, 0.0, "out of range: no suspicion either")
+	assert_gt(owl.awareness.suspicion, 0.0, "the owl has noticed something")
+	await wait_physics_frames(80)
 	assert_eq(owl.awareness.state, Awareness.State.CHASE, "night sense 1 keeps full range")
 
 
@@ -246,9 +254,10 @@ func test_fog_halves_sight() -> void:
 	player.global_position = _cell(Vector2i(30, 10))
 	grid.set_overlay(Vector2i(30, 10), "fog")
 	var e: Enemy = _watcher(lvl, Vector2i(30, 16))  # 6 tiles = 96 px > 80 px
-	await wait_physics_frames(3)
+	await wait_physics_frames(90)
 	assert_almost_eq(e.effective_sight_range, 80.0, 0.01)
 	assert_ne(e.awareness.state, Awareness.State.CHASE)
+	assert_eq(e.awareness.suspicion, 0.0)
 
 
 func test_hearing_gives_only_the_noise_position() -> void:

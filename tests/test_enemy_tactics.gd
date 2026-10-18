@@ -64,10 +64,21 @@ func _spawn(wm: WaveManager, at: Vector2, cohesion: float, vision: float = 5.0, 
 	g.ferocity = ferocity
 	var e: Enemy = wm.spawn_enemy(at, g, record)
 	e.global_position = at
+	_face(e, wm._context.target.global_position)
 	return e
 
 
-## One pack scenario: A (sees the player, 110 px away) and B, C, D further back (do not see it).
+## Turns an enemy to look at `point` (its view cone covers it; whether it sees it is up to range,
+## line of sight and suspicion).
+func _face(e: Enemy, point: Vector2) -> void:
+	e.velocity = Vector2.ZERO
+	e.rest_facing = e.global_position.direction_to(point)
+	e.facing = e.rest_facing
+
+
+## One pack scenario: A (sees the player, 90 px away) and B, C, D further back (do not see it).
+## A is close because it now needs a moment of suspicion (and walks towards the glimpse) before
+## it is sure and calls its pack; B must still be within pack_radius of it by then.
 ## Returns {arrival: {index: seconds}, state: [awareness state per enemy], spent: A's regroup time}.
 ## B is within pack_radius of A, C and D are not. The level is freed afterwards (one at a time).
 func _pack_run(cohesions: Array, seconds: float) -> Dictionary:
@@ -75,7 +86,7 @@ func _pack_run(cohesions: Array, seconds: float) -> Dictionary:
 	var main: Node = arena["main"]
 	var wm: WaveManager = arena["wm"]
 	var player: Player = arena["player"]
-	var dists: Array = [110.0, 235.0, 250.0, 265.0]
+	var dists: Array = [90.0, 175.0, 250.0, 265.0]
 	var dir: Vector2 = _open_direction(main, player.global_position, dists)
 	assert_ne(dir, Vector2.ZERO, "a straight open line exists next to the spawn")
 	var enemies: Array[Enemy] = []
@@ -498,15 +509,21 @@ func test_survivor_is_perceived_by_the_players_sight_rules() -> void:
 			hidden_at = p if hidden_at == Vector2.INF else hidden_at
 	assert_ne(seen_at, Vector2.INF, "a spot with a clear line exists")
 	e.global_position = seen_at
+	_face(e, escort.survivor)
 	e._can_perceive_player()
 	e._update_survivor_sight()
 	assert_true(e.survivor_visible, "clear line within sight range")
+	e.facing = -e.facing
+	e._update_survivor_sight()
+	assert_false(e.survivor_visible, "looking the other way (outside the view cone) it is not seen")
 	if hidden_at != Vector2.INF:
 		e.global_position = hidden_at
+		_face(e, escort.survivor)
 		e._can_perceive_player()
 		e._update_survivor_sight()
 		assert_false(e.survivor_visible, "a wall in between hides it")
 	e.global_position = seen_at
+	_face(e, escort.survivor)
 	e._can_perceive_player()
 	escort.survivor_health = 0.0
 	e._update_survivor_sight()
@@ -528,13 +545,17 @@ func test_enemy_hunts_hits_and_is_credited_for_the_survivor_while_the_player_is_
 			spot = p
 			break
 	e.global_position = spot
+	_face(e, escort.survivor)
 	e.set_physics_process(true)
-	player.global_position = main.current_map().get_exit()  # far away: the survivor stands still
+	player.global_position = main.current_map().get_exit()  # far away: the survivor doesn't follow
 	var hp: float = escort.survivor_health
-	var start: Vector2 = escort.survivor
+	var moved_calm: bool = false
 	for f: int in 240:
+		var before: Vector2 = escort.survivor
 		await wait_physics_frames(1)
-	assert_eq(escort.survivor, start, "the survivor waited (player out of leash)")
+		if escort.survivor != before and not escort.scared:
+			moved_calm = true
+	assert_false(moved_calm, "the survivor never followed the far-away player (it only backed off the enemy)")
 	assert_lt(e.global_position.distance_to(escort.survivor), 20.0, "the enemy walked up to the survivor")
 	assert_lt(escort.survivor_health, hp, "and hurt it")
 	assert_gt(e.fitness_record.objective_score, 0.0, "O is credited to that enemy")

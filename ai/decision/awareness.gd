@@ -8,6 +8,12 @@ extends RefCounted
 ##   CHASE       player visible right now: last_known is the player's real position
 ##   INVESTIGATE heading for last_known (where the player was last seen or heard)
 ##   SEARCH      reached last_known and found nothing: looks around for search_time, then IDLE
+##
+## Suspicion (Reactive Survival V1): further out than sense_radius, seeing the player does not
+## mean CHASE at once. Each frame in view adds to `suspicion` (Perception.suspicion_rate), each
+## frame out of view drains it. Crossing the investigate threshold makes the enemy go and check
+## the glimpse spot (an ordinary lead, like a noise); reaching 1 = it sees you (CHASE).
+## Breaking line of sight before that, or during a chase, drops it back to a lead it has to follow.
 
 enum State { IDLE, INVESTIGATE, SEARCH, CHASE }
 
@@ -21,15 +27,47 @@ var lead_age: float = 0.0
 ## How provoking the current lead was, 0..1: a gunshot right next to us is 1, one at the edge
 ## of earshot or a distant order (the spawn Pulse) is about 0. Lazy enemies only react to strong leads.
 var lead_strength: float = 0.0
+## How sure the enemy is that it saw someone, 0..1. 1 while chasing.
+var suspicion: float = 0.0
+## Where the player was when last glimpsed (suspicion rising). Vector2.INF = never.
+var glimpse: Vector2 = Vector2.INF
 
 var _search_left: float = 0.0
 
 
-## Called every frame the player is visible.
+## Called every frame the player is visible and the enemy is sure (suspicion full, or within
+## sense_radius where there is no doubt).
 func see(player_position: Vector2) -> void:
 	state = State.CHASE
 	last_known = player_position
+	glimpse = player_position
 	lead_age = 0.0
+	suspicion = 1.0
+
+
+## The player is in view but further out than sense_radius: suspicion rises by `rate` per second.
+## Full -> see(). Crossing `investigate_threshold` (not chasing yet) -> a lead to the glimpse spot,
+## as strong as the suspicion, so lazy enemies may still shrug it off (InvestigateAction).
+func notice(player_position: Vector2, rate: float, delta: float, investigate_threshold: float) -> void:
+	glimpse = player_position
+	var before: float = suspicion
+	suspicion = minf(1.0, suspicion + rate * delta)
+	if suspicion >= 1.0:
+		see(player_position)
+	elif state != State.CHASE and before < investigate_threshold and suspicion >= investigate_threshold:
+		hear(player_position, suspicion)
+
+
+## The player is not in view this frame: a chase becomes an investigation (lose_sight) and the
+## suspicion drains by `decay_per_second`.
+func unnoticed(delta: float, lost_sight_strength: float, decay_per_second: float) -> void:
+	lose_sight(lost_sight_strength)
+	suspicion = maxf(0.0, suspicion - decay_per_second * delta)
+
+
+## True while following up a lead or searching: suspicion fills faster then.
+func is_alert() -> bool:
+	return state == State.INVESTIGATE or state == State.SEARCH
 
 
 ## Called every frame the player is NOT visible. A chase turns into an investigation of the

@@ -11,3 +11,6 @@ shot_exposure_seconds = 1.5
 footstep_radius_by_level = PackedFloat32Array(0, 24, 48, 96)
 footstep_interval = 0.5
 dodge_noise_radius = 64.0
+suspicion_fill_near = 0.5
+suspicion_fill_far = 1.8
+suspicion_alert_multiplier = 1.5

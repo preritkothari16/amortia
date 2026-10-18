@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ObjectiveFairnessSettings" format=3]
+
+[ext_resource type="Script" path="res://ai/levelgen/objective_fairness_settings.gd" id="1_fairness"]
+
+[resource]
+script = ExtResource("1_fairness")
+cover_radius_cells = 2
+min_cover_ratio = 0.65
+watch_range_px = 240.0
+exposure_penalty = 50.0
+max_watching_spawns = 4
+max_attempts = 8
+seed_stride = 104729

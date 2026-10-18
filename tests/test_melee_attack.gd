@@ -188,6 +188,9 @@ func _level_with_one_runner() -> Dictionary:
 	var runner: Enemy = wm.alive[0]
 	runner.brain.genes.aggression = 1.0
 	runner.global_position = player.global_position + Vector2(40, 0)
+	runner.velocity = Vector2.ZERO  # teleported: no leftover walking direction
+	runner.rest_facing = Vector2.LEFT  # looking at the player (enemies only see inside their view cone)
+	runner.facing = Vector2.LEFT
 	return {"main": main, "wm": wm, "player": player, "runner": runner}
 
 

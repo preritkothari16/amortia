@@ -9,6 +9,8 @@ extends CharacterBody2D
 @export var debug_dodge: bool = false
 ## Noise and stealth rules (data/perception.tres). null = no footsteps, never concealed.
 @export var perception: PerceptionSettings
+## Throwable noise-maker (data/noise_maker.tres). null = none.
+@export var noise_maker: NoiseMakerSettings
 
 ## Permanent research + temporary power-up effects, applied on top of the base data (never saved
 ## into it). See PlayerModifiers.
@@ -46,6 +48,8 @@ var terrain_grid: TerrainGrid
 var terrain_health: TerrainHealth
 ## Seconds since the last shot (stealth: shooting gives you away for a moment).
 var seconds_since_shot: float = INF
+## Noise-makers left in this wave / area (refill_throwables).
+var noise_makers_left: int = 0
 ## Seconds until the next footstep noise.
 var _footstep_left: float = 0.0
 ## True while the dodge's invulnerability window is open. Damage code will check this.
@@ -78,6 +82,7 @@ func _ready() -> void:
 	health = stats.max_health
 	modifiers.changed.connect(_rebuild_stats)
 	spread_rng.seed = 20261016
+	refill_throwables()
 
 
 func _physics_process(delta: float) -> void:
@@ -95,6 +100,8 @@ func _physics_process(delta: float) -> void:
 		interact()
 	if Input.is_action_just_pressed("swap_weapon"):
 		swap_weapon()
+	if Input.is_action_just_pressed("throw_noise"):
+		throw_noise_maker(get_global_mouse_position())
 	if Input.is_action_just_pressed("build") and terrain_grid != null:
 		build_requested.emit(terrain_grid.coords.world_to_cell(global_position + aim_direction * 16.0))
 
@@ -242,6 +249,27 @@ func _shoot(delta: float) -> void:
 	# Gunshots are loud: enemies in range learn where the player WAS, not where they go next.
 	EventBus.noise_emitted.emit(global_position, weapon.noise_radius)
 	seconds_since_shot = 0.0
+
+
+# --- Noise-maker ---------------------------------------------------------------------
+
+## Back to the full count (start of every wave / area, and Retry).
+func refill_throwables() -> void:
+	noise_makers_left = noise_maker.count_per_area if noise_maker != null else 0
+
+
+## G: throws a noise-maker towards `target` (at most max_range, stopped by walls). It makes its
+## noise where it lands; throwing it is silent and does not break concealment. Returns the
+## thrown node, or null if there is none left.
+func throw_noise_maker(target: Vector2) -> NoiseMaker:
+	if noise_maker == null or noise_makers_left <= 0 or terrain_grid == null:
+		return null
+	noise_makers_left -= 1
+	var landing: Vector2 = NoiseMaker.landing_point(terrain_grid, global_position, target, noise_maker.max_range)
+	var thrown: NoiseMaker = NoiseMaker.new()
+	thrown.setup(global_position, landing, noise_maker.flight_time, noise_maker.noise_radius)
+	get_parent().add_child(thrown)
+	return thrown
 
 
 # --- Health --------------------------------------------------------------------------

@@ -27,6 +27,19 @@ enum Type { SURVIVE, HOLD, ESCORT, PURGE, EXTRACT, STEALTH, APEX }
 ## At most this many enemies may hit the survivor at once (the nearest ones), like the player's
 ## three attack tokens.
 @export var escort_max_attackers: int = 3
+## Follow command: the survivor walks to the player and stops this far away (px).
+@export var escort_follow_distance: float = 28.0
+## Recovery: an enemy this close (px) makes the survivor back away towards the player.
+@export var escort_flee_radius: float = 32.0
+## Enemies within this distance (px) and in clear line are threats the survivor's route avoids.
+@export var escort_threat_sight: float = 160.0
+## Recovery: at 0 HP the survivor goes down (no damage) for this long, once per wave. Stand next
+## to it for escort_revive_seconds to bring it back with escort_revive_health_ratio of its HP.
+## Downed time over, or a second 0 HP in the same wave = level fail.
+@export var escort_downed_seconds: float = 8.0
+@export var escort_revive_seconds: float = 1.5
+@export var escort_revive_radius: float = 20.0
+@export_range(0.0, 1.0) var escort_revive_health_ratio: float = 0.4
 
 @export_group("Purge nests")
 @export_range(3, 5) var nest_count: int = 3
@@ -43,6 +56,12 @@ enum Type { SURVIVE, HOLD, ESCORT, PURGE, EXTRACT, STEALTH, APEX }
 @export_group("Stealth")
 ## Alarms allowed: an alarm = an enemy sees the player (enters CHASE). 0 = any alarm fails.
 @export var alarms_allowed: int = 0
+## Recovery (Reactive Survival V1): an alarm past alarms_allowed starts this countdown instead of
+## failing at once. If no enemy sees the player when it runs out, it was a close call; if one
+## still does, the level fails.
+@export var alarm_grace_seconds: float = 3.0
+## Close calls allowed per wave. Once used up, the next alarm fails at once.
+@export var alarm_escapes: int = 1
 
 @export_group("Apex boss")
 ## Boss = the zone's best genome on its archetype, with these multipliers (placeholder until the
