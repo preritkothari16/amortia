@@ -14,3 +14,6 @@ dodge_noise_radius = 64.0
 suspicion_fill_near = 0.5
 suspicion_fill_far = 1.8
 suspicion_alert_multiplier = 1.5
+wary_seconds = 20.0
+cone_show_margin = 48.0
+cone_fade_seconds = 0.25

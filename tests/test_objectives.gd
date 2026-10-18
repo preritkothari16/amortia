@@ -136,11 +136,8 @@ func test_escort_walks_with_the_player_and_can_die() -> void:
 	for f: int in int(biter.stats.attack_cooldown * 60) + 5:
 		biter.global_position = escort.survivor  # it backs away; the frozen biter is kept on it
 		await wait_physics_frames(1)
-	assert_true(escort.downed, "0 HP the first time: down, not dead")
-	assert_false(wm.failed, "not lost yet - it can be revived")
-	escort.downed_left = 0.05
-	await wait_physics_frames(6)
-	assert_true(wm.failed, "nobody revived it in time = wave lost")
+	assert_true(wm.failed, "0 HP = wave lost at once (Reactive Survival V2: no revive)")
+	assert_eq(escort.state, Objective.State.FAILED)
 
 
 func test_escort_reaching_the_exit_completes() -> void:

@@ -9,6 +9,7 @@ extends Node2D
 ##   letter above enemy  utility AI action: C chase, F flank, I investigate, R regroup, S hunt survivor, . idle
 ##   magenta +           flank point of enemies that are flanking
 ##   faint ring          each enemy's sight range after fog and night
+##   cone outline        every enemy's view cone (the game itself only draws the ones that matter)
 
 const NOISE_SHOW_TIME: float = 1.0
 const ACTION_LABELS: Dictionary = {
@@ -69,6 +70,12 @@ func _draw() -> void:
 		# Sight range after fog / night (faint ring).
 		if enemy.effective_sight_range > 0.0:
 			draw_arc(pos, enemy.effective_sight_range, 0.0, TAU, 48, Color(color, 0.12), 1.0)
+		var half: float = deg_to_rad(enemy.view_cone_degrees()) * 0.5
+		if enemy.facing != Vector2.ZERO and half < PI and enemy.effective_sight_range > 0.0:
+			var reach: float = enemy.effective_sight_range
+			draw_line(pos, pos + enemy.facing.rotated(-half) * reach, Color(color, 0.35), 1.0)
+			draw_line(pos, pos + enemy.facing.rotated(half) * reach, Color(color, 0.35), 1.0)
+			draw_arc(pos, reach, enemy.facing.angle() - half, enemy.facing.angle() + half, 16, Color(color, 0.35), 1.0)
 		var action: UtilityAction.Type = enemy.brain.current
 		draw_string(ThemeDB.fallback_font, pos + Vector2(-3, -12), ACTION_LABELS[action],
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color.WHITE)

@@ -4,10 +4,12 @@ extends Objective
 ## player (its Awareness enters CHASE: suspicion full, or within 2 tiles, GDD 4.3). The exit is
 ## open from the start; walking out is the wave goal. Enemies are NOT told the player's spawn
 ## position (no spawn Pulse).
-## Recovery (Reactive Survival V1): once more than alarms_allowed enemies raised an alarm, any
-## enemy seeing the player starts a SPOTTED countdown (alarm_grace_seconds). If no enemy sees
-## the player when it ends (hid, broke line of sight, or shot the spotter) it was a close call -
-## alarm_escapes of those per wave; afterwards an alarm fails at once.
+## Recovery (Reactive Survival V1, V2): once more than alarms_allowed enemies raised an alarm, any
+## enemy seeing the player starts a SPOTTED countdown. If no enemy sees the player when it ends
+## (hid, broke line of sight, or shot the spotter) it was a close call; if one still does, the
+## level fails. Close calls are unlimited, but each one shortens the next countdown
+## (grace_for(escapes): alarm_grace_seconds - alarm_grace_step per escape, never below
+## alarm_grace_min), and every enemy that saw the player stays wary (Awareness.wary_seconds).
 ## Objective fitness O: the enemy that raises an alarm earns alarm_points (once per enemy).
 
 var alarms: int = 0
@@ -73,10 +75,16 @@ func tick(delta: float) -> void:
 		_close_call_note = 2.5
 		return
 	if seen and alarms > config.alarms_allowed:
-		if escapes_used < config.alarm_escapes and config.alarm_grace_seconds > 0.0:
-			grace_left = config.alarm_grace_seconds
+		if config.alarm_grace_seconds > 0.0:
+			grace_left = grace_for(escapes_used)
 		else:
 			_fail("you were spotted")
+
+
+## Length of the SPOTTED countdown after `escapes` close calls this wave: 3 -> 2.5 -> 2 -> 1.5 s ...
+func grace_for(escapes: int) -> float:
+	return maxf(config.alarm_grace_seconds - config.alarm_grace_step * escapes,
+			minf(config.alarm_grace_min, config.alarm_grace_seconds))
 
 
 ## Highest suspicion of any enemy that does not see the player yet (HUD warning).
@@ -93,8 +101,8 @@ func hud_text() -> String:
 		return ""
 	if grace_left >= 0.0:
 		return "SPOTTED! Break line of sight   %.1f s" % grace_left
-	var text: String = "Reach the exit unseen   alarms %d / %d   close calls left %d" % [
-		alarms, config.alarms_allowed, maxi(config.alarm_escapes - escapes_used, 0)]
+	var text: String = "Reach the exit unseen   close calls %d (next %.1f s)" % [
+		escapes_used, grace_for(escapes_used)]
 	if _close_call_note > 0.0:
 		text += "   - close call!"
 	elif strongest_suspicion() >= 0.5:

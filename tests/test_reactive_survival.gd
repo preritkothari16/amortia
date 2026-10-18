@@ -1,7 +1,9 @@
 extends GutTest
 ## Reactive Survival V1: vision cone + suspicion (Perception, Awareness), the noise-maker,
 ## survivor commands, threat-aware survivor routes (SafePath), recovery (Stealth SPOTTED
-## countdown, Escort downed / revive) and the generated-map fairness check (ObjectiveFairness).
+## countdown) and the generated-map fairness check (ObjectiveFairness).
+## V2 rule changes are asserted here where V1 tested the old rule (escort death, second alarm);
+## the new V2 mechanics live in test_reactive_survival_v2.gd and test_cover_finder.gd.
 ## Pure rules first, then scenarios in the real level (real time, like test_enemy_tactics).
 
 const AREA: String = "res://world/zones/maple_hollow/areas/area_1.tscn"
@@ -206,6 +208,7 @@ func test_noise_maker_lures_to_the_landing_spot_not_the_player() -> void:
 			"walked towards it")
 
 
+## Endless / prototype loop (no campaign level): the count comes back every wave.
 func test_noise_maker_count_runs_out_and_refills() -> void:
 	var arena: Dictionary = await _arena()
 	var player: Player = arena["player"]
@@ -328,26 +331,16 @@ func test_survivor_backs_away_from_a_close_enemy() -> void:
 	assert_gt(escort.survivor.distance_to(e.global_position), before, "moved away from the enemy")
 
 
-func test_downed_survivor_can_be_revived_once() -> void:
+func test_survivor_death_fails_at_once() -> void:
 	var lvl: Dictionary = await _escort_level()
 	var escort: EscortObjective = lvl["escort"]
 	var wm: WaveManager = lvl["wm"]
-	var player: Player = lvl["player"]
 	_freeze_all(wm)
 	escort.survivor_health = 0.0
 	escort.tick(0.016)
-	assert_true(escort.downed)
-	assert_false(escort.is_survivor_alive(), "enemies lose interest while it is down")
-	assert_eq(escort.nearest_attackers().size(), 0, "no hits while down")
-	assert_string_contains(escort.hud_text(), "SURVIVOR DOWN")
-	player.global_position = escort.survivor
-	await wait_physics_frames(int(escort.config.escort_revive_seconds * 60) + 5)
-	assert_false(escort.downed, "revived by standing next to it")
-	assert_almost_eq(escort.survivor_health, escort.config.escort_health * escort.config.escort_revive_health_ratio, 0.01)
-	assert_false(wm.failed)
-	escort.survivor_health = 0.0
-	escort.tick(0.016)
-	assert_true(wm.failed or escort.state == Objective.State.FAILED, "0 HP a second time in the wave = lost")
+	assert_eq(escort.state, Objective.State.FAILED, "0 HP = mission failed, no downed state, no revive")
+	assert_true(wm.failed)
+	assert_false(escort.is_survivor_alive())
 
 
 func test_hunters_warning_shows_before_the_first_hit() -> void:
@@ -419,7 +412,9 @@ func test_breaking_line_of_sight_during_the_countdown_is_a_close_call() -> void:
 	second.global_position = player.global_position + Vector2(20, 0)
 	second.set_physics_process(true)
 	await wait_physics_frames(3)
-	assert_true(wm.failed, "close calls used up: the next alarm fails at once")
+	assert_false(wm.failed, "V2: close calls are unlimited...")
+	assert_between(stealth.grace_left, 0.0, stealth.config.alarm_grace_seconds - stealth.config.alarm_grace_step,
+			"...but the next countdown is shorter")
 
 
 func test_stealth_completes_under_several_seeds_when_unseen() -> void:

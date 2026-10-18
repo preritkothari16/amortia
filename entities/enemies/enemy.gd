@@ -46,6 +46,8 @@ var facing: Vector2 = Vector2.ZERO
 var rest_facing: Vector2 = Vector2.ZERO
 ## Seconds of looking around (drives the sweep).
 var _scan_time: float = 0.0
+## How visible the view cone is drawn, 0..1 (Reactive Survival V2: only when it matters, faded).
+var cone_alpha: float = 0.0
 
 var _ctx: EnemyContext
 ## Base-profile field: attack-ring engagement and the "close to the player" checks use it so
@@ -149,6 +151,8 @@ func setup(context: EnemyContext, allies: Array[Enemy], enemy_genome: Genome = n
 	_target = context.target
 	_ring = context.attack_ring
 	_allies = allies
+	if context.perception != null:
+		awareness.wary_seconds = context.perception.wary_seconds
 
 
 ## Turns the genome into this enemy's own numbers. `stats` is copied first so the shared
@@ -304,13 +308,24 @@ func _update_awareness(delta: float) -> void:
 	_share_cooldown = maxf(_share_cooldown - delta, 0.0)
 	_regroup_budget.tick(delta, brain.current == UtilityAction.Type.REGROUP, sees_player, stats.utility_settings)
 	_update_survivor_sight()
-	if facing != Vector2.ZERO:
+	if facing != Vector2.ZERO and p != null:
+		var fade: float = delta / p.cone_fade_seconds if p.cone_fade_seconds > 0.0 else 1.0
+		cone_alpha = move_toward(cone_alpha, 1.0 if cone_wanted() else 0.0, fade)
 		queue_redraw()  # view cone and suspicion marker
+
+
+## Draw the view cone? (display only, Reactive Survival V2) Yes while the enemy is suspicious,
+## investigating, searching or chasing, or while the player is near its sight range.
+func cone_wanted() -> bool:
+	if awareness.suspicion > 0.0 or awareness.state != Awareness.State.IDLE:
+		return true
+	var reach: float = effective_sight_range if effective_sight_range > 0.0 else stats.sight_range
+	return global_position.distance_to(_target.global_position) <= reach + _ctx.perception.cone_show_margin
 
 
 ## Turns the gaze (at most turn_speed_degrees per second): at the player while chasing (it sees
 ## them), the walking direction while moving, at the glimpse spot while suspicion lasts, else a
-## sweep around rest_facing (wider and faster while searching).
+## sweep around rest_facing (wider and faster while searching or wary).
 func _update_facing(delta: float) -> void:
 	var p: PerceptionSettings = _ctx.perception if _ctx != null else null
 	if p == null:
@@ -326,7 +341,7 @@ func _update_facing(delta: float) -> void:
 		rest_facing = desired
 	elif awareness.suspicion > 0.0 and awareness.glimpse != Vector2.INF and awareness.glimpse != global_position:
 		desired = global_position.direction_to(awareness.glimpse)  # something caught its eye: stare at it
-	elif awareness.state == Awareness.State.SEARCH:
+	elif awareness.state == Awareness.State.SEARCH or awareness.is_wary():
 		desired = Perception.scan_facing(rest_facing, _scan_time, p.search_scan_degrees, p.search_scan_period)
 	else:
 		desired = Perception.scan_facing(rest_facing, _scan_time, p.idle_scan_degrees, p.idle_scan_period)
@@ -381,7 +396,8 @@ func _engaged_pack_positions() -> PackedVector2Array:
 # --- Escort survivor ------------------------------------------------------------------
 
 ## The survivor is seen by the same rules as the player: always within sense_radius, further out
-## only inside the (fog / night adjusted) sight range with a clear grid line.
+## only inside the view cone and the (fog / night adjusted) sight range with a clear grid line,
+## and not while it hides in tall grass (EscortObjective.is_survivor_concealed).
 func _update_survivor_sight() -> void:
 	survivor_visible = false
 	var escort: Object = _ctx.escort if _ctx != null else null
@@ -391,6 +407,8 @@ func _update_survivor_sight() -> void:
 	var distance: float = global_position.distance_to(_survivor_pos)
 	if distance <= stats.sense_radius:
 		survivor_visible = true
+	elif escort.has_method("is_survivor_concealed") and escort.is_survivor_concealed():
+		return
 	elif distance <= effective_sight_range and _in_cone(_survivor_pos):
 		survivor_visible = _grid.has_line_of_sight(global_position, _survivor_pos)
 
@@ -415,6 +433,11 @@ func _can_perceive_player() -> bool:
 		return false  # cheap checks first; the line only runs when it can matter
 	return Perception.can_see(distance, stats.sense_radius, effective_sight_range,
 			_grid.has_line_of_sight(global_position, player_pos), concealed)
+
+
+## Width of the view cone in degrees (360 without perception settings).
+func view_cone_degrees() -> float:
+	return _ctx.perception.view_cone_degrees if _ctx != null and _ctx.perception != null else 360.0
 
 
 ## Inside this enemy's view cone (always true without perception settings).
@@ -893,7 +916,7 @@ func make_boss(health_multiplier: float, damage_multiplier: float, size: float) 
 	is_boss = true
 
 
-## Greybox view cone (tinted white -> yellow -> red by suspicion), the suspicion marker
+## Greybox view cone (tinted white -> yellow -> red by suspicion, faded by cone_alpha), the suspicion marker
 ## ("?" with a fill bar, "!" once it sees you) and the health bar once damaged.
 func _draw() -> void:
 	_draw_senses()
@@ -913,11 +936,11 @@ func _draw_senses() -> void:
 			.lerp(Color(1, 0.2, 0.2), clampf(s * 2.0 - 1.0, 0.0, 1.0))
 	var reach: float = effective_sight_range if effective_sight_range > 0.0 else stats.sight_range
 	var half: float = deg_to_rad(_ctx.perception.view_cone_degrees) * 0.5
-	if half < PI:
+	if half < PI and cone_alpha > 0.0:
 		var points: PackedVector2Array = PackedVector2Array([Vector2.ZERO])
 		for i: int in 13:
 			points.append(facing.rotated(lerpf(-half, half, i / 12.0)) * reach)
-		draw_colored_polygon(points, Color(tint, 0.06 + 0.12 * s))
+		draw_colored_polygon(points, Color(tint, (0.06 + 0.12 * s) * cone_alpha))
 	if s <= 0.05:
 		return
 	var font: Font = ThemeDB.fallback_font

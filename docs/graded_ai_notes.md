@@ -323,3 +323,51 @@ Enemies, GA, fitness and navigation are untouched: only which layout a level use
 Tuning note: the first fill times (0.35 s / 1.6 s, x2 alert) gave a scripted walk-through only
 0.4-0.7 s between the first "?" and the alarm (footsteps had already made nearby enemies alert), so
 they were raised to 0.5 s / 1.8 s, x1.5 before committing.
+
+## Reactive Survival V2 — wary enemies, cover for the survivor (2026-10-18)
+
+Player-approved design. GA, genes, fitness, flow field, A*, attack ring, terrain rules unchanged.
+
+**Wariness** (`ai/decision/awareness.gd`; `wary_seconds` 20 in `data/perception.tres`):
+
+```unknown
+lose_sight(...):  if state == CHASE: (V1) -> INVESTIGATE;  wary_left = wary_seconds
+tick(dt):         (V1);  wary_left = max(0, wary_left - dt)
+is_alert():       state in {INVESTIGATE, SEARCH} or wary_left > 0     # V1's x1.5 fill applies
+is_wary():        wary_left > 0                                         # Enemy: search-style gaze sweep
+```
+
+Only an enemy that actually SAW the player (CHASE) becomes wary; hearing or a half-full meter does
+not. Wariness gives no position and no lead: it only changes how fast suspicion fills and how the
+enemy looks around. The Stealth objective (not graded) shortens each SPOTTED countdown by 0.5 s per
+close call (3 -> 2.5 -> 2 -> 1.5 s minimum); close calls are unlimited.
+
+**CoverFinder** (`ai/nav/cover_finder.gd`, new) — where a threatened Escort survivor hides:
+
+```unknown
+find(grid, from, threats, player):
+    Dijkstra from `from`, 4-way, survivor walking rules (SafePath.walkable)
+        step cost = 1 + 8 * SafePath.danger(next, threats, 4)      # same danger as the route planner
+        a cell is expanded only while its route has < max_steps (8) steps
+    for every cell c popped (cheapest route first):
+        cover(c)    = no threat within 3 cells of c
+                      and (c is tall grass  or  no threat has a clear grid line to c)
+        in_time(c)  = steps(c) * 16 / 72   <   min over t of |c - t| * 16 / 70  - 0.3
+                      (survivor at its sprint speed vs an enemy walking straight there at base speed)
+        if cover(c) and in_time(c): score = cost(c) + 0.5 * |c - player|; keep the lowest
+    return best cell (and its route, last_path), or NONE
+```
+
+Why Dijkstra and not A*: there is no single goal; we want the best of all reachable cells, and
+Dijkstra pops cells cheapest-route first, so `cost(c)` is final when c is scored. The step limit
+keeps the search small (at most ~145 cells) and means "cover I can reach quickly". The threat's
+straight-line time is optimistic for the threat (walls only slow it down), so "in time" is a safe
+promise. Tall grass counts because concealment hides you beyond 2 tiles (GDD 4.3) and the 3-cell gap
+keeps the survivor out of that range; `grass_counts = false` would ignore it.
+
+Objective side (not graded, `world/objectives/escort_objective.gd`): threatened = an enemy within
+40 px, or a visible one within 96 px moving towards the survivor. Then every 0.5 s: CoverFinder;
+no cover -> SafePath to the player if every route cell stays 2 cells from the threats; else back
+away. It hides until no enemy has seen it for 2 s. Run = SafePath to the exit at 72 px/s, 6 s of
+stamina, a 48 px noise every 0.5 s. The enemy side only gains one rule: a survivor in tall grass
+that is not running is not seen beyond sense_radius (the player's own stealth rule).

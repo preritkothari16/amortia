@@ -29,17 +29,35 @@ enum Type { SURVIVE, HOLD, ESCORT, PURGE, EXTRACT, STEALTH, APEX }
 @export var escort_max_attackers: int = 3
 ## Follow command: the survivor walks to the player and stops this far away (px).
 @export var escort_follow_distance: float = 28.0
-## Recovery: an enemy this close (px) makes the survivor back away towards the player.
-@export var escort_flee_radius: float = 32.0
 ## Enemies within this distance (px) and in clear line are threats the survivor's route avoids.
 @export var escort_threat_sight: float = 160.0
-## Recovery: at 0 HP the survivor goes down (no damage) for this long, once per wave. Stand next
-## to it for escort_revive_seconds to bring it back with escort_revive_health_ratio of its HP.
-## Downed time over, or a second 0 HP in the same wave = level fail.
-@export var escort_downed_seconds: float = 8.0
-@export var escort_revive_seconds: float = 1.5
-@export var escort_revive_radius: float = 20.0
-@export_range(0.0, 1.0) var escort_revive_health_ratio: float = 0.4
+## Run command (Reactive Survival V2): sprints to the exit at escort_run_speed (px/s) along the
+## threat-aware route, whatever the player's distance. Lasts escort_stamina_seconds of running;
+## stamina comes back at escort_stamina_refill per second while not running; empty -> FOLLOW.
+## R only starts a run with at least escort_run_min_stamina seconds left.
+@export var escort_run_speed: float = 72.0
+@export var escort_stamina_seconds: float = 6.0
+@export var escort_stamina_refill: float = 0.5
+@export var escort_run_min_stamina: float = 1.0
+## Running is loud: an ordinary noise of this radius (px) every escort_run_noise_interval seconds.
+@export var escort_run_noise_radius: float = 48.0
+@export var escort_run_noise_interval: float = 0.5
+## Threatened = a visible enemy within escort_threat_radius (px) moving towards the survivor, or
+## any enemy within escort_flee_radius. Then it seeks cover (CoverFinder) at escort_run_speed,
+## and never fights.
+@export var escort_threat_radius: float = 96.0
+@export var escort_flee_radius: float = 40.0
+## Cover search: at most this many steps away, at least escort_cover_gap_cells from every threat,
+## reached escort_cover_margin seconds before a threat moving at escort_threat_speed (px/s)
+## could get there; nearer the player is better (escort_cover_player_weight per cell).
+@export var escort_cover_max_steps: int = 8
+@export var escort_cover_gap_cells: float = 3.0
+@export var escort_threat_speed: float = 70.0
+@export var escort_cover_margin: float = 0.3
+@export var escort_cover_player_weight: float = 0.5
+## After a threat it stays put (hidden, in cover) until no enemy has seen it for this long (s),
+## then obeys again.
+@export var escort_hide_seconds: float = 2.0
 
 @export_group("Purge nests")
 @export_range(3, 5) var nest_count: int = 3
@@ -56,12 +74,14 @@ enum Type { SURVIVE, HOLD, ESCORT, PURGE, EXTRACT, STEALTH, APEX }
 @export_group("Stealth")
 ## Alarms allowed: an alarm = an enemy sees the player (enters CHASE). 0 = any alarm fails.
 @export var alarms_allowed: int = 0
-## Recovery (Reactive Survival V1): an alarm past alarms_allowed starts this countdown instead of
-## failing at once. If no enemy sees the player when it runs out, it was a close call; if one
-## still does, the level fails.
+## Recovery (Reactive Survival V1, V2): an alarm past alarms_allowed starts this countdown instead
+## of failing at once. If no enemy sees the player when it runs out, it was a close call; if one
+## still does, the level fails. 0 = any alarm fails at once.
 @export var alarm_grace_seconds: float = 3.0
-## Close calls allowed per wave. Once used up, the next alarm fails at once.
-@export var alarm_escapes: int = 1
+## Close calls are unlimited, but each one makes the next countdown this much shorter (s)...
+@export var alarm_grace_step: float = 0.5
+## ...down to this.
+@export var alarm_grace_min: float = 1.5
 
 @export_group("Apex boss")
 ## Boss = the zone's best genome on its archetype, with these multipliers (placeholder until the

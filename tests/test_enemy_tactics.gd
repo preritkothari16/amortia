@@ -550,12 +550,20 @@ func test_enemy_hunts_hits_and_is_credited_for_the_survivor_while_the_player_is_
 	player.global_position = main.current_map().get_exit()  # far away: the survivor doesn't follow
 	var hp: float = escort.survivor_health
 	var moved_calm: bool = false
-	for f: int in 240:
+	var reacted: bool = false
+	for f: int in 60:
 		var before: Vector2 = escort.survivor
 		await wait_physics_frames(1)
-		if escort.survivor != before and not escort.scared:
+		reacted = reacted or escort.retreat != EscortObjective.Retreat.NONE
+		if escort.survivor != before and not escort.scared and escort.retreat == EscortObjective.Retreat.NONE:
 			moved_calm = true
-	assert_false(moved_calm, "the survivor never followed the far-away player (it only backed off the enemy)")
+	assert_false(moved_calm, "the survivor never followed the far-away player (it only got away from the enemy)")
+	assert_true(reacted, "the hunted survivor tries to get away (Reactive Survival V2)")
+	# Cornered survivor (held in place): the enemy side - hunting, hitting, O credit - is what is tested here.
+	var corner: Vector2 = escort.survivor
+	for f: int in 240:
+		escort.survivor = corner
+		await wait_physics_frames(1)
 	assert_lt(e.global_position.distance_to(escort.survivor), 20.0, "the enemy walked up to the survivor")
 	assert_lt(escort.survivor_health, hp, "and hurt it")
 	assert_gt(e.fitness_record.objective_score, 0.0, "O is credited to that enemy")

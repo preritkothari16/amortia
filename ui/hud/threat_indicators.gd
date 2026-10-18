@@ -33,7 +33,7 @@ func _draw() -> void:
 					else Color(1, 0.9, 0.2, 0.5 + 0.5 * s)
 			_arrow(to_screen * e.global_position, rect, color)
 	if escort != null and escort.state == Objective.State.ACTIVE:
-		var warn: bool = escort.downed or escort.hunters() > 0
+		var warn: bool = escort.scared or escort.hunters() > 0
 		var blink: bool = warn and int(Time.get_ticks_msec() / 250) % 2 == 0
 		_arrow(to_screen * escort.survivor, rect, Color(1, 0.3, 0.3) if blink else Color(1.0, 0.85, 0.3))
 

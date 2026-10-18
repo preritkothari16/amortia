@@ -101,6 +101,7 @@ Terrain is data, not decoration: every tile type has movement, vision, sound and
 - **Line of sight** by raycast; blocked by vision-blocking tiles. Vision radius comes from the Vision gene, reduced by fog and night.
 - **Noise events** (shots, running, splashes, broken fences) emit a radius; enemies inside it get the player's position as a *last known location*, not live tracking.
 - Player can stealth: walking + tall grass + no shooting = invisible beyond 2 tiles.
+- **View cone and suspicion (Reactive Survival V1/V2):** enemies see in a 120° cone. Beyond 2 tiles, seeing the player fills a suspicion meter (faster up close); half full sends the enemy to check the spot, full = it sees you. Breaking line of sight drains it. Within 2 tiles detection stays instant from any direction (kept pending playtesting). An enemy that saw you and lost you stays **wary** for 20 s (fills suspicion 1.5× faster, sweeps its gaze wider) but learns nothing new. Cones are drawn only when an enemy is near the player, suspicious, investigating or chasing (the F6 debug view shows all).
 
 ### 4.4 Dynamic terrain events
 
@@ -334,6 +335,14 @@ The campaign is 16 levels (4 zones × 3 levels + 4 Apex bosses), each level buil
 | **Extract** | Collect samples/supplies, reach evac | Risk vs. reward | Noise from looting draws enemies |
 | **Stealth** | Cross the map without triggering alarms | Stealth skills | Vision/hearing genes matter most |
 | **Apex boss** | Beat the zone boss | Everything learned | Boss built from the zone's best genome |
+
+**Stealth and Escort rules (Reactive Survival V2, player-approved):**
+
+- **Stealth recovery:** an alarm starts a SPOTTED countdown (3 s). Nobody sees you when it ends = close call; still seen = level fail. Close calls are unlimited, but each one shortens the next countdown: 3 → 2.5 → 2 → 1.5 s (minimum). Every enemy that saw you stays wary.
+- **Noise-maker (G):** thrown up to 8 tiles, one ordinary noise where it lands. Campaign levels: start each level with 2, carry at most 3, the count carries between the level's areas; refill pickups (+1) lie on seeded, reachable spots (2 per area on Stealth / Escort levels, 1 elsewhere); Retry restores the wave-start count. Endless keeps 2 per wave.
+- **Escort commands:** E = Follow ⇄ Wait, R = Run ⇄ Follow. Follow walks to the player on a danger-aware route; Wait holds position; Run sprints (72 px/s) to the exit on the danger-aware route even when the player is far, costs stamina (6 s, refills at half speed when not running; empty = Follow) and makes a footstep-sized noise every 0.5 s.
+- **Threatened survivor:** never fights. It runs to the best reachable cover (out of every visible enemy's sight or in tall grass, at least 3 tiles from them, reached before they could get there), hides until no enemy has seen it for 2 s, then obeys again. No cover: runs to the player if that route stays clear, else backs away. Tall grass hides a survivor that is not running beyond 2 tiles.
+- **Survivor death:** 0 HP = level fail at once. No revive.
 
 ### 8.3 Side objectives
 

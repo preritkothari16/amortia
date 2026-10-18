@@ -14,6 +14,10 @@ extends RefCounted
 ## frame out of view drains it. Crossing the investigate threshold makes the enemy go and check
 ## the glimpse spot (an ordinary lead, like a noise); reaching 1 = it sees you (CHASE).
 ## Breaking line of sight before that, or during a chase, drops it back to a lead it has to follow.
+##
+## Wariness (Reactive Survival V2): an enemy that actually SAW the player (CHASE) and lost them
+## stays wary for wary_seconds. While wary it counts as alert (suspicion fills faster, it sweeps
+## its gaze like a searching enemy) but it learns nothing new: no position, no lead.
 
 enum State { IDLE, INVESTIGATE, SEARCH, CHASE }
 
@@ -31,6 +35,11 @@ var lead_strength: float = 0.0
 var suspicion: float = 0.0
 ## Where the player was when last glimpsed (suspicion rising). Vector2.INF = never.
 var glimpse: Vector2 = Vector2.INF
+## How long wariness lasts after losing a player it saw (set by the enemy from PerceptionSettings).
+## 0 = never wary (bare test enemies, the rule before V2).
+var wary_seconds: float = 0.0
+## Seconds of wariness left (0 = calm).
+var wary_left: float = 0.0
 
 var _search_left: float = 0.0
 
@@ -65,9 +74,14 @@ func unnoticed(delta: float, lost_sight_strength: float, decay_per_second: float
 	suspicion = maxf(0.0, suspicion - decay_per_second * delta)
 
 
-## True while following up a lead or searching: suspicion fills faster then.
+## True while following up a lead, searching or still wary: suspicion fills faster then.
 func is_alert() -> bool:
-	return state == State.INVESTIGATE or state == State.SEARCH
+	return state == State.INVESTIGATE or state == State.SEARCH or wary_left > 0.0
+
+
+## True for wary_seconds after losing a player it saw (it looks around harder).
+func is_wary() -> bool:
+	return wary_left > 0.0
 
 
 ## Called every frame the player is NOT visible. A chase turns into an investigation of the
@@ -78,6 +92,7 @@ func lose_sight(strength: float = 1.0) -> void:
 		state = State.INVESTIGATE
 		target_version += 1
 		lead_strength = clampf(strength, 0.0, 1.0)
+		wary_left = wary_seconds  # it saw someone: stays on edge for a while
 
 
 ## A noise reached us. While chasing, sight is better information, so noises are ignored;
@@ -105,9 +120,10 @@ func has_lead() -> bool:
 	return state == State.INVESTIGATE
 
 
-## Ages the information and counts down the search; afterwards the enemy goes idle.
+## Ages the information, counts down the wariness and the search; afterwards the enemy goes idle.
 func tick(delta: float) -> void:
 	lead_age += delta
+	wary_left = maxf(wary_left - delta, 0.0)
 	if state == State.SEARCH:
 		_search_left -= delta
 		if _search_left <= 0.0:

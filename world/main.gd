@@ -144,7 +144,15 @@ func _ready() -> void:
 	_player.died.connect(_on_player_died, CONNECT_DEFERRED)
 	_wave_manager.wave_restarting.connect(func(_wave: int) -> void: _put_player_on_spawn())
 	_wave_manager.wave_started.connect(func(_wave: int) -> void: _player.revive())
-	_wave_manager.wave_started.connect(func(_wave: int) -> void: _player.refill_throwables())
+	# Noise-makers: the endless / prototype loop refills them every wave; a campaign level gives a
+	# start count that carries over between areas (pickups refill it) and Retry restores the count
+	# the wave started with.
+	if level_config == null:
+		_wave_manager.wave_started.connect(func(_wave: int) -> void: _player.refill_throwables())
+	else:
+		_player.start_level_inventory()
+		_wave_manager.wave_started.connect(func(_wave: int) -> void: _player.mark_wave_inventory())
+		_wave_manager.wave_restarting.connect(func(_wave: int) -> void: _player.restore_wave_inventory())
 	# Resources and blueprints picked up in a lost attempt are not kept: Retry starts from the wave's start.
 	_wave_manager.wave_started.connect(func(_wave: int) -> void: GameState.take_resource_snapshot())
 	_wave_manager.wave_restarting.connect(func(_wave: int) -> void: GameState.restore_resource_snapshot())

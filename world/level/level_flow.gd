@@ -52,6 +52,8 @@ var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var stats: Dictionary = {"damage_taken": 0.0, "seconds": 0.0, "barricades_placed": 0}
 ## Side objectives met when the level ended (ids).
 var side_completed: Array[String] = []
+## Cells of this area's noise-maker refill pickups (Reactive Survival V2).
+var refill_cells: Array[Vector2i] = []
 
 
 func setup(level: LevelConfig, level_main: Node, waves: WaveManager, the_player: Player,
@@ -98,6 +100,7 @@ func _on_wave_started(_wave: int) -> void:
 		if objective.exit_open_from_start():
 			main.open_exit()
 	_place_blueprint()
+	_place_noise_refills()
 
 
 ## The level's blueprint (exploration reward) lies on a far, reachable cell of the LAST area, as a
@@ -115,6 +118,56 @@ func _place_blueprint() -> void:
 	rng.seed = hash(str(config.id)) + waves_done * 31
 	var cell: Vector2i = cells[rng.randi_range(0, cells.size() - 1)]
 	main.call_deferred("add_child", Pickup.create_blueprint(id, grid.coords.cell_to_world(cell)))
+
+
+## Noise-maker refills (+1 each, Reactive Survival V2): refills_per_area of them (more on Stealth
+## and Escort levels) on reachable cells refill_min_cells..refill_max_cells from the entry, at least
+## refill_spacing_cells apart, next to cover when possible. Seeded, so Retry puts them back in the
+## same places (a refill picked up in a lost attempt comes back with the restored count).
+func _place_noise_refills() -> void:
+	refill_cells.clear()
+	var settings: NoiseMakerSettings = player.noise_maker
+	if settings == null:
+		return
+	var count: int = settings.refills_per_area
+	if objective != null and (objective.config.type == ObjectiveConfig.Type.STEALTH
+			or objective.config.type == ObjectiveConfig.Type.ESCORT):
+		count = settings.refills_per_area_stealth_escort
+	if count <= 0:
+		return
+	var grid: TerrainGrid = main.terrain_grid
+	var origin: Vector2i = grid.coords.world_to_cell(main.current_map().get_entry())
+	var in_band: Array[Vector2i] = []
+	var near_cover: Array[Vector2i] = []
+	for c: Vector2i in ReachableCells.farther_than(ReachableCells.from(grid, origin), origin, settings.refill_min_cells):
+		if Vector2(c - origin).length() > settings.refill_max_cells:
+			continue
+		in_band.append(c)
+		if _next_to_cover(grid, c):
+			near_cover.append(c)
+	var pool: Array[Vector2i] = near_cover if near_cover.size() >= count else in_band
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = hash(str(config.id)) + waves_done * 31 + 7919
+	var tries: int = 0
+	while refill_cells.size() < count and not pool.is_empty() and tries < 64:
+		tries += 1
+		var cell: Vector2i = pool[rng.randi_range(0, pool.size() - 1)]
+		var spaced: bool = true
+		for other: Vector2i in refill_cells:
+			spaced = spaced and Vector2(cell - other).length() >= settings.refill_spacing_cells
+		if spaced:
+			refill_cells.append(cell)
+			main.call_deferred("add_child", Pickup.create(&"noise_maker", 1, grid.coords.cell_to_world(cell)))
+
+
+## A concealing or sight-blocking cell touches `cell` (8 neighbours).
+static func _next_to_cover(grid: TerrainGrid, cell: Vector2i) -> bool:
+	for dy: int in range(-1, 2):
+		for dx: int in range(-1, 2):
+			var n: Vector2i = cell + Vector2i(dx, dy)
+			if (dx != 0 or dy != 0) and grid.in_bounds(n) and (grid.conceals(n) or grid.blocks_vision(n)):
+				return true
+	return false
 
 
 func _physics_process(delta: float) -> void:

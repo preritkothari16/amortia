@@ -48,8 +48,13 @@ var terrain_grid: TerrainGrid
 var terrain_health: TerrainHealth
 ## Seconds since the last shot (stealth: shooting gives you away for a moment).
 var seconds_since_shot: float = INF
-## Noise-makers left in this wave / area (refill_throwables).
+## Noise-makers carried. Endless / prototype: refilled every wave (refill_throwables). Campaign
+## level (Reactive Survival V2): start_level_inventory, refill pickups, Retry restores the count
+## the wave started with (mark_wave_inventory / restore_wave_inventory).
 var noise_makers_left: int = 0
+var _noise_makers_at_wave_start: int = 0
+## True in a campaign level (limited inventory with a maximum; HUD shows "n / max").
+var noise_maker_inventory: bool = false
 ## Seconds until the next footstep noise.
 var _footstep_left: float = 0.0
 ## True while the dodge's invulnerability window is open. Damage code will check this.
@@ -253,9 +258,34 @@ func _shoot(delta: float) -> void:
 
 # --- Noise-maker ---------------------------------------------------------------------
 
-## Back to the full count (start of every wave / area, and Retry).
+## Endless / prototype loop: back to the full count (start of every wave, and Retry).
 func refill_throwables() -> void:
 	noise_makers_left = noise_maker.count_per_area if noise_maker != null else 0
+
+
+## Campaign level: the count every level starts with.
+func start_level_inventory() -> void:
+	noise_maker_inventory = true
+	noise_makers_left = mini(noise_maker.level_start_count, noise_maker.max_carried) if noise_maker != null else 0
+	_noise_makers_at_wave_start = noise_makers_left
+
+
+## Campaign level: remember the count at the start of a wave (Retry goes back to it).
+func mark_wave_inventory() -> void:
+	_noise_makers_at_wave_start = noise_makers_left
+
+
+func restore_wave_inventory() -> void:
+	noise_makers_left = _noise_makers_at_wave_start
+
+
+## A refill pickup: adds up to `amount`, never above max_carried. Returns how many were added.
+func add_noise_makers(amount: int) -> int:
+	if noise_maker == null:
+		return 0
+	var added: int = clampi(noise_maker.max_carried - noise_makers_left, 0, amount)
+	noise_makers_left += added
+	return added
 
 
 ## G: throws a noise-maker towards `target` (at most max_range, stopped by walls). It makes its

@@ -3,43 +3,58 @@ extends Objective
 ## Escort (GDD 8.2): bring a survivor from the entry to the exit. Survivor at the exit (same
 ## rule as the player: near the exit marker or in the last two columns) = wave goal; the player
 ## walking out alone completes nothing. The exit is open from the start.
-## Commands (Reactive Survival V1, key: input action "escort_command"):
+## Commands (Reactive Survival V1, V2; input actions "escort_command" = E, "escort_run" = R):
 ##   FOLLOW  walks to the player along a threat-aware route (SafePath, re-planned every
 ##           REPLAN_SECONDS) and stops escort_follow_distance short; waits while the player is
 ##           more than escort_leash away. Player standing at the exit: walks into the exit.
-##   WAIT    stays where it is
-## Whatever the command, an enemy within escort_flee_radius makes it back away, towards the player.
+##   WAIT    stays where it was told to wait (comes back there after hiding)
+##   RUN     sprints to the exit along the threat-aware route, wherever the player is. Uses
+##           stamina (empty -> FOLLOW) and makes a noise every escort_run_noise_interval.
+## E: FOLLOW <-> WAIT (RUN -> FOLLOW). R: RUN <-> FOLLOW.
+## Threatened (an enemy it can see closing in within escort_threat_radius, or any enemy within
+## escort_flee_radius), it never fights: it runs to the best reachable cover (CoverFinder: out of
+## every threat's sight or in tall grass, reached before the threats) and hides there until no
+## enemy has seen it for escort_hide_seconds (also after running to the player or backing away).
+## No cover: to the player if that route stays clear of the threats, else it backs away. Tall grass hides it beyond 2 tiles unless it is running.
 ## Enemies hunt the survivor: one that perceives it (the player's sight rules) scores HuntSurvivor
 ## and walks to it (Enemy._hunt_survivor_seek). Only the escort_max_attackers nearest enemies within
 ## reach hit it, each with its own cooldown and ferocity-scaled damage.
-## Recovery: the first time its HP reaches 0 in a wave it goes DOWN (no damage, enemies lose
-## interest) for escort_downed_seconds; standing next to it for escort_revive_seconds revives it
-## with part of its HP. Down time over, or 0 HP again that wave = level fail (Retry).
+## 0 HP = level fail at once (Retry). No revive (Reactive Survival V2).
 ## Objective fitness O: each enemy is credited with the damage IT did to the survivor.
 
-enum Mode { FOLLOW, WAIT }
+enum Mode { FOLLOW, WAIT, RUN }
+## What the survivor does about a threat: nothing, heads for cover, runs to the player, backs away.
+enum Retreat { NONE, COVER, TO_PLAYER, BACK_AWAY }
 
 const REACH: float = 14.0
 const REPLAN_SECONDS: float = 0.5
 ## Distance (px) from the exit marker that counts as out (LevelFlow uses the same for the player).
 const EXIT_RADIUS: float = 20.0
+## An enemy counts as closing in when it moves towards the survivor at least this fast (px/s).
+const CLOSING_SPEED: float = 10.0
 
 var survivor: Vector2 = Vector2.ZERO
 var survivor_health: float = 0.0
 var mode: Mode = Mode.FOLLOW
-## True while backing away from an enemy this frame.
+## Seconds of running left (escort_stamina_seconds when rested).
+var stamina: float = 0.0
+## True while threatened this frame.
 var scared: bool = false
-## Recovery state: down (0 HP, waiting for a revive), seconds left, revive progress (seconds
-## the player has stood next to it), and how often it went down this wave.
-var downed: bool = false
-var downed_left: float = 0.0
-var revive_progress: float = 0.0
-var downs: int = 0
+## True while sprinting on the Run command this frame (loud, not hidden by grass).
+var running: bool = false
+var retreat: Retreat = Retreat.NONE
+## The cover being used (CoverFinder.NONE = none).
+var cover_cell: Vector2i = CoverFinder.NONE
+## Seconds since an enemy last saw or threatened the survivor.
+var since_seen: float = INF
+var _wait_spot: Vector2 = Vector2.ZERO
 var _safe_path: SafePath = SafePath.new()
+var _cover_finder: CoverFinder = CoverFinder.new()
 var _path: Array[Vector2i] = []
 var _path_index: int = 0
 var _replan_left: float = 0.0
 var _planned_goal: Vector2i = Vector2i(-9999, -9999)
+var _noise_left: float = 0.0
 ## Enemy instance id -> seconds until it may hit the survivor again.
 var _cooldowns: Dictionary[int, float] = {}
 var _hit_flash: float = 0.0
@@ -57,11 +72,22 @@ func setup(objective_config: ObjectiveConfig, terrain_grid: TerrainGrid, the_pla
 		waves: WaveManager, health: TerrainHealth) -> void:
 	super(objective_config, terrain_grid, the_player, waves, health)
 	waves.set_escort(self)
+	_cover_finder.max_steps = config.escort_cover_max_steps
+	_cover_finder.min_threat_gap_cells = config.escort_cover_gap_cells
+	_cover_finder.mover_speed = config.escort_run_speed
+	_cover_finder.threat_speed = config.escort_threat_speed
+	_cover_finder.margin_seconds = config.escort_cover_margin
+	_cover_finder.player_weight = config.escort_cover_player_weight
 
 
-## The survivor can be seen (and hunted) while the objective runs, it has HP and is not down.
+## The survivor can be seen (and hunted) while the objective runs and it has HP.
 func is_survivor_alive() -> bool:
-	return state == State.ACTIVE and survivor_health > 0.0 and not downed
+	return state == State.ACTIVE and survivor_health > 0.0
+
+
+## Hidden from enemies beyond their sense radius: standing or walking in tall grass, not running.
+func is_survivor_concealed() -> bool:
+	return not running and grid != null and grid.conceals(grid.coords.world_to_cell(survivor))
 
 
 func area_loaded(zone_map: ZoneMap) -> void:
@@ -73,9 +99,7 @@ func wave_started(wave: int) -> void:
 	super(wave)
 	survivor_health = config.escort_health
 	mode = Mode.FOLLOW
-	downed = false
-	downs = 0
-	revive_progress = 0.0
+	stamina = config.escort_stamina_seconds
 	_cooldowns.clear()
 	_place()
 
@@ -85,32 +109,52 @@ func _place() -> void:
 		return
 	var start: Vector2i = grid.coords.world_to_cell(map.get_entry()) + Vector2i(1, 0)
 	survivor = grid.coords.cell_to_world(start)
-	_path.clear()
-	_replan_left = 0.0
+	_wait_spot = survivor
+	_end_retreat()
+	running = false
+	scared = false
+	since_seen = INF
 	queue_redraw()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if state == State.ACTIVE and event.is_action_pressed("escort_command"):
+	if state != State.ACTIVE:
+		return
+	if event.is_action_pressed("escort_command"):
 		toggle_mode()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("escort_run"):
+		toggle_run()
 		get_viewport().set_input_as_handled()
 
 
-## FOLLOW <-> WAIT.
+## E: FOLLOW <-> WAIT; a running survivor goes back to FOLLOW.
 func toggle_mode() -> void:
-	mode = Mode.WAIT if mode == Mode.FOLLOW else Mode.FOLLOW
+	if mode == Mode.FOLLOW:
+		mode = Mode.WAIT
+		_wait_spot = survivor
+	else:
+		mode = Mode.FOLLOW
 	_path.clear()
 	_replan_left = 0.0
+
+
+## R: RUN <-> FOLLOW. A run only starts with at least escort_run_min_stamina left. Returns true
+## if the survivor is running now.
+func toggle_run() -> bool:
+	if mode == Mode.RUN:
+		mode = Mode.FOLLOW
+	elif stamina >= config.escort_run_min_stamina:
+		mode = Mode.RUN
+	_path.clear()
+	_replan_left = 0.0
+	return mode == Mode.RUN
 
 
 func tick(delta: float) -> void:
 	if state != State.ACTIVE:
 		return
 	_hit_flash = maxf(_hit_flash - delta, 0.0)
-	if downed:
-		_tick_downed(delta)
-		queue_redraw()
-		return
 	_move(delta)
 	# Enemies next to the survivor hit it.
 	for id: int in _cooldowns.keys():
@@ -126,7 +170,8 @@ func tick(delta: float) -> void:
 		credit(e, dmg)
 	queue_redraw()
 	if survivor_health <= 0.0:
-		_go_down()
+		survivor_health = 0.0
+		_fail("the survivor died")
 	elif at_exit():
 		_complete()
 
@@ -139,44 +184,154 @@ func at_exit() -> bool:
 			or grid.coords.world_to_cell(survivor).x >= grid.width - 2
 
 
+## True while the survivor stands in its cover.
+func is_hiding() -> bool:
+	return retreat == Retreat.COVER and grid.coords.world_to_cell(survivor) == cover_cell
+
+
 # --- Movement ------------------------------------------------------------------------
 
 ## The player is in the exit zone (LevelFlow's rule): the survivor then heads for the exit.
 func _player_at_exit() -> bool:
-	return player.global_position.distance_to(map.get_exit()) <= EXIT_RADIUS * 1.5 			or grid.coords.world_to_cell(player.global_position).x >= grid.width - 2
+	return player.global_position.distance_to(map.get_exit()) <= EXIT_RADIUS * 1.5 \
+			or grid.coords.world_to_cell(player.global_position).x >= grid.width - 2
 
 
 func _move(delta: float) -> void:
-	scared = false
-	var step: float = config.escort_speed * delta
-	var threat: Enemy = _nearest_enemy_within(config.escort_flee_radius)
-	if threat != null:
-		scared = true
+	running = false
+	scared = threatened()
+	if scared or _seen_by_enemy():
+		since_seen = 0.0
+	else:
+		since_seen += delta
+	if scared:
+		_retreat(delta)
+	elif retreat != Retreat.NONE and since_seen < config.escort_hide_seconds:
+		# Shaken: stays put (finishing the way into its cover) until nobody has seen it for a while,
+		# so it doesn't walk straight back into the enemy it just got away from.
+		if retreat == Retreat.COVER:
+			_follow_path(config.escort_run_speed * delta)
+	else:
+		if retreat != Retreat.NONE:
+			_end_retreat()
+		match mode:
+			Mode.RUN:
+				_run(delta)
+			Mode.WAIT:
+				if survivor.distance_to(_wait_spot) > 2.0:
+					_go_to(_wait_spot, config.escort_speed * delta, delta)
+			Mode.FOLLOW:
+				_follow(delta)
+	if not running:
+		stamina = minf(stamina + config.escort_stamina_refill * delta, config.escort_stamina_seconds)
+
+
+## FOLLOW: up to the player, stopping short - unless the player stands at the exit (the map edge,
+## nowhere further to go): then into the exit itself. Waits while the player is too far away.
+func _follow(delta: float) -> void:
+	var to_player: float = survivor.distance_to(player.global_position)
+	if to_player > config.escort_leash:
+		return
+	var target: Vector2 = player.global_position
+	if _player_at_exit():
+		target = map.get_exit()
+	elif to_player <= config.escort_follow_distance:
+		return
+	_go_to(target, config.escort_speed * delta, delta)
+
+
+## RUN: sprint to the exit, using stamina and making noise. Out of stamina -> FOLLOW.
+func _run(delta: float) -> void:
+	if stamina <= 0.0:
+		mode = Mode.FOLLOW
+		_follow(delta)
+		return
+	running = true
+	stamina = maxf(stamina - delta, 0.0)
+	_noise_left -= delta
+	if _noise_left <= 0.0:
+		_noise_left = config.escort_run_noise_interval
+		if config.escort_run_noise_radius > 0.0:
+			EventBus.noise_emitted.emit(survivor, config.escort_run_noise_radius)
+	_go_to(map.get_exit(), config.escort_run_speed * delta, delta)
+
+
+## Threatened: re-chooses where to go every REPLAN_SECONDS - the best cover; without one the
+## player, if the safe route there keeps 2 cells from every threat; else straight away from the
+## nearest enemy (biased towards the player). Moves at escort_run_speed, without stamina or noise.
+func _retreat(delta: float) -> void:
+	var step: float = config.escort_run_speed * delta
+	_replan_left -= delta
+	if retreat == Retreat.NONE or _replan_left <= 0.0:
+		_replan_left = REPLAN_SECONDS
+		var threats: Array[Vector2i] = _threat_cells()
+		var here: Vector2i = grid.coords.world_to_cell(survivor)
+		var player_cell: Vector2i = grid.coords.world_to_cell(player.global_position)
+		cover_cell = _cover_finder.find(grid, here, threats, player_cell)
+		if cover_cell != CoverFinder.NONE:
+			retreat = Retreat.COVER
+			_set_path(_cover_finder.last_path, cover_cell)
+		else:
+			var to_player: Array[Vector2i] = _safe_path.find(grid, here, player_cell, threats)
+			if not to_player.is_empty() and _keeps_clear(to_player, threats):
+				retreat = Retreat.TO_PLAYER
+				_set_path(to_player, player_cell)
+			else:
+				retreat = Retreat.BACK_AWAY
+				_path.clear()
+	if retreat == Retreat.BACK_AWAY:
+		var threat: Enemy = _nearest_enemy_within(config.escort_threat_radius)
+		if threat == null:
+			return
 		var away: Vector2 = threat.global_position.direction_to(survivor)
 		var towards: Vector2 = survivor.direction_to(player.global_position)
 		for dir: Vector2 in [(away + towards * 0.6).normalized(), away]:
 			if _try_step(dir * step):
 				return
 		return
-	if mode == Mode.WAIT:
+	if retreat == Retreat.TO_PLAYER and survivor.distance_to(player.global_position) <= config.escort_follow_distance:
 		return
-	var to_player: float = survivor.distance_to(player.global_position)
-	if to_player > config.escort_leash:
-		return
-	# Following: up to the player, stopping short - unless the player stands at the exit (the map
-	# edge, nowhere further to go): then into the exit itself.
-	var target: Vector2 = player.global_position
-	if _player_at_exit():
-		target = map.get_exit()
-	elif to_player <= config.escort_follow_distance:
-		return
+	_follow_path(step)
+
+
+## Every cell of `path` is at least 2 cells from every threat.
+static func _keeps_clear(path: Array[Vector2i], threats: Array[Vector2i]) -> bool:
+	for c: Vector2i in path:
+		for t: Vector2i in threats:
+			if Vector2(c - t).length() < 2.0:
+				return false
+	return true
+
+
+func _end_retreat() -> void:
+	retreat = Retreat.NONE
+	cover_cell = CoverFinder.NONE
+	_path.clear()
+	_replan_left = 0.0
+
+
+## Walks the threat-aware route to `target`, re-planned every REPLAN_SECONDS or when the goal
+## cell changes.
+func _go_to(target: Vector2, step: float, delta: float) -> void:
 	var goal: Vector2i = grid.coords.world_to_cell(target)
 	_replan_left -= delta
 	if _replan_left <= 0.0 or _path.is_empty() or goal != _planned_goal:
-		_plan(goal)
+		_replan_left = REPLAN_SECONDS
+		_set_path(_safe_path.find(grid, grid.coords.world_to_cell(survivor), goal, _threat_cells()), goal)
 	if _path.is_empty():
 		_try_step(survivor.direction_to(target) * step)  # no route: straight, if walkable
 		return
+	_follow_path(step)
+
+
+func _set_path(path: Array[Vector2i], goal: Vector2i) -> void:
+	_path = path
+	_path_index = 1
+	_planned_goal = goal
+
+
+## One step of `step` px along the current route.
+func _follow_path(step: float) -> void:
 	while _path_index < _path.size() and survivor.distance_to(grid.coords.cell_to_world(_path[_path_index])) < 1.0:
 		_path_index += 1
 	if _path_index >= _path.size():
@@ -184,22 +339,41 @@ func _move(delta: float) -> void:
 	survivor = survivor.move_toward(grid.coords.cell_to_world(_path[_path_index]), step)
 
 
-## Plans the threat-aware route from the survivor's cell to `goal`.
-func _plan(goal: Vector2i) -> void:
-	_replan_left = REPLAN_SECONDS
-	_planned_goal = goal
-	_path = _safe_path.find(grid, grid.coords.world_to_cell(survivor), goal, known_threats())
-	_path_index = 1
-
-
-## Cells of the enemies the survivor can see: within escort_threat_sight, clear grid line.
-func known_threats() -> Array[Vector2i]:
+## Cells of the enemies the survivor can see (within escort_threat_sight, clear grid line), plus
+## any enemy within escort_flee_radius (heard right next to it).
+func _threat_cells() -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
 	for e: Enemy in wave_manager.alive:
-		if e.global_position.distance_to(survivor) <= config.escort_threat_sight \
-				and grid.has_line_of_sight(survivor, e.global_position):
+		var d: float = e.global_position.distance_to(survivor)
+		if d <= config.escort_flee_radius or (d <= config.escort_threat_sight
+				and grid.has_line_of_sight(survivor, e.global_position)):
 			cells.append(grid.coords.world_to_cell(e.global_position))
 	return cells
+
+
+## The cells of the threats the routes avoid (also used by tests).
+func known_threats() -> Array[Vector2i]:
+	return _threat_cells()
+
+
+## An enemy within escort_flee_radius, or one in clear line within escort_threat_radius that is
+## moving towards the survivor.
+func threatened() -> bool:
+	for e: Enemy in wave_manager.alive:
+		var d: float = e.global_position.distance_to(survivor)
+		if d <= config.escort_flee_radius:
+			return true
+		if d <= config.escort_threat_radius and e.velocity.dot(e.global_position.direction_to(survivor)) >= CLOSING_SPEED \
+				and grid.has_line_of_sight(survivor, e.global_position):
+			return true
+	return false
+
+
+func _seen_by_enemy() -> bool:
+	for e: Enemy in wave_manager.alive:
+		if e.survivor_visible:
+			return true
+	return false
 
 
 ## Moves by `offset` if the cell there is walkable for the survivor. Returns true if it moved.
@@ -224,40 +398,9 @@ func _nearest_enemy_within(radius: float) -> Enemy:
 	return best
 
 
-# --- Recovery ------------------------------------------------------------------------
-
-func _go_down() -> void:
-	downs += 1
-	survivor_health = 0.0
-	if downs > 1 or config.escort_downed_seconds <= 0.0:
-		_fail("the survivor died")
-		return
-	downed = true
-	downed_left = config.escort_downed_seconds
-	revive_progress = 0.0
-	_cooldowns.clear()
-
-
-func _tick_downed(delta: float) -> void:
-	downed_left -= delta
-	if survivor.distance_to(player.global_position) <= config.escort_revive_radius:
-		revive_progress += delta
-	else:
-		revive_progress = maxf(revive_progress - delta, 0.0)
-	if revive_progress >= config.escort_revive_seconds:
-		downed = false
-		survivor_health = config.escort_health * config.escort_revive_health_ratio
-		_path.clear()
-	elif downed_left <= 0.0:
-		_fail("the survivor died")
-
-
 ## Enemies within reach of the survivor, nearest first, at most escort_max_attackers of them.
-## None while it is down.
 func nearest_attackers() -> Array[Enemy]:
 	var near: Array[Enemy] = []
-	if downed:
-		return near
 	for e: Enemy in wave_manager.alive:
 		if e.global_position.distance_to(survivor) <= REACH:
 			near.append(e)
@@ -281,10 +424,14 @@ func hunters() -> int:
 
 ## Short state word shown above the survivor and in the HUD.
 func status_word() -> String:
-	if downed:
-		return "DOWN"
-	if scared:
+	if is_hiding():
+		return "HIDING"
+	if retreat == Retreat.COVER:
+		return "TAKING COVER"
+	if retreat != Retreat.NONE:
 		return "SCARED"
+	if mode == Mode.RUN:
+		return "RUNNING"
 	if mode == Mode.WAIT:
 		return "WAITING"
 	if survivor.distance_to(player.global_position) > config.escort_leash:
@@ -292,13 +439,19 @@ func status_word() -> String:
 	return "FOLLOWING"
 
 
+## Stamina as a 6-segment text bar, e.g. "####--".
+func stamina_bar() -> String:
+	var full: int = roundi(6.0 * stamina / config.escort_stamina_seconds) if config.escort_stamina_seconds > 0.0 else 0
+	return "#".repeat(full) + "-".repeat(6 - full)
+
+
 func hud_text() -> String:
 	if state != State.ACTIVE:
 		return ""
-	if downed:
-		return "SURVIVOR DOWN! Stand next to it to revive   %.1f s" % maxf(downed_left, 0.0)
-	var text: String = "Escort the survivor to the exit   HP %d/%d   %s %s" % [
-		ceili(survivor_health), roundi(config.escort_health), status_word(), KeyHint.tag(&"escort_command")]
+	var text: String = "Escort  HP %d/%d  %s  stamina %s  %s %s %s %s" % [
+		ceili(survivor_health), roundi(config.escort_health), status_word(), stamina_bar(),
+		KeyHint.tag(&"escort_command"), "wait" if mode == Mode.FOLLOW else "follow",
+		KeyHint.tag(&"escort_run"), "follow" if mode == Mode.RUN else "run"]
 	var n: int = hunters()
 	if n > 0:
 		text += "   HUNTED by %d!" % n
@@ -309,26 +462,25 @@ func _draw() -> void:
 	if map == null or state == State.INACTIVE:
 		return
 	var body: Color = Color(1.0, 0.85, 0.3)
-	if downed:
-		body = Color(0.5, 0.5, 0.5)
-	elif _hit_flash > 0.0:
+	if _hit_flash > 0.0:
 		body = Color(1, 0.3, 0.3)
-	elif scared:
+	elif retreat != Retreat.NONE:
 		body = Color(1.0, 0.55, 0.2)
+	if is_survivor_concealed():
+		body = Color(body, 0.55)  # hidden in the grass
 	draw_circle(survivor, 4.0, body)
 	draw_arc(survivor, 5.5, 0.0, TAU, 16, Color(1, 1, 1, 0.6), 1.0)
 	var top: Vector2 = survivor + Vector2(-8, -9)
-	if downed:
-		var r: float = clampf(revive_progress / config.escort_revive_seconds, 0.0, 1.0) if config.escort_revive_seconds > 0.0 else 0.0
-		draw_rect(Rect2(top, Vector2(16, 2)), Color(0, 0, 0, 0.7))
-		draw_rect(Rect2(top, Vector2(16 * r, 2)), Color(0.5, 0.8, 1.0))
-		draw_arc(survivor, config.escort_revive_radius, 0.0, TAU, 24, Color(0.5, 0.8, 1.0, 0.5), 1.0)
-	else:
-		var ratio: float = survivor_health / config.escort_health if config.escort_health > 0.0 else 0.0
-		draw_rect(Rect2(top, Vector2(16, 2)), Color(0, 0, 0, 0.7))
-		draw_rect(Rect2(top, Vector2(16 * ratio, 2)), Color(0.4, 1, 0.4))
+	var ratio: float = survivor_health / config.escort_health if config.escort_health > 0.0 else 0.0
+	draw_rect(Rect2(top, Vector2(16, 2)), Color(0, 0, 0, 0.7))
+	draw_rect(Rect2(top, Vector2(16 * ratio, 2)), Color(0.4, 1, 0.4))
+	if stamina < config.escort_stamina_seconds and config.escort_stamina_seconds > 0.0:
+		draw_rect(Rect2(top + Vector2(0, 3), Vector2(16, 1)), Color(0, 0, 0, 0.7))
+		draw_rect(Rect2(top + Vector2(0, 3), Vector2(16 * stamina / config.escort_stamina_seconds, 1)), Color(0.5, 0.8, 1.0))
+	if retreat == Retreat.COVER and not is_hiding():
+		draw_arc(grid.coords.cell_to_world(cover_cell), 5.0, 0.0, TAU, 12, Color(1.0, 0.55, 0.2, 0.6), 1.0)
 	var font: Font = ThemeDB.fallback_font
 	var word: String = status_word()
 	var at: Vector2 = survivor + Vector2(-font.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, 7).x * 0.5, -12)
 	draw_string_outline(font, at, word, HORIZONTAL_ALIGNMENT_LEFT, -1, 7, 2, Color.BLACK)
-	draw_string(font, at, word, HORIZONTAL_ALIGNMENT_LEFT, -1, 7, body if not downed else Color(0.7, 0.85, 1.0))
+	draw_string(font, at, word, HORIZONTAL_ALIGNMENT_LEFT, -1, 7, body)

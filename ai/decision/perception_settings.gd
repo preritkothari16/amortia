@@ -31,6 +31,9 @@ extends Resource
 @export var suspicion_decay_per_second: float = 0.5
 ## Crossing this level sends the enemy to check the spot of the glimpse (a lead, like a noise).
 @export_range(0.0, 1.0) var suspicion_investigate_threshold: float = 0.5
+## Reactive Survival V2: an enemy that saw the player and lost them stays wary this long
+## (seconds): counts as alert (suspicion_alert_multiplier) and sweeps like a searching enemy.
+@export var wary_seconds: float = 20.0
 
 @export_group("Enemy facing (Reactive Survival V1)")
 ## An idle enemy sweeps its gaze this many degrees (total) around its rest direction...
@@ -41,6 +44,13 @@ extends Resource
 @export var search_scan_period: float = 2.0
 ## How fast an enemy turns its gaze (degrees per second).
 @export var turn_speed_degrees: float = 300.0
+
+@export_group("Cone display (Reactive Survival V2)")
+## A calm enemy's cone is drawn only while the player is within its sight range + this (px).
+## Suspicious, investigating, searching and chasing enemies always show it. Display only.
+@export var cone_show_margin: float = 48.0
+## Seconds the cone takes to fade in or out.
+@export var cone_fade_seconds: float = 0.25
 
 @export_group("Player noise")
 ## Footstep noise radius (px) for TerrainDefinition.NoiseLevel SILENT / QUIET / NORMAL / LOUD.
