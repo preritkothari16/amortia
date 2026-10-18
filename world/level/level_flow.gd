@@ -313,7 +313,8 @@ func status_text() -> String:
 	match phase:
 		Phase.ENTERING:
 			var t: float = wave_manager.arrival_seconds_left()
-			var build: String = "   B: barricade (%d left)" % barricades_left if barricades_left > 0 else ""
+			var build: String = "   B: %d barricade%s" % [barricades_left, "s" if barricades_left > 1 else ""] \
+					if barricades_left > 0 else ""
 			return head + "They're coming in %.1f s%s   %s" % [t, build, obj]
 		Phase.FIGHTING:
 			return head + (obj if obj != "" else "Clear the wave   %d left" % wave_manager.alive.size())
