@@ -9,7 +9,7 @@ extends Node2D
 ##   letter above enemy  utility AI action: C chase, F flank, I investigate, R regroup, S hunt survivor, . idle
 ##   magenta +           flank point of enemies that are flanking
 ##   faint ring          each enemy's sight range after fog and night
-##   cone outline        every enemy's view cone (the game itself only draws the ones that matter)
+##   cone outline        every enemy's view cone (only drawn here; normal gameplay shows no cones)
 
 const NOISE_SHOW_TIME: float = 1.0
 const ACTION_LABELS: Dictionary = {

@@ -101,7 +101,7 @@ Terrain is data, not decoration: every tile type has movement, vision, sound and
 - **Line of sight** by raycast; blocked by vision-blocking tiles. Vision radius comes from the Vision gene, reduced by fog and night.
 - **Noise events** (shots, running, splashes, broken fences) emit a radius; enemies inside it get the player's position as a *last known location*, not live tracking.
 - Player can stealth: walking + tall grass + no shooting = invisible beyond 2 tiles.
-- **View cone and suspicion (Reactive Survival V1/V2):** enemies see in a 120° cone. Beyond 2 tiles, seeing the player fills a suspicion meter (faster up close); half full sends the enemy to check the spot, full = it sees you. Breaking line of sight drains it. Within 2 tiles detection stays instant from any direction (kept pending playtesting). An enemy that saw you and lost you stays **wary** for 20 s (fills suspicion 1.5× faster, sweeps its gaze wider) but learns nothing new. Cones are drawn only when an enemy is near the player, suspicious, investigating or chasing (the F6 debug view shows all).
+- **View cone and suspicion (Reactive Survival V1/V2):** enemies see in a 120° cone. Beyond 2 tiles, seeing the player fills a suspicion meter (faster up close); half full sends the enemy to check the spot, full = it sees you. Breaking line of sight drains it. Within 2 tiles detection stays instant from any direction (kept pending playtesting). An enemy that saw you and lost you stays **wary** for 20 s (fills suspicion 1.5× faster, sweeps its gaze wider) but learns nothing new. Cones are never drawn in normal play; enemies show only the "?" (with its suspicion bar) and "!" markers. The F6 debug view outlines every cone.
 
 ### 4.4 Dynamic terrain events
 

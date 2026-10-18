@@ -46,8 +46,6 @@ var facing: Vector2 = Vector2.ZERO
 var rest_facing: Vector2 = Vector2.ZERO
 ## Seconds of looking around (drives the sweep).
 var _scan_time: float = 0.0
-## How visible the view cone is drawn, 0..1 (Reactive Survival V2: only when it matters, faded).
-var cone_alpha: float = 0.0
 
 var _ctx: EnemyContext
 ## Base-profile field: attack-ring engagement and the "close to the player" checks use it so
@@ -309,18 +307,7 @@ func _update_awareness(delta: float) -> void:
 	_regroup_budget.tick(delta, brain.current == UtilityAction.Type.REGROUP, sees_player, stats.utility_settings)
 	_update_survivor_sight()
 	if facing != Vector2.ZERO and p != null:
-		var fade: float = delta / p.cone_fade_seconds if p.cone_fade_seconds > 0.0 else 1.0
-		cone_alpha = move_toward(cone_alpha, 1.0 if cone_wanted() else 0.0, fade)
-		queue_redraw()  # view cone and suspicion marker
-
-
-## Draw the view cone? (display only, Reactive Survival V2) Yes while the enemy is suspicious,
-## investigating, searching or chasing, or while the player is near its sight range.
-func cone_wanted() -> bool:
-	if awareness.suspicion > 0.0 or awareness.state != Awareness.State.IDLE:
-		return true
-	var reach: float = effective_sight_range if effective_sight_range > 0.0 else stats.sight_range
-	return global_position.distance_to(_target.global_position) <= reach + _ctx.perception.cone_show_margin
+		queue_redraw()  # suspicion marker
 
 
 ## Turns the gaze (at most turn_speed_degrees per second): at the player while chasing (it sees
@@ -916,8 +903,8 @@ func make_boss(health_multiplier: float, damage_multiplier: float, size: float) 
 	is_boss = true
 
 
-## Greybox view cone (tinted white -> yellow -> red by suspicion, faded by cone_alpha), the suspicion marker
-## ("?" with a fill bar, "!" once it sees you) and the health bar once damaged.
+## Greybox suspicion marker ("?" with a fill bar, tinted white -> yellow -> red; "!" once it sees you)
+## and the health bar once damaged. The view cone itself is drawn only by the F6 debug overlay.
 func _draw() -> void:
 	_draw_senses()
 	if health >= stats.max_health or health <= 0.0:
@@ -934,13 +921,6 @@ func _draw_senses() -> void:
 	var s: float = awareness.suspicion
 	var tint: Color = Color.WHITE.lerp(Color(1, 0.9, 0.2), clampf(s * 2.0, 0.0, 1.0)) \
 			.lerp(Color(1, 0.2, 0.2), clampf(s * 2.0 - 1.0, 0.0, 1.0))
-	var reach: float = effective_sight_range if effective_sight_range > 0.0 else stats.sight_range
-	var half: float = deg_to_rad(_ctx.perception.view_cone_degrees) * 0.5
-	if half < PI and cone_alpha > 0.0:
-		var points: PackedVector2Array = PackedVector2Array([Vector2.ZERO])
-		for i: int in 13:
-			points.append(facing.rotated(lerpf(-half, half, i / 12.0)) * reach)
-		draw_colored_polygon(points, Color(tint, (0.06 + 0.12 * s) * cone_alpha))
 	if s <= 0.05:
 		return
 	var font: Font = ThemeDB.fallback_font

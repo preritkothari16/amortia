@@ -45,13 +45,6 @@ extends Resource
 ## How fast an enemy turns its gaze (degrees per second).
 @export var turn_speed_degrees: float = 300.0
 
-@export_group("Cone display (Reactive Survival V2)")
-## A calm enemy's cone is drawn only while the player is within its sight range + this (px).
-## Suspicious, investigating, searching and chasing enemies always show it. Display only.
-@export var cone_show_margin: float = 48.0
-## Seconds the cone takes to fade in or out.
-@export var cone_fade_seconds: float = 0.25
-
 @export_group("Player noise")
 ## Footstep noise radius (px) for TerrainDefinition.NoiseLevel SILENT / QUIET / NORMAL / LOUD.
 ## Proposal: 0 / 1.5 / 3 / 6 tiles. LOUD covers mud and splashing through shallow water.

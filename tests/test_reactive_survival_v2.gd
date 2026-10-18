@@ -1,6 +1,6 @@
 extends GutTest
 ## Reactive Survival V2: wary enemies, shrinking SPOTTED countdowns with unlimited close calls,
-## cones drawn only when they matter, the noise-maker inventory with refill pickups, the
+## view cones only in the F6 debug overlay, the noise-maker inventory with refill pickups, the
 ## survivor's Run command, cover-seeking and tall-grass concealment, death = fail.
 ## CoverFinder itself: test_cover_finder.gd. Real level, real time (like test_reactive_survival).
 
@@ -160,39 +160,26 @@ func test_close_range_detection_is_unchanged() -> void:
 
 # --- Cone display -------------------------------------------------------------------------
 
-func test_cones_show_only_when_near_or_suspicious() -> void:
+func test_no_cones_in_gameplay_but_vision_and_markers_are_unchanged() -> void:
 	var arena: Dictionary = await _arena()
 	var wm: WaveManager = arena["wm"]
 	var player: Player = arena["player"]
 	var main: Node = arena["main"]
 	var dir: Vector2 = _open_direction(main, player.global_position, [150.0])
-	var far_spot: Vector2 = Vector2.INF
-	var grid: TerrainGrid = main.terrain_grid
-	for k: int in 72:
-		var p: Vector2 = player.global_position + Vector2.from_angle(TAU * k / 72.0) * 320.0
-		if grid.is_walkable(grid.coords.world_to_cell(p)):
-			far_spot = p
-			break
-	assert_ne(far_spot, Vector2.INF)
-	var far: Enemy = wm.spawn_enemy(far_spot, Genome.new())
-	far.global_position = far_spot
-	_face(far, far_spot + Vector2(0, 50))
-	var near_at: Vector2 = player.global_position + dir * 150.0
-	var near: Enemy = wm.spawn_enemy(near_at, Genome.new())
-	near.global_position = near_at
-	_face(near, near_at + dir * 50.0)  # looks away: no suspicion, but the player is near
+	var at: Vector2 = player.global_position + dir * 150.0
+	var e: Enemy = wm.spawn_enemy(at, Genome.new())
+	e.global_position = at
+	assert_false("cone_alpha" in e, "no cone display state on enemies")
+	assert_false(e.has_method("cone_wanted"), "no cone display logic on enemies")
+	_face(e, at + dir * 50.0)  # looks away: the cone still gates sight
 	await wait_physics_frames(30)
-	assert_eq(far.awareness.state, Awareness.State.IDLE)
-	assert_false(far.cone_wanted(), "calm and far away: no cone")
-	assert_eq(far.cone_alpha, 0.0)
-	assert_true(near.cone_wanted(), "player within its sight range + margin")
-	assert_almost_eq(near.cone_alpha, 1.0, 0.001, "faded in")
-	far.awareness.suspicion = 0.3
-	assert_true(far.cone_wanted(), "suspicious: shown")
-	far.awareness.suspicion = 0.0
-	far.awareness.hear(far_spot + Vector2(10, 0), 0.5)
-	assert_true(far.cone_wanted(), "investigating: shown")
-	assert_eq(far.view_cone_degrees(), _p.view_cone_degrees, "F6 overlay draws every cone from this")
+	assert_eq(e.awareness.suspicion, 0.0, "player behind it, beyond 2 tiles: unseen")
+	_face(e, player.global_position)
+	await wait_physics_frames(10)
+	assert_gt(e.awareness.suspicion, 0.0, "facing the player: suspicion fills (drives the ? marker)")
+	var overlay: AwarenessOverlay = main.get_node("AwarenessOverlay")
+	assert_false(overlay.visible, "F6 debug overlay (the only place cones are drawn) starts hidden")
+	assert_eq(e.view_cone_degrees(), _p.view_cone_degrees, "F6 overlay draws every cone from this")
 
 
 # --- Stealth recovery ---------------------------------------------------------------------
