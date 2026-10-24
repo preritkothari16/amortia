@@ -18,6 +18,8 @@ var rules: TerrainCosts
 ## Optional: source of warnings and fire.
 var events: TerrainEvents
 var health: TerrainHealth
+## Look of fog overlay cells (Atmosphere sets the zone's fog colour). Visual only.
+var fog_color: Color = Color(0.85, 0.87, 0.9, 0.45)
 
 ## Terrain name -> atlas column (index in rules.definitions).
 var _column: Dictionary[String, int] = {}
@@ -62,7 +64,11 @@ func _draw() -> void:
 				continue
 			var rect: Rect2 = grid.coords.cell_rect(cell)
 			if overlay == "fog":
-				draw_rect(rect, Color(0.85, 0.87, 0.9, 0.45))
+				draw_rect(rect, fog_color)
+				# Sparse brighter wisps, fixed per cell, so a bank reads as mist and not a flat block.
+				for i: int in 6:
+					var h: int = (x * 73 + y * 151 + i * 37) % 256
+					draw_rect(Rect2(rect.position + Vector2(h % 16, (h / 16) % 16), Vector2(2, 1)), Color(fog_color, fog_color.a * 0.8))
 			elif overlay == "fire":
 				draw_rect(rect, Color(1.0, 0.45, 0.1, 0.75) if blink else Color(1.0, 0.8, 0.2, 0.75))
 	if events != null:

@@ -1,10 +1,12 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://entities/player/player.gd" id="1_player"]
 [ext_resource type="Resource" path="res://data/player_stats.tres" id="2_stats"]
 [ext_resource type="Resource" path="res://data/pistol.tres" id="3_pistol"]
 [ext_resource type="Resource" path="res://data/perception.tres" id="6_perception"]
 [ext_resource type="Resource" path="res://data/noise_maker.tres" id="7_noise_maker"]
+[ext_resource type="Script" path="res://entities/player/player_visual.gd" id="8_visual"]
+[ext_resource type="Resource" path="res://data/player_visual.tres" id="9_visual_settings"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_body"]
 radius = 6.0
@@ -23,16 +25,22 @@ noise_maker = ExtResource("7_noise_maker")
 shape = SubResource("CircleShape2D_body")
 
 [node name="Body" type="Node2D" parent="."]
+script = ExtResource("8_visual")
+settings = ExtResource("9_visual_settings")
 
-[node name="Hull" type="Polygon2D" parent="Body"]
+[node name="Greybox" type="Node2D" parent="Body"]
+
+[node name="Hull" type="Polygon2D" parent="Body/Greybox"]
 color = Color(0.35, 0.75, 0.95, 1)
 polygon = PackedVector2Array(-5, -6, 5, -6, 6, -4, 6, 4, 5, 6, -5, 6, -6, 4, -6, -4)
 
-[node name="Nose" type="Polygon2D" parent="Body"]
+[node name="Nose" type="Polygon2D" parent="Body/Greybox"]
 color = Color(1, 1, 1, 1)
 polygon = PackedVector2Array(4, -3, 10, 0, 4, 3)
 
-[node name="Muzzle" type="Marker2D" parent="Body"]
+[node name="AimPivot" type="Node2D" parent="."]
+
+[node name="Muzzle" type="Marker2D" parent="AimPivot"]
 position = Vector2(11, 0)
 
 [node name="Camera2D" type="Camera2D" parent="."]

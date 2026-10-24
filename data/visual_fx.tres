@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="VisualFxSettings" format=3]
+
+[ext_resource type="Script" path="res://world/atmosphere/visual_fx_settings.gd" id="1_fx"]
+
+[resource]
+script = ExtResource("1_fx")
+zone_tint = Array[Color]([Color(0.96, 0.88, 0.74, 1), Color(0.74, 0.88, 0.96, 1), Color(0.78, 0.92, 0.76, 1), Color(0.92, 0.84, 0.9, 1)])
+zone_shade = Array[Color]([Color(0.05, 0.045, 0.06, 1), Color(0.02, 0.045, 0.08, 1), Color(0.02, 0.045, 0.03, 1), Color(0.07, 0.015, 0.03, 1)])
+zone_fog = Array[Color]([Color(0.6, 0.62, 0.48, 1), Color(0.5, 0.64, 0.72, 1), Color(0.44, 0.52, 0.44, 1), Color(0.62, 0.34, 0.36, 1)])
+zone_darkness = Array[float]([0.52, 0.5, 0.6, 0.56])
+zone_fog_amount = Array[float]([0.14, 0.18, 0.22, 0.12])
+zone_saturation = Array[float]([0.55, 0.5, 0.55, 0.42])
+light_radius = 128.0
+light_color = Color(1, 0.8, 0.58, 1)
+vignette = 0.6
+decal_density = 0.22
+corpse_seconds = 8.0
+max_splats = 80
+shake_shot = 0.6
+shake_shotgun = 2.0
+shake_hurt = 2.5
+shake_time = 0.14
+muzzle_light_time = 0.07
+hurt_pulse_time = 0.35

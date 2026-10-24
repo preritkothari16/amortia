@@ -1,22 +1,92 @@
 # Amortia — session handoff
 
 Read this first in a new session, together with `CLAUDE.md` and `Game Design Document.md`.
-It is updated at the end of every prompt. Last update: 2026-10-19.
+It is updated at the end of every prompt. Last update: 2026-10-24.
 
-> **Latest (2026-10-19): no gameplay view cones, step 56.** Enemies no longer draw a view cone in normal play
+> **Latest (2026-10-24): final graphics playtest (no code changes).** Windowed 1440x810 run of prototype Maple Hollow, bot
+> shooting into a Runner pack: player, Runners, ground, tracers, "!" / "?" markers, HUD all readable, no overlap, no
+> misaligned flash found, so nothing was changed. Screenshots: `art_src/forsaken_scientist/playtest/` (idle, move,
+> combat_a-e, crop_*). The 3 raw reference PNGs (+ .import) moved to `art_src/forsaken_scientist/reference/`; the 3 art
+> scripts' paths updated. Known: bot kept HP at 100 so the red hurt vignette stays on in combat shots (test artefact).
+
+> **Previous (2026-10-24): deadline graphics pass, step 63 (visual only).** Player: `PlayerSimpleVisual` (4 static
+> board poses E/S/W/N in `entities/player/art/scientist_simple_poses.png`, built by
+> `art_src/forsaken_scientist/scripts/build_simple_poses.py`; bob, breath, recoil, board muzzle flash, hurt jitter,
+> dodge ghosts, death fall) used by `PlayerVisual` while the layered sheets are missing (rig kept). Enemies:
+> hand-pixeled top-down Runner (`art_src/enemies/build_runner.py` → `entities/enemies/art/runner_sheet.png`, 3
+> frames), `EnemySprite` on Body (smooth turn, arm swing, white hit flash via `enemy_sprite.gdshader`, gene tints:
+> speed reddens / health greys skin, vision brightens bloom; boss purple); Body polygon hidden (self_modulate 0,
+> still the hit-flash colour source). World: `world/atmosphere/` — `Atmosphere` node in main.tscn (per-zone graded,
+> dithered-lit ground shader on the terrain layer, `GroundDecals`, fog/vignette/hurt overlay CanvasLayer 1),
+> `CombatFx` (wall sparks, blood spray, death splat + fading corpse, muzzle light, camera-offset shake), tracer
+> bullets, pixel ground shadows, zone-tinted stippled fog cells. Tuning `data/visual_fx.tres`. 630 GUT tests.
+
+> **Previous (2026-10-24): 8-direction torso idle attempt, step 62 — only S exists; 7 directions MISSING.**
+> No existing art gives a gun-free, on-model torso for E/SE/SW/W/NW/N/NE: board turnaround labels are wrong (E/SE
+> face left with the gun on the left arm; W/NW/N/NE are all the same back view with the gun over the coat); the only
+> gun-free pose (board SW) was extracted at the S master's scale and rejected (blob at game size, floor shadow in
+> the cut, camera differs). `scripts/build_torso_sheet.py` → `extracted/torso_sheet_partial/scientist_torso_idle.png`
+> (S row only; `check_sheet.py` FAILS it with 28 empty frames — empty frames now always fail). Brief for the 7 masters:
+> `art_src/forsaken_scientist/GENERATION_TORSO_DIRECTIONS.md`. `animate_torso_breath.py` takes chest/belt rows. Not committed.
+
+> **Older (2026-10-24): render at window resolution for the 2× art, step 61.** `project.godot`: stretch mode
+> `canvas_items` (was `viewport`), base 480×270 + integer scale unchanged, `[gui] fonts/dynamic_fonts/use_oversampling
+> = false` (keeps HUD text pixel-identical). Layout, camera (zoom 1, smoothing 8), visible world 480×270, screen→world
+> mapping and shot spawn identical (measured). 1080p draws 1920×1080 (art px = 2×2), a 1280×720 window draws exactly
+> 960×540 (1:1). Test frame: 799/799 art px exact at all sub-pixel offsets (was 197–201). Side effects: default-width
+> (thin, −1) draw_line / draw_arc are now 1 screen px instead of 4 (debug overlays + report sparkline baseline);
+> focused-button rounded corners anti-alias finer. `idle_fps` 6 → 2 (data + default). `tests/test_render_settings.gd`
+> (5). Screenshots `art_src/forsaken_scientist/render_check/`. Not committed.
+
+> **Earlier (2026-10-24): South torso breathing loop by pixel editing, step 60.** `scripts/animate_torso_breath.py`
+> edits master `extracted/torso_south/torso_idle_S_0.png`: block above a chest row moves up rigidly, gap filled by
+> repeating that row (y 46, + y 44); rise 0/1/2/1. Belt and below identical, no new colours, head pixels unchanged,
+> `check_sheet.py` OK → `scientist_torso_idle__S.png` (one direction only). Caveats: head rides on shoulders; 1 px
+> frames shimmer at 480×270 (fine at 960×540); idle_fps 6 is too fast for breathing (~1.5–2). Not integrated.
+
+> **Step 59 (2026-10-24): Torso Idle South extracted — static pose OK, idle loop NOT usable.**
+> `Amortia_ Torso Idle Sprite Sheet.png` (repo root) → `art_src/forsaken_scientist/extracted/torso_south/`
+> (`scripts/extract_torso_south.py`: alpha cut, one scale 0.07, belt-buckle registration, palette snap). All 4
+> frames pass `check_sheet.py` (new single-row mode `<sheet>__<ROW>.png`, + torso head-top check), but they are
+> four redraws: 67–74 % of the lower body differs between frames (ideal breathing: 0 %), silhouette boils.
+> Near-frontal camera, painterly (56k colours), unreadable at 480×270. Details + source asks:
+> `extracted/torso_south/STATUS.md`. Nothing integrated; greybox unchanged. Not committed.
+
+> **Step 58 (2026-10-24): generated pixel-art board audited — still NO usable required sheets.**
+> Board `3b2bb3fb-30bb-4bd7-8dea-1a0152edb45d.png` (repo root): legs rows are all the same view, torso has the
+> gun painted in + random frame changes + cropped cells, gun arm has 3 columns all pointing ~horizontal, E/SE
+> turnaround faces west with the gun on the left arm. Extracted only genuine parts with
+> `art_src/forsaken_scientist/scripts/extract_board.py` → `extracted/` (board portrait 96/64, static turnaround
+> reference at 80×80, 3 pistol-flash + 2 east-only shotgun-flash frames). Audit + exact missing frames +
+> regeneration asks: `art_src/forsaken_scientist/BOARD_AUDIT.md`. Nothing integrated; `data/player_visual.tres`
+> unchanged; greybox still shown. Not committed.
+
+> **Step 57 (2026-10-23): Forsaken Scientist rig + art kit — ARTWORK STILL MISSING.** Visual-only.
+> Player scene: `AimPivot` (rotates, holds `Muzzle` at (11, 0): bullet spawn identical) + upright `Body` with
+> `PlayerVisual` (`entities/player/player_visual.gd`, settings `data/player_visual.tres`): layered Sprite2D rig
+> (shadow, legs by movement, torso by 8 aim sectors, gun arm by 16 aim angles in front/behind, flash, full-body
+> roll/death), walk synced to distance, recoil/flash on new `Player.shot_fired`, throw on `noise_maker_thrown`,
+> also `revived`, `is_dodging` / `dodge_progress` / `dodge_direction` getters. Until the 3 required sheets
+> (legs_walk, torso_idle, gunarm) are assigned it shows the old greybox (now `Body/Greybox`). Art kit in
+> `art_src/forsaken_scientist/` (gdignored): MANIFEST.md (sheet spec + generation prompts + checklist), palette,
+> guides, `check_sheet.py`, `snap_to_palette.py`, `build_kit.py`. HUD portraits 96/64 converted from the approved
+> concept head study (`entities/player/art/`, not wired). Blocker: no image generator (Canva quota exceeded).
+> 960×540 render switch deferred until art exists. `tests/test_player_visual.gd` (14). Not committed.
+
+> **Step 56 (2026-10-19): no gameplay view cones.** Enemies no longer draw a view cone in normal play
 > (Stealth and Escort included); the "?" + suspicion bar and "!" markers stay. Cones exist only as the F6 debug
 > overlay outlines. Removed `Enemy.cone_alpha` / `cone_wanted()`, the cone polygon in `Enemy._draw_senses`, and
 > `PerceptionSettings.cone_show_margin` / `cone_fade_seconds`. Vision, the 120° cone check, suspicion, awareness
 > and wariness are unchanged. Not pushed.
 
-> **Previous (2026-10-19): HUD overlap fix, step 55.** `WaveHud.show_lines()` measures the status line against the
+> **Earlier (2026-10-19): HUD overlap fix, step 55.** `WaveHud.show_lines()` measures the status line against the
 > "Bloomed traits" block; when they would come within `GAP` (12 px) the status moves to a third, full-width line and
 > the bar grows 21 → 30 px (`is_status_below()`); ellipsis as last resort. Barricade hint shortened to "B: 3 barricades"
 > so the longest Escort opening line fits 480 px. `tests/test_wave_hud.gd` (3). 608 GUT tests pass; windowed
 > sandboxed check of Greywood 1 (Stealth) and Maple Hollow 3 (Escort) openings: no overlap; real saves unchanged (md5).
 > Not pushed.
 
-> **Older (2026-10-18): Reactive Survival V2, step 54** (player-approved design). Stealth: unlimited close calls,
+> **Earlier (2026-10-18): Reactive Survival V2, step 54** (player-approved design). Stealth: unlimited close calls,
 > SPOTTED countdown 3 → 2.5 → 2 → 1.5 s min (`alarm_grace_step` / `alarm_grace_min`); an enemy that SAW you and lost
 > you stays wary 20 s (`Awareness.wary_left`: counts as alert = ×1.5 fill, search-style sweep, no new info). 2-tile
 > instant detection unchanged. Cones drawn only when near (sight range + 48 px), suspicious, investigating or
@@ -139,6 +209,13 @@ When something looks odd, check if it's a gene effect first; flag formula proble
 | 54 | Reactive Survival V2 (player-approved). **Awareness**: `wary_seconds` / `wary_left` (set on CHASE → lost), `is_wary()`, `is_alert()` includes wary. **PerceptionSettings**: `wary_seconds` 20, `cone_show_margin` 48, `cone_fade_seconds` 0.25. **Enemy**: `cone_wanted()`, `cone_alpha`, `view_cone_degrees()`, wary → search sweep, survivor in tall grass (not running) unseen beyond sense_radius. **CoverFinder** `ai/nav/cover_finder.gd` (new, graded). **Stealth**: `grace_for(escapes)`, unlimited close calls; `alarm_escapes` removed, `alarm_grace_step` 0.5 / `alarm_grace_min` 1.5 added. **Escort** rewritten: Mode FOLLOW/WAIT/RUN, `Retreat` NONE/COVER/TO_PLAYER/BACK_AWAY, stamina, run noise, `is_survivor_concealed`, `is_hiding`, `threatened()` (enemy ≤ 40 px, or visible ≤ 96 px closing in); downed/revive removed; config `escort_run_*`, `escort_stamina_*`, `escort_threat_radius`, `escort_cover_*`, `escort_hide_seconds`; flee radius 32 → 40. **Noise-maker**: `NoiseMakerSettings` campaign group, `Player.start_level_inventory / mark_wave_inventory / restore_wave_inventory / add_noise_makers`, `noise_maker_inventory`; `main.gd` wires campaign vs Endless. HUD: "Noise-maker [G] 2/3", Escort line with stamina bar and [E]/[R] hints, survivor words HIDING / TAKING COVER / RUNNING. Tests: `test_cover_finder.gd` (7), `test_reactive_survival_v2.gd` (18); V1 tests updated for death = fail and unlimited close calls; enemy-hunt test now checks the survivor flees, then holds it cornered for the enemy-side asserts. | `ai/decision/awareness.gd`, `perception_settings.gd`, `ai/nav/cover_finder.gd`, `entities/enemies/enemy.gd`, `entities/player/player.gd`, `entities/pickups/pickup.gd`, `entities/projectiles/noise_maker_settings.gd`, `world/objectives/escort_objective.gd`, `stealth_objective.gd`, `objective_config.gd`, `world/level/level_flow.gd`, `world/main.gd`, `ui/hud/*`, `ui/debug/awareness_overlay.gd`, `data/*.tres`, `project.godot`, docs, tests |
 | 55 | HUD overlap fix. `WaveHud.show_lines(head, status, traits)` puts a status line that would come within 12 px of the Bloomed traits block on its own third line and grows the bar 21 → 30 px; `is_status_below()`; left label trims with an ellipsis as a last resort. LevelFlow barricade hint "B: barricade (N left)" → "B: N barricades". Test: `test_wave_hud.gd` (3). | `ui/hud/wave_hud.gd`, `world/level/level_flow.gd`, `tests/test_wave_hud.gd` |
 | 56 | No gameplay view cones. Removed `Enemy.cone_alpha`, `Enemy.cone_wanted()`, the cone polygon in `Enemy._draw_senses` (markers kept), `PerceptionSettings.cone_show_margin` / `cone_fade_seconds` (+ `data/perception.tres`). F6 `AwarenessOverlay` still outlines every cone via `Enemy.view_cone_degrees()`. Detection untouched. Test: V2 cone-display test replaced by `test_no_cones_in_gameplay_but_vision_and_markers_are_unchanged`. | `entities/enemies/enemy.gd`, `ai/decision/perception_settings.gd`, `data/perception.tres`, `ui/debug/awareness_overlay.gd`, `tests/test_reactive_survival_v2.gd`, GDD 4.3 |
+| 57 | Forsaken Scientist visual rig + art kit (visual only, no gameplay change; character ART NOT YET MADE). `player.tscn`: `AimPivot/Muzzle` (was `Body/Muzzle`; `_aim()` turns the pivot), `Body` = `PlayerVisual` (upright, still the modulate target), greybox moved to `Body/Greybox`. `PlayerVisual`: 80×80 frames, pivot (40, 72), scale 0.5; `sector8` / `sector4` (floor(x + 0.5)), `arm_row` (16 slices, 2 per torso sector), `arm_in_front` (rows 14, 15, 0–5), `leg_row` (backwards walk reverses the stride), `walk_frame` (distance / `stride_length`); sheets checked for size, wrong ones ignored with a warning. New Player signals `shot_fired`, `noise_maker_thrown`, `revived`; getters `is_dodging`, `dodge_progress`, `dodge_direction`. Art kit `art_src/forsaken_scientist/` (`.gdignore` in `art_src/`). Portrait 96/64 px from the approved neutral head study, palette-snapped. 622 GUT tests. | `entities/player/player.gd/.tscn`, `player_visual.gd`, `player_visual_settings.gd`, `data/player_visual.tres`, `entities/player/art/*`, `art_src/**`, `tests/test_player_visual.gd` |
+| 58 | Generated pixel-art board audit (no runtime change). Measured: gun-arm rows all 0–17° / 166–180° (need 11.25 + 22.5 k), 3 of 4 columns; legs row-to-row diff 18.4 ≈ frame-to-frame 19.4 (no directions, no stride); torso frames vary at random, gun painted in, cells cropped; E/SE turnaround = west pose with gun on the left arm. `extract_board.py` (colour-distance flood fill from the cell border, premultiplied box downscale to the 48 px figure, palette snap, hard alpha) → `extracted/`. 622 GUT tests. | `art_src/forsaken_scientist/scripts/extract_board.py`, `extracted/*`, `BOARD_AUDIT.md`, `MANIFEST.md` |
+| 59 | Torso Idle South extraction (no runtime change). `extract_torso_south.py`; frames in `extracted/torso_south/` (+ STATUS.md). `check_sheet.py`: single-row files `<sheet>__<ROW>.png` (rows E…NE, 0–15, or E/S/W/N for death) and torso head top within 3 px of y 24. Measured: lower body 67–74 % different frame to frame after best shift (ideal 0 %), upper body 49–64 % with best shift (0, 0), 57–88 silhouette pixels flip per step. Frame 0 = recommended static S pose. | `art_src/forsaken_scientist/scripts/extract_torso_south.py`, `check_sheet.py`, `extracted/torso_south/*`, `MANIFEST.md` |
+| 60 | South torso idle breathing by pixel editing (no runtime change). `animate_torso_breath.py [master] [out_dir] [row]` (reusable per direction; CHEST_ROWS 41–48 / BELT_ROW 49 are for the S master): seam cost picks repeated rows, asserts belt-and-below identical, colour subset, binary alpha, head = shifted master. `extract_torso_south.py` now writes its redraw row as `redraws_torso_idle_S_row.png` (no clash). | `art_src/forsaken_scientist/scripts/animate_torso_breath.py`, `extract_torso_south.py`, `extracted/torso_south/*` |
+| 61 | Render resolution for 2× art (rendering only). Probed in Godot 4.7.2 (windowed, runtime `content_scale_*`): viewport 960×540 + stretch/scale 2 → still renders 480×270 (Godot divides by the factor); viewport 960×540 → renders 960×540 but UI lays out in 960×540 (HUD rework + camera zoom needed); canvas_items 480×270 → renders at window res, layout 480×270. Chose canvas_items + font oversampling off. Verified at 1080p and 1280×720: render size, layout rect, camera zoom/smoothing, visible world, window→world points, pistol spawn error 0.0, art density 799/799 exact at offsets 0/0.1/0.3/0.6, HUD bars 100 % identical to the old frame ×4 (remaining top-bar diff = random wave-1 trait text), main menu 99.6 % (button corner AA). `idle_fps` 2. | `project.godot`, `data/player_visual.tres`, `entities/player/player_visual_settings.gd`, `tests/test_render_settings.gd`, `art_src/forsaken_scientist/MANIFEST.md`, `render_check/*` |
+| 62 | 8-direction torso idle: source survey (no runtime change). `extract_torso_turnaround.py` (board scale 0.39 fitted to the S master head, IoU 0.88; feet on pivot; cut at row 62) → `extracted/torso_turnaround/` (SW candidate REJECTED + back-view inspections, STATUS.md). `build_torso_sheet.py` (missing rows stay empty). `check_sheet.py`: any empty frame fails. `animate_torso_breath.py` args `[chest_first-last] [belt]`. Brief `GENERATION_TORSO_DIRECTIONS.md` (per-direction socket/arm sides; camera choice A = match the near-frontal S master, recommended). | `art_src/forsaken_scientist/scripts/*`, `extracted/torso_turnaround/*`, `extracted/torso_sheet_partial/*`, `GENERATION_TORSO_DIRECTIONS.md`, `MANIFEST.md` |
+| 63 | Deadline graphics pass (no gameplay change: collision, AI, damage, timing, RNG untouched; effects use their own RNGs). Main hooks: `main.gd` `_atmosphere.setup()` + `apply_map()` (also on `load_area`). Camera shake = `Camera2D.offset` (≤ 2.5 px, 0.14 s). Perf: 149–166 fps windowed with 15–20 enemies. Missing art: Brute/Spitter/Screamer don't exist in the game (only the Runner archetype); no tile art (ground is the generated tileset + shader + decals). | `entities/player/player_simple_visual.gd`, `player_visual.gd`, `player_visual_settings.gd`, `data/player_visual.tres`, `entities/player/art/*`, `entities/enemies/base_enemy.tscn`, `enemy_sprite.gd/.gdshader`, `entities/enemies/art/*`, `entities/projectiles/bullet.tscn`, `world/atmosphere/*`, `data/visual_fx.tres`, `world/main.gd/.tscn`, `world/terrain/terrain_view.gd`, `tests/test_player_visual.gd` |
 | 52 | Save isolation + test hygiene (no gameplay change). `SaveSystem` sandbox: in GUT runs (command line = `-s` main loop with a script; editor panel = main scene under `res://addons/gut/`), any `-s` script and any headless run, every user:// path is redirected by `SaveSystem.resolve()` into `user://sandbox/<pid>/` (deleted on exit; folders of dead pids pruned). `-- --sandbox-saves` forces it in a windowed run. Normal windowed play (editor Play / export) saves for real; the decision waits for the main scene, so an early autoload read can't lock in "real" under the GUT editor runner. `write_save` now renames with `DirAccess.rename_absolute` (works in subfolders). Tests: the 4 backup/restore blocks (which wrote the real campaign.json) replaced by sandbox cleanup; `test_save_game` file test uses the sandbox path; new `tests/test_save_isolation.gd` (7: run is sandboxed, decision table incl. normal play = real, resolve rules, write/read/delete + campaign save leave the real files byte- and mtime-identical, prototype autosave lands in the sandbox, debug scenarios write nothing, dead-run folders pruned). **Orphans** 16 → 0: `test_retry_reloads_the_same_area_and_wave` ended in the same frame as the Retry, before the replaced map's `queue_free` ran (not a leak); the test now waits a frame and asserts the old map is freed. **Deprecations** 11 → 0: `wait_frames` → `wait_physics_frames` (GUT's own alias, same behaviour) in `test_report_screens.gd`. Verified: real `campaign.json` / `save.json` md5 + mtime unchanged by the full suite, headless boots and `-s` scripts; windowed menu boot runs in real-save mode. | `autoload/save_system.gd`, `world/main.gd` (comment), `tests/test_save_isolation.gd`, `test_save_game.gd`, `test_campaign.gd`, `test_debug_scenarios.gd`, `test_audit_regressions.gd`, `test_loadout_research.gd`, `test_area_flow.gd`, `test_report_screens.gd` |
 
 ### Next recommended step (old plan; user now drives the order)
@@ -399,6 +476,11 @@ Spawns are 15–32 tiles from the player; all 1383 walkable cells reachable (che
 - A script error inside `_initialize()` of a `-s` script leaves Godot hanging (no quit): wrap with `call_deferred("_run")` and use timeouts.
 
 ## Open items / deferred
+- (2026-10-23, still open 2026-10-24) **Forsaken Scientist artwork missing** (blocker for the visual phase): 13 sheets listed in
+  `art_src/forsaken_scientist/MANIFEST.md` (board audit: `BOARD_AUDIT.md`); assign them in `data/player_visual.tres`. (Render resolution done in step 61.) Then: bullet visual height
+  (bullets spawn at ground level, barrel is ~18 world px up) — visual offset + shadow in a bullet-art step.
+- (2026-10-23, noticed, not changed) `Player.take_damage` starts a 0.15 s tween back to white on every hit, so the
+  death grey set right after it on the killing hit fades back to white. Visual only; a death sheet will cover it.
 - (2026-10-15 audit) See `docs/audit/REMAINING_ISSUES.md` for the full list; headline: waves can stall on idle Runners (no timer), caution / cohesion /
   path_mode have no effect, K-means + hill climbing + experiment runner are not built, zones 2–4 are placeholders.
 - (2026-10-13 evening build) Design decisions still open (defaults chosen, all in data):

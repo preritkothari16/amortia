@@ -1,0 +1,36 @@
+GIMP Palette
+Name: Amortia Forsaken Scientist
+Columns: 8
+#
+  6   5   4	outline
+ 15  12  13	cloth_0
+ 27  22  23	cloth_1
+ 42  34  36	cloth_2
+ 58  48  51	cloth_3
+ 31  33  40	cold_0
+ 47  51  59	cold_1
+ 76  68  63	metal_0
+100  90  84	metal_1
+126 114 106	metal_2
+152 138 128	metal_3
+163 148 137	coat_0
+189 176 163	coat_1
+214 204 191	coat_2
+ 74  53  48	skin_0
+107  73  62	skin_1
+143 106  90	skin_2
+179 143 124	skin_3
+207 177 160	skin_4
+ 51  33  28	rust_0
+ 89  48  39	rust_1
+122  66  50	rust_2
+ 52   5   7	blood_0
+ 92  14  14	blood_1
+127  23  20	blood_2
+154  46  37	blood_3
+184  64  47	blood_4
+201  74  30	glow_0
+239 122  46	glow_1
+255 180  90	glow_2
+255 224 160	glow_3
+ 46  42  51	hair_hi

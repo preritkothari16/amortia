@@ -1,9 +1,19 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://entities/enemies/enemy.gd" id="1_enemy"]
+[ext_resource type="Script" path="res://world/atmosphere/ground_shadow.gd" id="2_shadow"]
+[ext_resource type="Script" path="res://entities/enemies/enemy_sprite.gd" id="3_sprite"]
+[ext_resource type="Texture2D" path="res://entities/enemies/art/runner_sheet.png" id="4_sheet"]
+[ext_resource type="Shader" path="res://entities/enemies/enemy_sprite.gdshader" id="5_shader"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_enemy"]
 radius = 5.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_sprite"]
+shader = ExtResource("5_shader")
+shader_parameter/skin_tint = Color(1, 1, 1, 1)
+shader_parameter/bloom_boost = 1.0
+shader_parameter/flash = 0.0
 
 [node name="BaseEnemy" type="CharacterBody2D"]
 collision_layer = 4
@@ -15,4 +25,19 @@ script = ExtResource("1_enemy")
 shape = SubResource("CircleShape2D_enemy")
 
 [node name="Body" type="Polygon2D" parent="."]
+show_behind_parent = true
+self_modulate = Color(1, 1, 1, 0)
 polygon = PackedVector2Array(0, -6, 5, -3, 6, 2, 3, 6, -3, 6, -6, 2, -5, -3)
+
+[node name="Shadow" type="Node2D" parent="Body"]
+position = Vector2(1, 2)
+script = ExtResource("2_shadow")
+radius = Vector2(7, 3)
+
+[node name="Sprite" type="Sprite2D" parent="Body"]
+texture_filter = 1
+material = SubResource("ShaderMaterial_sprite")
+scale = Vector2(0.5, 0.5)
+texture = ExtResource("4_sheet")
+hframes = 3
+script = ExtResource("3_sprite")

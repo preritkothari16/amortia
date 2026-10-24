@@ -1,7 +1,8 @@
 class_name Player
 extends CharacterBody2D
-## Greybox player: WASD movement with acceleration, body turns to face the mouse,
-## LMB shoots, Space dodge-rolls (brief invulnerability). Runners hit it via take_damage().
+## Player: WASD movement with acceleration, aims at the mouse, LMB shoots, Space dodge-rolls
+## (brief invulnerability). Runners hit it via take_damage(). AimPivot (with the Muzzle) turns to
+## the aim; Body is the upright visual (PlayerVisual) and only reads this script's state.
 
 @export var stats: PlayerStats
 @export var weapon: WeaponStats
@@ -31,6 +32,10 @@ signal damaged(amount: float)
 signal died()
 ## B pressed: the player wants a barricade on `cell` (the tile it is facing). The level decides.
 signal build_requested(cell: Vector2i)
+## Visual hooks (PlayerVisual): once per trigger pull, per noise-maker thrown, and on revive().
+signal shot_fired()
+signal noise_maker_thrown()
+signal revived()
 
 ## Current hit points.
 var health: float = 0.0
@@ -62,6 +67,21 @@ var is_invulnerable: bool:
 	get:
 		return _invuln_left > 0.0
 
+## True during the roll's movement burst. For the visuals.
+var is_dodging: bool:
+	get:
+		return _dodge_left > 0.0
+
+## 0 at the start of a roll, towards 1 at its end. For the visuals.
+var dodge_progress: float:
+	get:
+		return 1.0 - _dodge_left / stats.dodge_duration if _dodge_left > 0.0 else 0.0
+
+## Where the current (or last) roll goes. For the visuals.
+var dodge_direction: Vector2:
+	get:
+		return _dodge_direction
+
 ## Seconds until the next dodge is allowed (0 = ready). For the HUD.
 var dodge_cooldown_left: float:
 	get:
@@ -78,7 +98,8 @@ var _dodge_cooldown_left: float = 0.0
 var _dodge_direction: Vector2 = Vector2.ZERO
 
 @onready var _body: Node2D = $Body
-@onready var _muzzle: Marker2D = $Body/Muzzle
+@onready var _aim_pivot: Node2D = $AimPivot
+@onready var _muzzle: Marker2D = $AimPivot/Muzzle
 
 
 func _ready() -> void:
@@ -229,8 +250,8 @@ func _aim() -> void:
 	var to_mouse: Vector2 = get_global_mouse_position() - global_position
 	if to_mouse.length_squared() > 1.0:
 		aim_direction = to_mouse.normalized()
-	# Only the visual turns; the collision shape stays upright.
-	_body.rotation = aim_direction.angle()
+	# Only the muzzle turns; the collision shape and the Body visual stay upright.
+	_aim_pivot.rotation = aim_direction.angle()
 
 
 func _shoot(delta: float) -> void:
@@ -254,6 +275,7 @@ func _shoot(delta: float) -> void:
 	# Gunshots are loud: enemies in range learn where the player WAS, not where they go next.
 	EventBus.noise_emitted.emit(global_position, weapon.noise_radius)
 	seconds_since_shot = 0.0
+	shot_fired.emit()
 
 
 # --- Noise-maker ---------------------------------------------------------------------
@@ -299,6 +321,7 @@ func throw_noise_maker(target: Vector2) -> NoiseMaker:
 	var thrown: NoiseMaker = NoiseMaker.new()
 	thrown.setup(global_position, landing, noise_maker.flight_time, noise_maker.noise_radius)
 	get_parent().add_child(thrown)
+	noise_maker_thrown.emit()
 	return thrown
 
 
@@ -338,6 +361,7 @@ func revive() -> void:
 	modifiers.clear_temporary()  # temporary effects don't survive a lost attempt
 	_invuln_left = 0.0
 	_body.modulate = Color.WHITE
+	revived.emit()
 
 
 # --- Stats ---------------------------------------------------------------------------

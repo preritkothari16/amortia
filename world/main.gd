@@ -63,6 +63,8 @@ var last_flow_build_msec: float = 0.0
 @onready var _pause_menu: PauseMenu = $HUD/PauseMenu
 @onready var _game_over: GameOverScreen = $HUD/GameOverScreen
 @onready var _terrain_view: TerrainView = $TerrainView
+## Look only (graded lit ground, decals, fog, combat effects).
+@onready var _atmosphere: Atmosphere = $Atmosphere
 @onready var _terrain_events: TerrainEvents = $TerrainEvents
 
 
@@ -158,6 +160,8 @@ func _ready() -> void:
 	_wave_manager.wave_restarting.connect(func(_wave: int) -> void: GameState.restore_resource_snapshot())
 	_terrain_view.grid = terrain_grid
 	_terrain_view.layer = _map.terrain_layer
+	_atmosphere.setup(_player, _wave_manager.zone)
+	_atmosphere.apply_map(_map, terrain_grid)
 	_terrain_view.rules = terrain_costs
 	_terrain_view.events = _terrain_events
 	_terrain_view.health = terrain_health
@@ -249,6 +253,7 @@ func load_area(scene: PackedScene) -> void:
 	_swap_map_node(scene)
 	terrain_grid.load_rows(_map.get_terrain_rows())
 	_terrain_view.layer = _map.terrain_layer
+	_atmosphere.apply_map(_map, terrain_grid)
 	_cost_overlay.queue_redraw()
 	_set_camera_limits()
 	_wave_manager.set_spawn_points(_map.get_enemy_spawns(), _map.get_behind_spawns())

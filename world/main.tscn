@@ -24,6 +24,8 @@
 [ext_resource type="Resource" path="res://data/perception.tres" id="23_perception"]
 [ext_resource type="Script" uid="uid://jkd1ju0ejpsu" path="res://world/terrain/terrain_view.gd" id="24_terrain_view"]
 [ext_resource type="Script" uid="uid://ct5ne186nm0f6" path="res://world/terrain/terrain_events.gd" id="25_terrain_events"]
+[ext_resource type="Script" path="res://world/atmosphere/atmosphere.gd" id="40_atmosphere"]
+[ext_resource type="Resource" path="res://data/visual_fx.tres" id="41_visual_fx"]
 [ext_resource type="Script" uid="uid://csqpajb17mnaa" path="res://world/events/fire_spread.gd" id="26_fire"]
 
 [sub_resource type="Resource" id="Resource_fire"]
@@ -48,6 +50,10 @@ ga_settings = ExtResource("15_ga")
 
 [node name="TerrainView" type="Node2D" parent="." unique_id=1044421523]
 script = ExtResource("24_terrain_view")
+
+[node name="Atmosphere" type="Node2D" parent="."]
+script = ExtResource("40_atmosphere")
+settings = ExtResource("41_visual_fx")
 
 [node name="TerrainEvents" type="Node" parent="." unique_id=1016055402]
 script = ExtResource("25_terrain_events")
