@@ -3,3 +3,8 @@
 .import/
 export.cfg
 export_presets.cfg
+
+# Playtest screenshots (~190 MB) stay local; only the text reports are tracked.
+art_src/forsaken_scientist/playtest/**
+!art_src/forsaken_scientist/playtest/**/
+!art_src/forsaken_scientist/playtest/**/*.md
