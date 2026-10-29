@@ -42,6 +42,7 @@ var _details: VBoxContainer
 
 func _ready() -> void:
 	super()
+	overlay.pulse = 1.0  # a slow heartbeat in the red vignette
 	# A narrower panel than the report: less to show.
 	_frame.add_theme_constant_override("margin_left", 48)
 	_frame.add_theme_constant_override("margin_right", 48)
@@ -51,7 +52,13 @@ func _ready() -> void:
 
 func _build_header(root: VBoxContainer) -> void:
 	var head: VBoxContainer = vbox(root, false, 0)
-	label(head, "DOWNED", &"DangerTitleLabel").horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var title: Label = label(head, "DOWNED", &"DangerTitleLabel")
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_child(TitleGlitch.new())
+	var rule: RuleLine = RuleLine.new()
+	rule.custom_minimum_size = Vector2(120, 3)
+	rule.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	head.add_child(rule)
 	_subtitle = label(head, "", &"MutedLabel")
 	_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 

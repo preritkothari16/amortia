@@ -64,6 +64,11 @@ func _build_header(root: VBoxContainer) -> void:
 	var row: HBoxContainer = hbox(root)
 	var left: VBoxContainer = vbox(row, true, 0)
 	_title = label(left, "", &"TitleLabel")
+	var rule: RuleLine = RuleLine.new()
+	rule.colour = MenuStyle.STEEL
+	rule.custom_minimum_size = Vector2(110, 3)
+	rule.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	left.add_child(rule)
 	_subtitle = label(left, "", &"MutedLabel")
 	var chip: PanelContainer = PanelContainer.new()
 	chip.theme_type_variation = &"AccentChip"

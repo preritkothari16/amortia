@@ -17,6 +17,8 @@ var _shake_left: float = 0.0
 var _blood: Gradient
 var _sparks: Gradient
 var _spores: Gradient
+var _dust: Gradient
+var _splinters: Gradient
 
 
 func setup(atmosphere: Atmosphere, player: Node2D, settings: VisualFxSettings) -> void:
@@ -32,6 +34,8 @@ func setup(atmosphere: Atmosphere, player: Node2D, settings: VisualFxSettings) -
 	_blood = _gradient([Color(0.62, 0.06, 0.05), Color(0.3, 0.02, 0.03, 0.0)])
 	_sparks = _gradient([Color(1, 0.95, 0.7), Color(1, 0.55, 0.2), Color(0.4, 0.1, 0.05, 0.0)])
 	_spores = _gradient([Color(1, 0.7, 0.35), Color(0.85, 0.25, 0.12, 0.0)])
+	_dust = _gradient([Color(0.62, 0.6, 0.56, 0.7), Color(0.4, 0.38, 0.36, 0.35), Color(0.3, 0.28, 0.27, 0.0)])
+	_splinters = _gradient([Color(0.62, 0.48, 0.32), Color(0.36, 0.25, 0.16, 0.0)])
 	EventBus.enemy_killed.connect(_on_enemy_killed)
 	EventBus.terrain_hit.connect(_on_terrain_hit)
 	if player.has_signal("shot_fired"):
@@ -59,6 +63,17 @@ func _on_player_damaged(_amount: float) -> void:
 
 func _on_terrain_hit(at: Vector2, _damage: float) -> void:
 	_burst(at, _sparks, 6, 30.0, 90.0, 0.22, 1.0, 1.0)
+
+
+## A fence / door / barricade broke (TerrainView forwards TerrainHealth.tile_destroyed): a dust
+## cloud, flying splinters and rubble left on the cell. Look only; the grid already changed.
+func tile_broken(rect: Rect2, terrain: String) -> void:
+	var at: Vector2 = rect.get_center()
+	_burst(at, _dust, 18, 6.0, 26.0, 1.1, 1.0, 3.0)
+	_burst(at, _splinters, 12, 40.0, 110.0, 0.35, 1.0, 2.0)
+	_shake(_settings.shake_shotgun * 0.6)
+	if _atmosphere.decals != null and is_instance_valid(_atmosphere.decals):
+		_atmosphere.decals.add_rubble(rect, terrain, _rng)
 
 
 func _on_enemy_killed(enemy: Node2D) -> void:

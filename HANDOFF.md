@@ -1,9 +1,246 @@
 # Amortia — session handoff
 
 Read this first in a new session, together with `CLAUDE.md` and `Game Design Document.md`.
-It is updated at the end of every prompt. Last update: 2026-10-24.
+It is updated at the end of every prompt. Last update: 2026-10-29.
 
-> **Latest (2026-10-24): final graphics playtest (no code changes).** Windowed 1440x810 run of prototype Maple Hollow, bot
+> **Latest (2026-10-29): audit fixes A-02 + A-01 done - steps 60-73 committed and pushed.** `.gitignore` now keeps
+> `art_src/forsaken_scientist/playtest/` out (187 MB of screenshots stay local; only `*.md` reports there, i.e.
+> AUDIT_REPORT.md, are tracked). All source from steps 65-72 committed together (new files with the modified ones,
+> so every commit builds); step 60-62 art workflow files (`art_src/forsaken_scientist/extracted/`) and the two
+> root reference PNGs (`build_hud_art.py` reads the HUD one) committed separately. 675 / 675 GUT before commit.
+> Godot here: `C:\Users\prerit kothari\Downloads\Godot_v4.7.2-stable_win64.exe\Godot_v4.7.2-stable_win64_console.exe`
+> (not on PATH); GUT: `--headless --path . -s addons/gut/gut_cmdln.gd -gdir=res://tests -gexit` (~6 min).
+> Remaining audit items A-03..A-09 still await the user's decision.
+
+> **Previous (2026-10-29): audit, step 73 (audit only - nothing in code / data / scenes changed).** Report:
+> `art_src/forsaken_scientist/playtest/final_audit/AUDIT_REPORT.md` (+ evidence: levels/, menus/, stealth_escort/,
+> gameplay/). Verdict READY AFTER MINOR FIXES: 675 / 675 GUT; 16 levels / 20 areas complete their flow; stealth,
+> escort, menu navigation pass live checks. Open: A-01/02 commit steps 65-72 safely and keep the 173 MB playtest
+> folder out; A-03 one generator for all zones (4 identical area pairs); A-04 debug F-keys live in debug builds, no
+> export preset; A-05 Greywood haze; A-06 escort leash vs player speed; A-07 vsync-on pacing unverified here; P3
+> one-liners (Apex HP text ceil/round, pixel-font N). Awaiting the user's approval before any fix.
+
+> **Previous (2026-10-29): power-up icons, step 72 (visual only, NOT committed, awaiting review).** Audit: 5 power-ups
+> in `data/power_up_set.tres` - Medkit (heal +25 at once, pickup only), Shield (25 points, 10 s), Haste (move_speed
+> x1.25, 10 s), Rapid fire (fire_cooldown x0.75, 10 s), Damage (damage x1.3, 10 s); max 3 timed effects; no
+> selection / inventory screen exists (they apply on pickup). New hand-authored pixel art
+> (`art_src/powerups/build_powerup_icons.py`, 9 x 9 palette-letter grids, 1 texel = 1 viewport px, dark outline,
+> top-left light): Medkit = bone field case + blood cross + handle, Shield = cracked steel-blue heater shield,
+> Haste = boot + motion streaks, Rapid = three staggered brass rounds, Damage = blood-edged blade with drops ->
+> `ui/hud/art/powerup_<id>.png`; pickup tokens = icon on a dark round steel-rimmed plate (15 x 15) ->
+> `world/powerups/art/token_<id>.png`. New `PowerUpArt` (world/powerups) maps id -> icon / token. `PowerUpPickup`:
+> draws ground shadow + 1 px outline ring in the type colour pulsing over 1.4 s + token at whole pixels; the old
+> diamond + letter Label is gone; end-of-life blink kept. HUD power-up cell (`PlayerStatus._draw_power_ups`): one 9 px
+> icon per running effect (shield first, then by time left; up to 3 = 29 px of the 30 px cell), a 1 px bar under each
+> draining from the real time left / full duration (`active_effects()`, durations read from the data), shield points /
+> seconds beside the icon when only one runs (replaces the old "+N"), a colour flash plate for 0.5 s when one starts,
+> soft blink under 2.5 s left; nothing shown when none runs. Old 2x supersampled icon_shield / haste / rapid / damage
+> files and their functions in `art_src/hud/build_hud_art.py` removed (the script still reproduces the other HUD art
+> byte for byte). No mechanics, spawning, durations or limits changed. Tests: new `test_power_up_art.gd` (4: art for
+> every type + sizes, silhouettes differ by >= 12 px, pickup has no Label, HUD effect list); 675 / 675 GUT, 0 script
+> errors. Screenshots (1440x810 + 1280x720): `art_src/forsaken_scientist/playtest/powerup_icons/` (01 pickups,
+> 02-05 HUD single / new / three / expiring, 06 pickups blinking, 07 new tokens vs the old diamonds in one frame,
+> `powerup_icon_sheet.png`). Limit: with 2-3 effects the shield's points are not shown (bars only, no room).
+
+> **Previous (2026-10-29): final HUD redesign, step 71 (UI only, NOT committed, awaiting review).** Portrait removed
+> completely (frame, hurt flash, low-HP pulse on it, portrait HIDDEN tag, `ui/hud/art/hud_portrait.png` + .import,
+> `portrait()` in `art_src/hud/build_hud_art.py`). Strip 36 -> 28 px (`HudLayout` rewritten; camera framing and
+> ThreatIndicators follow `STRIP_HEIGHT` automatically: player now at screen y 121 = centre of the 242 px left free).
+> No boxes: one layered navy band with a 4 px shadow fading up into the world, a steel hairline fading at both ends,
+> fading vertical dividers (`DIVIDERS` 120 / 226 / 298). LEFT: heart + 72 px segmented blood-red HP bar (notch every
+> 10 HP, pale drain chunk) + bold HP value; low HP = bar + heart pulse and a warning line under the bar; a hit flashes
+> the bar rim red and the value; compact blue dodge bar + RDY / seconds (bright recharge tick, glint when ready);
+> HIDDEN chip beside the dodge bar while `is_concealed()`. CENTRE: weapon art on a dark inlay + name (ember glow after
+> a swap); swap key chip + "SWAP" + dimmed spare art only when a spare is carried; items 2 x 2: noise-maker (key chip,
+> icon, count, charge pips, warm glint on a throw), power-up only while one runs (+N), samples, scrap. RIGHT: "WAVE
+> GEN g" label, big wave number (12 px bold, "/ n" small; flares ember on a new wave), skull + "N left" / "N
+> incoming" (+ prototype timer), 3-row checklist at x 350 (ticked row glows green, failed row glows red). Overflow
+> kept: long rows go above the strip on a plate only as wide as they need (`WaveHud.overflow_left()`), max 2.
+> BLOOMED TRAITS plate kept top right (hairline, crimson accent). HUD text now uses `MenuStyle` fonts (MSDF body,
+> scale-matched bold) - crisp at x2 / x3 / x4; global `use_oversampling` still off (nothing else changed). Kept
+> helpers: health_ratio, is_low_health, dodge_text, spare_weapon_id, active_boost, show_rows, overflow_lines,
+> column_rows, overflow_rows, plate_top, checklist. Tests: test_hud_strip (strip <= 28, no portrait, HIDDEN chip in
+> the status group), test_wave_hud (+ right-side overflow plate, tick / wave highlights); 671 / 671 GUT, 0 script
+> errors. Windowed captures at 1440x810 + 1280x720 for proto, z1_l2 Hold, z1_l3 Escort (failed "No damage", overflow),
+> z3_l1 Stealth (HIDDEN, overflow): `art_src/forsaken_scientist/playtest/hud_redesign/` (before/, after/,
+> compare_before_after_*.png, typography_closeup_before_after.png). Limits: spare weapon art is small (9 px tall);
+> when only the pistol is carried the centre has open space (intentional: no empty slot).
+
+> **Previous (2026-10-28): menu UI/UX refinement + sharp text, step 70 (UI only, NOT committed, awaiting review).**
+> Audit: menus that exist = main menu (home / Level Select / Settings pages), Pause, Wave Report (wave / level
+> complete), Downed (game over, Retry / Restart level / Main Menu), Safehouse (zone cleared + Workbench / Lab,
+> victory "THE SEED IS DESTROYED"). No story, credits or confirm dialogs exist - none added. **Blurry text root
+> cause:** 480x270 layout integer-scaled (canvas_items) with `use_oversampling=false` (kept: the HUD's look,
+> test_render_settings) -> the vector default font is rasterised at 7-16 px and each glyph texel is blown up
+> x2-x4 with nearest filtering (grey smeared blocks). Fix, menus only (HUD untouched): body text = MSDF copy of
+> the same font (crisp at any scale, same metrics, no layout change); headings = emboldened copy whose
+> FontFile.oversampling follows the window's integer scale (MSDF + embolden showed notches). New design system
+> `ui/theme/menu_style.gd` (`MenuStyle`: palette charcoal / navy / bone / blood / rust / steel / ember, fonts,
+> shared Theme, panel + button plates, pixel checkbox icons, factories heading / button / key_hints / enter),
+> `ButtonFx` (hover / focus "heat": blood bar widens + lights, chevron slides in, red glow, press flash),
+> `RuleLine` (heading rule), `MenuOverlay` (darkened game, vignette, drifting smoke, Downed heartbeat),
+> `TitleGlitch` (DOWNED tears for 0.12 s every 2.6-4.5 s). Screens: main menu rewritten (logo + backdrop kept;
+> cross-fading pages, staggered intro, key-hint chips footer); new `LevelSelect` (4 zone cards with zone colour
+> + pixel vignette `ZoneArt`, level rows 01-03 / APEX, detail strip: title, objective, waves, challenges,
+> "Start at the last wave"; Campaign moments + Endless below; same launch actions); new `SettingsPanel`
+> (shared by main menu + pause; only real setting = Fullscreen via new `UserSettings`, user://settings.cfg,
+> applied when the main menu opens; controls listed read-only from the InputMap); Pause rewritten (overlay,
+> PAUSED, Resume / Settings / Main Menu / Quit, save note, key chips); report screens get MenuStyle fonts,
+> overlay, ButtonFx (`tools/build_ui_theme.gd` now builds ui_theme.tres from MenuStyle's palette + plates;
+> rebuilt); Safehouse restyled (backdrop, panel, headings). No logic / signals / scene flow changed.
+> Mistake + fix: during this step `git checkout -- ui/menus/safehouse.gd` reverted that file's uncommitted step-65
+> diff (SHOW_UNFINISHED_ROOMS demo flag); restored from this session's earlier reads (numstat back to 8/4)
+> before restyling. Tests: new `test_menus.gd` (8); `test_report_screens` palette assert -> MenuStyle; 667 / 667
+> GUT, 0 script errors. Windowed nav check 20/20 (arrows / Enter / Esc / mouse hover + click, fullscreen on/off,
+> launch a level, pause -> settings -> back -> resume, pause -> main menu). Screenshots:
+> `art_src/forsaken_scientist/playtest/menu_refinement/` (before/, after/ at 1440x810, 1280x720, 1920x1080,
+> nav_* shots, compare_before_after_*.png, typography_closeups_before_after.png). Limits: 1280x720 renders
+> 960x540 with dark borders (integer scale, unchanged); HUD text still uses the old raster path.
+
+> **Previous (2026-10-28): believable architecture, step 69 (visual only, NOT committed, awaiting review).** The
+> step-66 ruins (every building a roof-down rectangle with collapsed corners and rubble) are replaced by standing,
+> weathered buildings drawn for the three-quarter view: the south facade (storeys, windows, entrance, signage)
+> fills most of the footprint, the roof is a strip above it, a narrow east side wall and a ground shadow that grows
+> with the storey count give height. New files (world/atmosphere): `FacadeBuilder` (RefCounted; bakes one building
+> image: walls in 9 surfaces, gable / flat / metal / sawtooth roofs, windows in 8 states - clean, dark, curtains,
+> interior, broken, boarded, Bloom membrane, shutter - shut doors (wood, chained glass doors barricaded inside,
+> metal, roller, airlock, planks), signs in `PixelFont` (3x5 font), awnings, balconies, fire escapes, billboards,
+> vehicles, props; then passes: occasional collapsed corner, weathering (stains, cracks, cables, posters,
+> graffiti, blood by a door), Lowtide tide line, burns (soot + embers in a window = AmbientLights fire), ivy /
+> moss / weeds, the Bloom's flesh, shadow), `BuildingArchetypes` (37 types with their footprint size ranges:
+> house, garage, apartment, hotel, shop, pharmacy, supermarket, mall, office, tower, town hall, clinic,
+> hospital, school, police, harbour office, fire / rescue station, checkpoint, security, medical station, field
+> lab, warehouse, fish market, sawmill, factory, processing, utility, cabin, lodge, ranger station, visitor
+> centre, lab, lab tower, containment, research complex, admin), `DistrictStyle` + `ArchitectureSettings`
+> (`data/architecture.tres`: 16 districts, one per campaign level - e.g. Maple residential / commercial /
+> evacuation / town centre; Lowtide flooded homes / harbour market / waterfront / docks; Greywood trailhead /
+> lodge camp / logging / Sunnyseed outpost; Labs perimeter / research wings / containment / the Root, infection
+> 0.03 -> 0.3 -> 0.62 -> 1.0; types weighted, a landmark on the biggest building that fits, decay, infection,
+> overgrowth, flood, burn and collapse shares). The first district of a zone dresses its non-campaign maps.
+> `BuildingDetail`: splits house groups into rectangles, deals types from a seeded shuffled deck (only types that
+> fit; reshuffles when nothing left fits), per-building look varied from the district, bakes, draws north to
+> south; `bake_ruins` renamed `bake_buildings`; `fire_spots()`, new `types()`; much less rubble by buildings.
+> `Atmosphere.apply_map(map, grid, level_id)` and main.gd pass `level_config.id`. `ruin_builder.gd` (+uid) deleted
+> (untracked step-66 file, unreferenced). Entrances are always shut (no false way in); art never draws over
+> non-walkable cells round a building (tested). Unchanged: terrain rows, tile atlas coords, collision polygons
+> and flow fields hash-identical to before in all 21 areas (proto + 16 levels' areas); HUD, menus, logo,
+> characters, AI, zone palettes (ground grade) untouched - only Greywood's building materials were lifted ~18 %
+> so facades read under its dark grade. Perf: building bake 54.2 s -> 2.4 s over the 21 areas headless (~6-7 ms per
+> building, was ~120 ms); area load in the windowed game ~150-250 ms (was 0.6-1.6 s). Also fixed (step-65 bug,
+> flaky test): `GroundDecals.add_rubble` vertical planks could spill out of the broken cell. Tests: new
+> `test_architecture.gd` (10), `test_world_visuals.gd` lost its 4 RuinBuilder tests; 659 / 659 GUT, 0 script
+> errors. Screenshots (windowed 1440x810): `art_src/forsaken_scientist/playtest/architecture/` - before/ and after/
+> per level (same camera), `showcase_before_after_z1_l1.png` (grocery + suburban house + apartment block),
+> categories/ (house, shop, supermarket, tower, office, hospital, checkpoint, warehouse, factory, fish market,
+> lodge, cabin, visitor centre, sawmill, lab tower, lab, admin, security, research complex, containment),
+> `labs_infection_early_vs_late.png`, `every_level_before/after.png`, `library_<zone>.png` (every type at 4x4,
+> 5x4, 7x5). Gotchas: generated levels only have 4x4 / 5x4 footprints, so big types appear small (a hospital
+> needs 5x4); Greywood stays dark at night by design; Lowtide neon signs are dim.
+
+> **Previous (2026-10-28): HUD refinement, step 68 (UI only, NOT committed, awaiting review).** Minimap removed
+> (ui/hud/minimap.gd + .gdshader + uids deleted, main.gd wiring, `HudSettings` minimap fields, tests). Strip
+> rebalanced and compacted 50 -> 36 px (`HudLayout`): LEFT portrait 26x30 + HEALTH bar (heart, label, value)
+> + DODGE cooldown bar (badge, label, RDY / seconds); CENTRE weapon in hand (art + name), spare weapon box (swap
+> key, art, name / NONE), slots noise-maker / power-up / samples / scrap (20x30 each); RIGHT skull + WAVE +
+> GEN with Bloomed left right-aligned on the same line, then 3 checklist rows (font 7). Faint rules between the
+> groups. Overflow rule kept (8 px lines above the strip, max 2). Portrait = the existing Forsaken Scientist
+> portrait (`entities/player/art/scientist_portrait_96.png`, cropped to 24x28 in `build_hud_art.py`), not the
+> reference's face. Camera framing: `main._set_camera_limits` puts the player's Camera2D at (0, 18) (half the
+> strip) and limit_bottom + 36, so the player sits centred in the 234 px the strip leaves free and the map's
+> bottom rows can scroll above the strip; `offset` untouched (hit shake). View below the player 85 -> 117 px
+> (5.3 -> 7.3 tiles), above 135 -> 117 px. Escort keeps one 8 px overflow line (its HUD text is long).
+> Verified in windowed runs at 1440x810 and 1280x720 (proto Maple Hollow, z1_l1 Survive, z1_l3 Escort,
+> z3_l1 Stealth; 6 enemies placed around the player incl. 70 / 100 px straight below, all visible): HP 100 ->
+> 75 -> 18 (low pulse), dodge RDY -> 0.7s -> RDY, noise-maker 2 -> 1 (+ throw flash), shotgun as spare then
+> swapped (boxes swap), shield + haste (+1), samples / scrap, HIDDEN tag in tall grass (is_concealed true),
+> checklist tick / red cross / overflow, wave 1 -> 2, no minimap node. 653 / 653 GUT (`test_hud_strip.gd`: 2
+> minimap tests removed, compact-strip + camera-framing tests added). Screenshots + comparisons:
+> `art_src/forsaken_scientist/playtest/hud_final/` (step 67 shots stay in `hud_reference/`).
+> Note: the user described the portrait as short hair + glowing mechanical eye; no existing scientist art has a
+> mechanical eye (concept sheet: collar-length dark hair, scars, cybernetic gun arm) - left as the concept shows.
+
+> **Previous (2026-10-28): reference HUD, step 67 (UI only, NOT committed, awaiting review).** The approved HUD
+> reference was uploaded as `art_srcreferencesamortia_hud.png.png` (repo root, path separators lost). The HUD is
+> now one bottom strip (`HudLayout`, 50 px of 270 - 36 since step 68, full width) laid out like the reference: portrait in a metal
+> frame (red flash on hit, blood pulse at low HP, HIDDEN tag in tall grass) | heart + blood-red HP bar + value,
+> blue dodge-cooldown bar (dash badge, "RDY" / seconds; the reference's blue bar, NOT a new stat) | large box =
+> weapon in hand + name, small box = spare weapon + [Q] (or NO SPARE WEAPON) | slots: noise-maker (key, charge
+> pips, count, flash on throw), samples, scrap, power-up slot (shield points or the timed power-up with the most
+> time, "+N" when more run) | new read-only circular `Minimap` (ui/hud/minimap.gd + .gdshader circle mask) |
+> skull + WAVE n (campaign n / waves) + GEN, Bloomed left / incoming, objective checklist with square markers
+> (todo / ticked / red cross = can no longer be met; dots = timers and hints; "!" = terrain-event warning).
+> Checklist rows come from new `LevelFlow.checklist()` (+ `wave_in_level()`, `goal_title()`; `status_text()`
+> unchanged): goal, phase, then side objectives tracked live from `LevelFlow.stats`. Overflow rule kept: a row too
+> wide for the right column moves to its own full-width line above the strip and the plate grows (max 2 lines,
+> then ellipsis). BLOOMED TRAITS moved to a small top-right plate (the old full-width top bar is gone). No ammo
+> (weapons have none). Minimap: terrain from `TerrainGrid` (1 px per cell, rebuilt when `grid.version` changes,
+> max every 0.5 s), gate amber, Escort survivor gold, enemies red / Apex magenta, only those within 200 px AND in
+> the player's grid line of sight or already chasing (`Minimap.is_enemy_shown`; data `data/hud.tres`,
+> `HudSettings`), so Stealth gets no new information. `ThreatIndicators.bottom_inset`: arrows stay above the strip
+> and things under it count as off screen. Art in `ui/hud/art/` built by `art_src/hud/build_hud_art.py`: portrait,
+> heart, skull, grenade (= noise-maker) and vial (= samples) cut from the reference at 2x density; pistol,
+> shotgun, scrap, dodge badge and shield / haste / rapid / damage icons drawn in the reference's colours. The
+> previous (step 65) player plate / top bar code was replaced. Tests: `test_wave_hud.gd` rewritten (5),
+> new `test_hud_strip.gd` (8), +1 in `test_objectives.gd`; 653 / 653 GUT. Windowed screenshots at 1440x810 and
+> 1280x720 (proto, z1_l1, z1_l3 Escort overflow, z3_l1 Stealth) + `compare_reference_vs_hud.png`:
+> `art_src/forsaken_scientist/playtest/hud_reference/`. Not verified on screen: the HIDDEN tag (needs tall grass).
+> Gotcha: the strip hides the bottom 50 px of the world (camera unchanged); the minimap shows enemies under it.
+
+> **Previous (2026-10-26): ruined buildings, step 66 (visual only, NOT committed; replaced by step 69 - RuinBuilder deleted).** Reference
+> board was uploaded as `art_srcreferencesruined_buildings_reference.png.png` (repo root, path separators lost).
+> New `RuinBuilder` (world/atmosphere, RefCounted) bakes each building (4-connected house cells) into one image:
+> standing walls, a pitched (flat for Labs / garages) roof with jagged holes, dark interior cavities with rafters
+> (Labs: steel I-beam grid), interior room walls, wreckage (furniture, slabs, a car in Maple garages), collapsed
+> corners as chunky shaded rubble heaps that slump past the footprint (flat debris margin, 7 px), crumbling wall
+> tops, silhouette shadows, broken south facade (shattered / boarded windows, boarded door, roller door), burns
+> with embers. Severity deck per area 30 % PARTIAL / 40 % HEAVY / 30 % RUIN (seeded shuffle). Zones: Maple brick /
+> burned (50 %) / tarps / chimneys + 3 fallen utility poles on verges; Lowtide flooded cavities, rust, seaweed;
+> Greywood wood cabins, moss patches, roots through walls; Labs steel frames, glass, hazard edging, big infection.
+> The footprint is always opaque and its outer ring is never cavity (tested), so no fake openings. Burned ruins
+> get a smouldering fire (`AmbientLights.add_fires`: flicker pool, embers, smoke). `BuildingDetail` draws the baked
+> textures (cache by top-left cell) and no longer draws house rects; `BuildingDetail.bake_ruins` is off in headless
+> runs (tests enable it). Map / tile / collision / flow-field hash identical to HEAD in 6 areas (all 4 zones);
+> fence break re-verified. ~+260 ms area load. 642 / 642 GUT tests (4 new in `test_world_visuals.gd`). Screenshots:
+> `art_src/forsaken_scientist/playtest/ruined_buildings/`.
+
+> **Previous (2026-10-26): world / menu / HUD visual overhaul, step 65 (visual only, NOT committed, awaiting review).**
+> World: new `BuildingDetail` (world/atmosphere, under the map with the ground material, rebuilt on
+> `terrain_changed`): per-building roof tint + re-roofed patches, ridge lines, jagged roof holes with rafters and
+> collapsed cells (clipped to house cells), 5 px south facades with broken / boarded windows and one boarded entrance
+> (some with a blood-red search X), zone dressing (Maple chimneys + tarps, Lowtide rust streaks, Greywood ivy + moss,
+> Labs HVAC + broken skylights), infected growth, cracked / bloodied walls, rubble + glass + fallen beams against
+> buildings (flat, small), kerbs and faded centre lines on straight road bands, SE drop shadows of solid cells.
+> `ground.gdshader`: zone looks for fence (pickets / logs / steel mesh), boarded door, open doorway, barricade, tree
+> canopy, pulsing living wall, hazard-striped gate (kept bright: exits stay obvious), thin cracks on roads, darker
+> Maple asphalt, browner Greywood roofs (were lost in the grass). New `AmbientLights`: up to 6 seeded, flickering
+> additive lamp pools south of buildings (Labs: blinking red). Overlay: drifting world-locked motes (ash / mist /
+> spores / red spores per zone) and a blood-tinted vignette. Decals: blood drag trails, tyres, bin bags, lab papers.
+> Breakable tiles (existing `TerrainHealth` logic untouched): `TerrainView.damage_stage()` INTACT > 2/3 HP > CRACKED
+> > 1/3 > HEAVY; cracks / splinters / broken chunk, hit flash, bone-to-blood HP strip; on `tile_destroyed`
+> `CombatFx.tile_broken` = dust + splinters + small shake + `GroundDecals.add_rubble`. Verified with real pistol
+> shots: fence 40 HP broke in 4 hits, cell -> grass, atlas column 1, 0 collision polygons, no physics body, flow cost
+> 4.41 -> 2.41. Menu: `MenuBackdrop` (baked dithered sky, ruined skyline, power line, veins, mist + live motes),
+> `Wordmark` pixel AMORTIA (eroded edges, crack, blood drips, pulsing glow), themed buttons (blood bar -> rust on
+> hover / focus), controls hint; title block hides on Level Select (it didn't fit). HUD: `WaveHud` now separate head
+> (rust) / status (bone) / BLOOMED TRAITS heading / traits labels on a dark plate with a blood rule (`is_status_below`
+> is a flag now, same layout rule); `PlayerStatus` metal plate, weapon + gadget icons, noise-maker pips, segmented
+> HP bar with drain chunk + low-HP pulse, dodge chevron gauge. Tuning in `data/visual_fx.tres` (vignette_color,
+> zone_mote_*, lamp_*). Tests `tests/test_world_visuals.gd` (7). Screenshots before / after / walls:
+> `art_src/forsaken_scientist/playtest/visual_overhaul/`.
+> 638 / 638 GUT tests pass. Limitations: no ammo shown (weapons have none); walls (`wall`) are not breakable in the rules, so only fences /
+> doors / barricades show damage; the menu settings page is still the old placeholder text.
+
+> **Previous (2026-10-24): deadline demo polish, step 64 (visual only).** Menu: "Level Select" (was Test Scenarios), tagline
+> "survive the Bloomed - they evolve"; Safehouse hides the unfinished rooms (`SHOW_UNFINISHED_ROOMS` in safehouse.gd).
+> Apex boss: always-on 40 px magenta health bar (`Enemy._draw_boss_bar`), `BossAura` ring + magenta `BossHalo` silhouette
+> (`EnemySprite._add_boss_halo`), lighter tint; HP/damage/AI unchanged. Zones: `ground.gdshader` restyles roads, grass,
+> walls and houses per zone (`zone_surface`, only on the terrain layer via `Atmosphere.terrain_material`; atlas column
+> found from `data/terrain_costs.tres` order + UV.x), `GroundDecals.scatter(..., zone)` adds zone clutter, palettes in
+> `data/visual_fx.tres` retuned. Artifacts: the "black bands" were real `wall` cells (generator gaps) crushed to black
+> by the dark grade, now lit zone walls; Greywood fog bank cells now fade at their edges (`TerrainView._draw_fog_cell`).
+> Screenshots before/after: `art_src/forsaken_scientist/playtest/demo_polish/`. 631 GUT tests. Not committed.
+
+> **Previous (2026-10-24): final graphics playtest (no code changes).** Windowed 1440x810 run of prototype Maple Hollow, bot
 > shooting into a Runner pack: player, Runners, ground, tracers, "!" / "?" markers, HUD all readable, no overlap, no
 > misaligned flash found, so nothing was changed. Screenshots: `art_src/forsaken_scientist/playtest/` (idle, move,
 > combat_a-e, crop_*). The 3 raw reference PNGs (+ .import) moved to `art_src/forsaken_scientist/reference/`; the 3 art

@@ -3,13 +3,16 @@ extends Control
 ## Screen-edge arrows (Reactive Survival V1) for things that matter but are off screen:
 ##   yellow / red   an enemy growing suspicious of the player (red = it sees you)
 ##   gold           the Escort survivor (blinks red while it is down or being hit)
-## Enemies on screen show their own view cone and "?" / "!" marker (Enemy._draw_senses).
+## Enemies on screen show their own "?" / "!" marker (Enemy._draw_senses).
 
 const EDGE: float = 10.0
 const MIN_SUSPICION: float = 0.25
 
 var wave_manager: WaveManager
 var escort: EscortObjective
+## Screen px at the bottom covered by the HUD strip: things under it count as off screen and their
+## arrows stay above it.
+var bottom_inset: float = 0.0
 
 
 func _ready() -> void:
@@ -23,7 +26,7 @@ func _process(_delta: float) -> void:
 
 func _draw() -> void:
 	var to_screen: Transform2D = get_viewport().get_canvas_transform()
-	var rect: Rect2 = Rect2(Vector2.ZERO, get_viewport_rect().size)
+	var rect: Rect2 = Rect2(Vector2.ZERO, get_viewport_rect().size - Vector2(0, bottom_inset))
 	if wave_manager != null:
 		for e: Enemy in wave_manager.alive:
 			var s: float = e.awareness.suspicion

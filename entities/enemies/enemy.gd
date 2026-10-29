@@ -901,18 +901,32 @@ func make_boss(health_multiplier: float, damage_multiplier: float, size: float) 
 	_body.color = stats.color
 	_body.scale *= size
 	is_boss = true
+	queue_redraw()
 
 
 ## Greybox suspicion marker ("?" with a fill bar, tinted white -> yellow -> red; "!" once it sees you)
 ## and the health bar once damaged. The view cone itself is drawn only by the F6 debug overlay.
 func _draw() -> void:
 	_draw_senses()
+	if is_boss and health > 0.0:
+		_draw_boss_bar()
+		return
 	if health >= stats.max_health or health <= 0.0:
 		return
 	var width: float = 12.0
 	var top_left: Vector2 = Vector2(-width / 2.0, -10.0)
 	draw_rect(Rect2(top_left, Vector2(width, 2)), Color(0.1, 0.1, 0.1))
 	draw_rect(Rect2(top_left, Vector2(width * health / stats.max_health, 2)), Color(0.4, 1, 0.4))
+
+
+## Apex boss bar: always shown, wide, above the (scaled) body.
+func _draw_boss_bar() -> void:
+	var width: float = 40.0
+	var top_left: Vector2 = Vector2(-width / 2.0, -22.0)
+	var ratio: float = clampf(health / stats.max_health, 0.0, 1.0)
+	draw_rect(Rect2(top_left - Vector2.ONE, Vector2(width + 2.0, 6.0)), Color(0.0, 0.0, 0.0, 0.85))
+	draw_rect(Rect2(top_left, Vector2(width * ratio, 4.0)), Color(0.95, 0.2, 0.55))
+	draw_rect(Rect2(top_left, Vector2(width * ratio, 1.0)), Color(1.0, 0.6, 0.8))
 
 
 func _draw_senses() -> void:

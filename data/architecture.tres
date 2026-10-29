@@ -1,0 +1,248 @@
+[gd_resource type="Resource" script_class="ArchitectureSettings" load_steps=19 format=3]
+
+[ext_resource type="Script" path="res://world/atmosphere/district_style.gd" id="1_dist"]
+[ext_resource type="Script" path="res://world/atmosphere/architecture_settings.gd" id="2_arch"]
+
+[sub_resource type="Resource" id="d0"]
+script = ExtResource("1_dist")
+id = &"maple_residential"
+title = "Maple Hollow - residential streets"
+zone = 1
+levels = PackedStringArray("z1_l1")
+archetypes = Array[StringName]([&"house", &"house", &"house", &"house", &"house", &"apartment", &"apartment", &"shop", &"garage"])
+landmark = &""
+decay = 0.3
+infection = 0.08
+overgrowth = 0.25
+flood = 0.0
+burn_share = 0.12
+collapse_share = 0.0
+
+[sub_resource type="Resource" id="d1"]
+script = ExtResource("1_dist")
+id = &"maple_commercial"
+title = "Maple Hollow - commercial street"
+zone = 1
+levels = PackedStringArray("z1_l2")
+archetypes = Array[StringName]([&"shop", &"shop", &"shop", &"shop", &"pharmacy", &"supermarket", &"apartment", &"apartment", &"office", &"house"])
+landmark = &"supermarket"
+decay = 0.35
+infection = 0.1
+overgrowth = 0.2
+flood = 0.0
+burn_share = 0.15
+collapse_share = 0.04
+
+[sub_resource type="Resource" id="d2"]
+script = ExtResource("1_dist")
+id = &"maple_evacuation"
+title = "Maple Hollow - evacuation district"
+zone = 1
+levels = PackedStringArray("z1_l3")
+archetypes = Array[StringName]([&"clinic", &"clinic", &"school", &"police", &"fire_station", &"checkpoint", &"checkpoint", &"checkpoint", &"house", &"house", &"apartment"])
+landmark = &"hospital"
+decay = 0.4
+infection = 0.15
+overgrowth = 0.2
+flood = 0.0
+burn_share = 0.2
+collapse_share = 0.06
+
+[sub_resource type="Resource" id="d3"]
+script = ExtResource("1_dist")
+id = &"maple_town_centre"
+title = "Maple Hollow - town centre"
+zone = 1
+levels = PackedStringArray("z1_l4")
+archetypes = Array[StringName]([&"office", &"office", &"tower", &"tower", &"apartment", &"apartment", &"shop", &"shop", &"supermarket", &"town_hall"])
+landmark = &"town_hall"
+decay = 0.45
+infection = 0.2
+overgrowth = 0.18
+flood = 0.0
+burn_share = 0.2
+collapse_share = 0.1
+
+[sub_resource type="Resource" id="d4"]
+script = ExtResource("1_dist")
+id = &"lowtide_flooded_homes"
+title = "Lowtide - flooded homes"
+zone = 2
+levels = PackedStringArray("z2_l1")
+archetypes = Array[StringName]([&"house", &"house", &"house", &"house", &"apartment", &"apartment", &"apartment", &"shop", &"shop", &"hotel"])
+landmark = &""
+decay = 0.4
+infection = 0.15
+overgrowth = 0.3
+flood = 1.0
+burn_share = 0.05
+collapse_share = 0.04
+
+[sub_resource type="Resource" id="d5"]
+script = ExtResource("1_dist")
+id = &"lowtide_harbor_market"
+title = "Lowtide - harbour market"
+zone = 2
+levels = PackedStringArray("z2_l2")
+archetypes = Array[StringName]([&"fish_market", &"fish_market", &"fish_market", &"warehouse", &"warehouse", &"shop", &"shop", &"harbor_office", &"apartment"])
+landmark = &"fish_market"
+decay = 0.45
+infection = 0.25
+overgrowth = 0.3
+flood = 1.0
+burn_share = 0.05
+collapse_share = 0.05
+
+[sub_resource type="Resource" id="d6"]
+script = ExtResource("1_dist")
+id = &"lowtide_waterfront"
+title = "Lowtide - waterfront"
+zone = 2
+levels = PackedStringArray("z2_l3")
+archetypes = Array[StringName]([&"hotel", &"hotel", &"hotel", &"shop", &"shop", &"shop", &"apartment", &"apartment", &"rescue_station", &"house"])
+landmark = &"hotel"
+decay = 0.45
+infection = 0.25
+overgrowth = 0.28
+flood = 1.0
+burn_share = 0.05
+collapse_share = 0.05
+
+[sub_resource type="Resource" id="d7"]
+script = ExtResource("1_dist")
+id = &"lowtide_docks"
+title = "Lowtide - docks"
+zone = 2
+levels = PackedStringArray("z2_l4")
+archetypes = Array[StringName]([&"warehouse", &"warehouse", &"warehouse", &"warehouse", &"factory", &"factory", &"harbor_office", &"rescue_station", &"fish_market"])
+landmark = &"harbor_office"
+decay = 0.5
+infection = 0.3
+overgrowth = 0.3
+flood = 1.0
+burn_share = 0.08
+collapse_share = 0.08
+
+[sub_resource type="Resource" id="d8"]
+script = ExtResource("1_dist")
+id = &"greywood_trailhead"
+title = "Greywood - trailhead"
+zone = 3
+levels = PackedStringArray("z3_l1")
+archetypes = Array[StringName]([&"cabin", &"cabin", &"cabin", &"cabin", &"cabin", &"ranger_station", &"ranger_station", &"visitor_center", &"utility"])
+landmark = &"visitor_center"
+decay = 0.35
+infection = 0.12
+overgrowth = 0.6
+flood = 0.0
+burn_share = 0.1
+collapse_share = 0.03
+
+[sub_resource type="Resource" id="d9"]
+script = ExtResource("1_dist")
+id = &"greywood_lodge_camp"
+title = "Greywood - lodge camp"
+zone = 3
+levels = PackedStringArray("z3_l2")
+archetypes = Array[StringName]([&"cabin", &"cabin", &"cabin", &"cabin", &"lodge", &"lodge", &"medical_station", &"medical_station", &"ranger_station", &"utility"])
+landmark = &"lodge"
+decay = 0.38
+infection = 0.18
+overgrowth = 0.6
+flood = 0.0
+burn_share = 0.12
+collapse_share = 0.04
+
+[sub_resource type="Resource" id="d10"]
+script = ExtResource("1_dist")
+id = &"greywood_logging"
+title = "Greywood - logging camp"
+zone = 3
+levels = PackedStringArray("z3_l3")
+archetypes = Array[StringName]([&"sawmill", &"sawmill", &"sawmill", &"cabin", &"cabin", &"cabin", &"utility", &"utility", &"warehouse"])
+landmark = &"sawmill"
+decay = 0.45
+infection = 0.3
+overgrowth = 0.7
+flood = 0.0
+burn_share = 0.15
+collapse_share = 0.05
+
+[sub_resource type="Resource" id="d11"]
+script = ExtResource("1_dist")
+id = &"greywood_outpost"
+title = "Greywood - Sunnyseed field outpost"
+zone = 3
+levels = PackedStringArray("z3_l4")
+archetypes = Array[StringName]([&"field_lab", &"field_lab", &"field_lab", &"medical_station", &"medical_station", &"utility", &"utility", &"cabin", &"cabin"])
+landmark = &"field_lab"
+decay = 0.4
+infection = 0.4
+overgrowth = 0.55
+flood = 0.0
+burn_share = 0.1
+collapse_share = 0.06
+
+[sub_resource type="Resource" id="d12"]
+script = ExtResource("1_dist")
+id = &"labs_perimeter"
+title = "Sunnyseed Labs - security perimeter"
+zone = 4
+levels = PackedStringArray("z4_l1")
+archetypes = Array[StringName]([&"security", &"security", &"security", &"admin", &"admin", &"admin", &"checkpoint", &"lab", &"lab", &"utility"])
+landmark = &"admin"
+decay = 0.12
+infection = 0.03
+overgrowth = 0.05
+flood = 0.0
+burn_share = 0.02
+collapse_share = 0.0
+
+[sub_resource type="Resource" id="d13"]
+script = ExtResource("1_dist")
+id = &"labs_research_wings"
+title = "Sunnyseed Labs - research wings"
+zone = 4
+levels = PackedStringArray("z4_l2")
+archetypes = Array[StringName]([&"lab", &"lab", &"lab", &"lab", &"lab_tower", &"lab_tower", &"admin", &"clinic"])
+landmark = &"lab_tower"
+decay = 0.2
+infection = 0.3
+overgrowth = 0.04
+flood = 0.0
+burn_share = 0.04
+collapse_share = 0.02
+
+[sub_resource type="Resource" id="d14"]
+script = ExtResource("1_dist")
+id = &"labs_containment"
+title = "Sunnyseed Labs - containment"
+zone = 4
+levels = PackedStringArray("z4_l3")
+archetypes = Array[StringName]([&"containment", &"containment", &"containment", &"processing", &"processing", &"lab_tower", &"lab_tower", &"lab", &"lab"])
+landmark = &"containment"
+decay = 0.32
+infection = 0.62
+overgrowth = 0.03
+flood = 0.0
+burn_share = 0.06
+collapse_share = 0.05
+
+[sub_resource type="Resource" id="d15"]
+script = ExtResource("1_dist")
+id = &"labs_root"
+title = "Sunnyseed Labs - the Root"
+zone = 4
+levels = PackedStringArray("z4_l4")
+archetypes = Array[StringName]([&"research_complex", &"lab_tower", &"lab_tower", &"lab_tower", &"containment", &"containment", &"containment", &"processing", &"processing"])
+landmark = &"research_complex"
+decay = 0.45
+infection = 1.0
+overgrowth = 0.0
+flood = 0.0
+burn_share = 0.08
+collapse_share = 0.1
+
+[resource]
+script = ExtResource("2_arch")
+districts = Array[ExtResource("1_dist")]([SubResource("d0"), SubResource("d1"), SubResource("d2"), SubResource("d3"), SubResource("d4"), SubResource("d5"), SubResource("d6"), SubResource("d7"), SubResource("d8"), SubResource("d9"), SubResource("d10"), SubResource("d11"), SubResource("d12"), SubResource("d13"), SubResource("d14"), SubResource("d15")])

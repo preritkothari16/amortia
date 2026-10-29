@@ -251,3 +251,28 @@ func test_zone_best_tracks_the_fittest_genome() -> void:
 	GameState.record_wave_best(worse)
 	assert_eq(GameState.zone_best[1]["fitness"], 0.3)
 	GameState.zone_best = {}
+
+
+# --- HUD checklist (step 67) ------------------------------------------------------------
+
+func test_hud_checklist_ticks_the_goal_and_tracks_side_objectives() -> void:
+	var c: LevelConfig = _config(ObjectiveConfig.Type.SURVIVE)
+	var no_damage: SideObjective = SideObjective.new()
+	no_damage.id = "test_no_damage"
+	no_damage.title = "No damage"
+	no_damage.challenge = SideObjective.Challenge.NO_DAMAGE
+	c.side_objectives = [no_damage]
+	var lvl: Dictionary = await _level(c)
+	var flow: LevelFlow = lvl["flow"]
+	var rows: Array[Dictionary] = flow.checklist()
+	assert_eq(rows[0], {"text": "Survive", "mark": "todo"}, "main goal from the objective's HUD text")
+	assert_eq(rows[-1], {"text": "No damage", "mark": "todo"}, "challenge still on track")
+	lvl["player"].take_damage(1.0)
+	assert_eq(flow.checklist()[-1]["mark"], "failed", "a hit fails No damage for good")
+	for e: Enemy in lvl["wm"].alive.duplicate():
+		e.take_damage(99999.0)
+	await wait_physics_frames(2)
+	rows = flow.checklist()
+	assert_eq(rows[0], {"text": "Survive the wave", "mark": "done"}, "ticked once the wave is cleared")
+	assert_true(rows[1]["text"].begins_with("Exit open"))
+	assert_eq(flow.wave_in_level(), 1)

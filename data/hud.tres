@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="HudSettings" format=3]
+
+[ext_resource type="Script" path="res://ui/hud/hud_settings.gd" id="1_hud"]
+
+[resource]
+script = ExtResource("1_hud")
+low_health_ratio = 0.3
+hurt_flash_seconds = 0.18

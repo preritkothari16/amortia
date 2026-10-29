@@ -33,3 +33,16 @@ func test_camera_is_unzoomed() -> void:
 	assert_true(cam.position_smoothing_enabled)
 	assert_eq(cam.position_smoothing_speed, 8.0)
 	p.free()
+
+
+func test_apex_boss_gets_a_halo_aura_and_always_on_health_bar() -> void:
+	var enemy: Enemy = (load("res://entities/enemies/base_enemy.tscn") as PackedScene).instantiate() as Enemy
+	enemy.stats = load("res://data/runner.tres") as EnemyStats
+	add_child_autofree(enemy)
+	await wait_physics_frames(2)
+	enemy.make_boss(12.0, 2.0, 2.0)
+	await wait_physics_frames(3)
+	var body: Node = enemy.get_node("Body")
+	assert_not_null(body.get_node_or_null("BossAura"), "ground ring under the boss")
+	assert_not_null(body.get_node_or_null("BossHalo"), "magenta silhouette behind the sprite")
+	assert_true(enemy.is_boss)

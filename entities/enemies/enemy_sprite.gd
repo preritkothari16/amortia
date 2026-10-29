@@ -19,6 +19,10 @@ var _heading: float = 0.0
 var _styled: bool = false
 var _boss_styled: bool = false
 var _flashing: bool = false
+## Apex boss only: a bigger magenta copy of the sprite behind it (reads as an outline) and a
+## pulsing ground ring, so it stands out from the swarm and the dark floor.
+var _halo: Sprite2D
+var _aura: BossAura
 
 
 func _ready() -> void:
@@ -37,7 +41,8 @@ func _process(delta: float) -> void:
 		_apply_genome_look()
 	if _enemy.is_boss and not _boss_styled:
 		_boss_styled = true
-		modulate = Color.WHITE.lerp(_enemy.stats.color, 0.55)
+		modulate = Color.WHITE.lerp(_enemy.stats.color, 0.3).lightened(0.2)
+		_add_boss_halo()
 	if _enemy.facing != Vector2.ZERO:
 		_heading = lerp_angle(_heading, _enemy.facing.angle(), 1.0 - exp(-TURN_RATE * delta))
 	var moved: float = _enemy.global_position.distance_to(_last_position)
@@ -50,7 +55,26 @@ func _process(delta: float) -> void:
 	else:
 		frame = 0
 	rotation = _heading + sway
+	if _halo != null:
+		_halo.rotation = rotation
+		_halo.frame = frame
 	_update_flash()
+
+
+func _add_boss_halo() -> void:
+	_aura = BossAura.new()
+	_aura.name = "BossAura"
+	_body.add_child(_aura)
+	_body.move_child(_aura, get_index())
+	_halo = Sprite2D.new()
+	_halo.name = "BossHalo"
+	_halo.texture = texture
+	_halo.hframes = hframes
+	_halo.texture_filter = texture_filter
+	_halo.scale = scale * 1.28
+	_halo.modulate = Color(1.0, 0.25, 0.85, 0.75)
+	_body.add_child(_halo)
+	_body.move_child(_halo, get_index())
 
 
 ## Enemy.take_damage sets Body.color to white and tweens it back to stats.color in 0.12 s.

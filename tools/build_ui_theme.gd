@@ -1,6 +1,8 @@
 extends SceneTree
-## Builds ui/theme/ui_theme.tres: the one Theme for the between-wave screens (Wave Report,
-## Downed). Run headless:  godot --headless --path . -s res://tools/build_ui_theme.gd
+## Builds ui/theme/ui_theme.tres: the Theme of the between-wave screens (Wave Report, Downed),
+## in MenuStyle's palette and with its button plates, so they match the other menus. Fonts are
+## not saved here (the crisp MSDF font is made at run time: MenuStyle.with_fonts).
+## Run headless:  godot --headless --path . -s res://tools/build_ui_theme.gd
 ##
 ## Sizes are viewport pixels. The 480 x 270 viewport is integer-scaled: x2 at 1280 x 720 and
 ## 1366 x 768, x4 at 1920 x 1080. So the 8 px grid is SPACE = 4 viewport px, and font sizes
@@ -8,16 +10,16 @@ extends SceneTree
 
 const OUT: String = "res://ui/theme/ui_theme.tres"
 
-const PANEL: Color = Color("#16181d")
-const CARD: Color = Color("#1f2229")
-const TEXT: Color = Color("#e8e6e3")
-const MUTED: Color = Color("#9aa0a6")
-const ACCENT: Color = Color("#e8b84a")
-const UP: Color = Color("#ff8a4c")      # stronger enemies
-const DOWN: Color = Color("#5aa9e6")    # weaker enemies
-const DANGER: Color = Color("#e5534b")
-const RAISED: Color = Color("#2a2e37")  # chips, buttons, bar tracks (between card and text)
-const BORDER: Color = Color("#2f343e")
+const PANEL: Color = MenuStyle.CHARCOAL
+const CARD: Color = MenuStyle.NAVY
+const TEXT: Color = MenuStyle.BONE
+const MUTED: Color = MenuStyle.MUTED
+const ACCENT: Color = MenuStyle.EMBER
+const UP: Color = Color("#e0703f")      # stronger enemies
+const DOWN: Color = Color("#6f9cc0")    # weaker enemies
+const DANGER: Color = MenuStyle.EMBER
+const RAISED: Color = MenuStyle.RAISED  # chips, bar tracks (between card and text)
+const BORDER: Color = MenuStyle.STEEL
 
 const SPACE: int = 4
 const TITLE: int = 16
@@ -55,16 +57,16 @@ func _initialize() -> void:
 	# Panels.
 	t.set_stylebox("panel", "PanelContainer", _box(CARD, 0, SPACE))
 	t.set_type_variation("ReportPanel", "PanelContainer")
-	var panel: StyleBoxFlat = _box(PANEL, 2, 2 * SPACE)
+	var panel: StyleBoxFlat = MenuStyle.panel_box(Color(PANEL, 0.97), Color(BORDER, 0.8), 2 * SPACE)
+	panel.border_width_top = 2
 	panel.border_color = BORDER
-	panel.set_border_width_all(1)
 	t.set_stylebox("panel", "ReportPanel", panel)
 	t.set_type_variation("Card", "PanelContainer")
-	t.set_stylebox("panel", "Card", _box(CARD, 2, SPACE))
+	t.set_stylebox("panel", "Card", MenuStyle.panel_box(Color(CARD, 0.92), Color(BORDER, 0.45), SPACE))
 	t.set_type_variation("Chip", "PanelContainer")
-	t.set_stylebox("panel", "Chip", _box(RAISED, 6, 0, SPACE, 1))
+	t.set_stylebox("panel", "Chip", _box(RAISED, 0, 0, SPACE, 1))
 	t.set_type_variation("AccentChip", "PanelContainer")
-	t.set_stylebox("panel", "AccentChip", _box(ACCENT.darkened(0.55), 6, 0, SPACE, 1))
+	t.set_stylebox("panel", "AccentChip", _box(MenuStyle.BLOOD.darkened(0.2), 0, 0, SPACE, 1))
 	t.set_type_variation("UpPill", "PanelContainer")
 	t.set_stylebox("panel", "UpPill", _box(UP, 6, 0, 3, 0))
 	t.set_type_variation("DownPill", "PanelContainer")
@@ -82,17 +84,11 @@ func _initialize() -> void:
 	for side: String in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
 		t.set_constant(side, "MarginContainer", 2 * SPACE)
 
-	# Buttons: secondary (default), primary, tertiary; focus ring in the accent colour.
-	t.set_font_size("font_size", "Button", BODY)
-	_button(t, "Button", RAISED, TEXT)
-	t.set_type_variation("PrimaryButton", "Button")
-	_button(t, "PrimaryButton", ACCENT, PANEL)
-	t.set_font_size("font_size", "PrimaryButton", SECTION)
-	t.set_type_variation("TertiaryButton", "Button")
-	_button(t, "TertiaryButton", Color(0, 0, 0, 0), MUTED)
+	# Buttons: secondary (default), primary (blood plate), tertiary - MenuStyle's plates.
+	MenuStyle.buttons(t)
 
 	# Tooltips.
-	t.set_stylebox("panel", "TooltipPanel", _box(RAISED, 2, SPACE))
+	t.set_stylebox("panel", "TooltipPanel", MenuStyle.panel_box(Color(MenuStyle.INK, 0.96), MenuStyle.RUST, SPACE))
 	t.set_color("font_color", "TooltipLabel", TEXT)
 	t.set_font_size("font_size", "TooltipLabel", BODY)
 
@@ -106,30 +102,6 @@ func _label_variant(t: Theme, name: String, size: int, color: Color) -> void:
 	t.set_type_variation(name, "Label")
 	t.set_font_size("font_size", name, size)
 	t.set_color("font_color", name, color)
-
-
-func _button(t: Theme, type: String, bg: Color, fg: Color) -> void:
-	var normal: StyleBoxFlat = _box(bg, 2, 0, 2 * SPACE, 2)
-	var hover: StyleBoxFlat = normal.duplicate()
-	hover.bg_color = bg.lightened(0.12) if bg.a > 0.0 else Color(RAISED, 0.6)
-	var pressed: StyleBoxFlat = normal.duplicate()
-	pressed.bg_color = bg.darkened(0.15) if bg.a > 0.0 else RAISED
-	var disabled: StyleBoxFlat = normal.duplicate()
-	disabled.bg_color = Color(bg, bg.a * 0.4)
-	var focus: StyleBoxFlat = StyleBoxFlat.new()
-	focus.draw_center = false
-	focus.border_color = ACCENT if type != "PrimaryButton" else TEXT
-	focus.set_border_width_all(1)
-	focus.set_corner_radius_all(3)
-	focus.set_expand_margin_all(2)
-	t.set_stylebox("normal", type, normal)
-	t.set_stylebox("hover", type, hover)
-	t.set_stylebox("pressed", type, pressed)
-	t.set_stylebox("disabled", type, disabled)
-	t.set_stylebox("focus", type, focus)
-	for state: String in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]:
-		t.set_color(state, type, fg if type != "TertiaryButton" or state == "font_color" else TEXT)
-	t.set_color("font_disabled_color", type, Color(fg, 0.5))
 
 
 ## Flat box: colour, corner radius, all-round content margin (or horizontal / vertical).

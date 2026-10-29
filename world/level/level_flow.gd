@@ -306,10 +306,15 @@ func _on_enemy_killed(enemy: Node2D) -> void:
 		main.call_deferred("add_child", Pickup.create(&"scrap", scrap, at + Vector2(3, 2)))
 
 
+## Wave of this level being played or just cleared (1-based), for the HUD.
+func wave_in_level() -> int:
+	return mini(waves_done + (0 if phase == Phase.CLEARED or phase == Phase.EXITED else 1), config.waves)
+
+
 ## HUD line for the current phase.
 func status_text() -> String:
 	var obj: String = objective.hud_text() if objective != null else ""
-	var head: String = "Wave %d / %d   " % [mini(waves_done + (0 if phase == Phase.CLEARED or phase == Phase.EXITED else 1), config.waves), config.waves]
+	var head: String = "Wave %d / %d   " % [wave_in_level(), config.waves]
 	match phase:
 		Phase.ENTERING:
 			var t: float = wave_manager.arrival_seconds_left()
@@ -325,3 +330,59 @@ func status_text() -> String:
 		Phase.COMPLETE:
 			return "Level complete!"
 	return ""
+
+
+## The same information as status_text(), one row per goal, for the HUD's objective checklist
+## (step 67). Each row is {text, mark}; mark is "todo", "done", "failed" (can no longer be met) or
+## "info" (timers and hints, no checkbox). Main goal first, then the phase, then side objectives.
+func checklist() -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	var obj: String = objective.hud_text() if objective != null else ""
+	var goal: String = obj if obj != "" else "Clear the wave"
+	match phase:
+		Phase.ENTERING:
+			rows.append({"text": "They're coming in %.1f s" % wave_manager.arrival_seconds_left(), "mark": "info"})
+			rows.append({"text": goal, "mark": "todo"})
+			if barricades_left > 0:
+				rows.append({"text": "%s: %d barricade%s" % [KeyHint.key(&"build"), barricades_left,
+						"s" if barricades_left > 1 else ""], "mark": "info"})
+		Phase.FIGHTING:
+			rows.append({"text": goal, "mark": "todo"})
+		Phase.CLEARED, Phase.EXITED:
+			rows.append({"text": goal_title(), "mark": "done"})
+			var s: String = "stragglers in %d s" % ceili(straggler_left) if stragglers_spawned == 0 else "stragglers incoming!"
+			rows.append({"text": "Exit open - go right (%s)" % s, "mark": "todo"})
+		Phase.COMPLETE:
+			rows.append({"text": "Level complete!", "mark": "done"})
+	for side: SideObjective in config.side_objectives:
+		var text: String = side.title
+		var mark: String = "todo"
+		if side_completed.has(side.id):
+			mark = "done"
+		elif side.kind == SideObjective.Kind.CHALLENGE and (phase == Phase.COMPLETE or not side.is_met(stats)):
+			mark = "failed"  # challenges only get harder: once missed they stay missed
+		elif side.kind == SideObjective.Kind.CHALLENGE and side.challenge == SideObjective.Challenge.UNDER_TIME:
+			var left: int = maxi(0, ceili(side.time_limit_seconds - float(stats["seconds"])))
+			text += " (%d:%02d left)" % [left / 60, left % 60]
+		rows.append({"text": text, "mark": mark})
+	return rows
+
+
+## Short name of the level's main goal, shown ticked once the wave is cleared.
+func goal_title() -> String:
+	if objective == null or objective.config == null:
+		return "Clear the wave"
+	match objective.config.type:
+		ObjectiveConfig.Type.HOLD:
+			return "Hold the point"
+		ObjectiveConfig.Type.ESCORT:
+			return "Escort the survivor"
+		ObjectiveConfig.Type.PURGE:
+			return "Purge the nests"
+		ObjectiveConfig.Type.EXTRACT:
+			return "Collect supplies"
+		ObjectiveConfig.Type.STEALTH:
+			return "Reach the exit unseen"
+		ObjectiveConfig.Type.APEX:
+			return "Defeat the Apex"
+	return "Survive the wave"

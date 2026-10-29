@@ -112,6 +112,7 @@ func _ready() -> void:
 	var indicators: ThreatIndicators = ThreatIndicators.new()
 	indicators.name = "ThreatIndicators"
 	indicators.wave_manager = _wave_manager
+	indicators.bottom_inset = HudLayout.STRIP_HEIGHT  # the strip counts as off screen
 	$HUD.add_child(indicators)
 	$HUD.move_child(indicators, _player_status.get_index() + 1)  # under the report and menus
 
@@ -161,7 +162,7 @@ func _ready() -> void:
 	_terrain_view.grid = terrain_grid
 	_terrain_view.layer = _map.terrain_layer
 	_atmosphere.setup(_player, _wave_manager.zone)
-	_atmosphere.apply_map(_map, terrain_grid)
+	_atmosphere.apply_map(_map, terrain_grid, level_config.id if level_config != null else "")
 	_terrain_view.rules = terrain_costs
 	_terrain_view.events = _terrain_events
 	_terrain_view.health = terrain_health
@@ -253,7 +254,7 @@ func load_area(scene: PackedScene) -> void:
 	_swap_map_node(scene)
 	terrain_grid.load_rows(_map.get_terrain_rows())
 	_terrain_view.layer = _map.terrain_layer
-	_atmosphere.apply_map(_map, terrain_grid)
+	_atmosphere.apply_map(_map, terrain_grid, level_config.id if level_config != null else "")
 	_cost_overlay.queue_redraw()
 	_set_camera_limits()
 	_wave_manager.set_spawn_points(_map.get_enemy_spawns(), _map.get_behind_spawns())
@@ -326,10 +327,15 @@ func _on_player_died() -> void:
 func _set_camera_limits() -> void:
 	var bounds: Rect2 = _map.get_world_rect()
 	var camera: Camera2D = _player.get_node("Camera2D")
+	# The bottom HUD strip covers HudLayout.STRIP_HEIGHT px: aim the camera half of that below the
+	# player so the player sits in the middle of the uncovered view, and let it go a strip further
+	# down so the map's bottom rows can scroll above the strip. Framing only (offset stays free for
+	# the hit shake).
+	camera.position = Vector2(0, HudLayout.STRIP_HEIGHT * 0.5)
 	camera.limit_left = int(bounds.position.x)
 	camera.limit_top = int(bounds.position.y)
 	camera.limit_right = int(bounds.end.x)
-	camera.limit_bottom = int(bounds.end.y)
+	camera.limit_bottom = int(bounds.end.y + HudLayout.STRIP_HEIGHT)
 
 
 ## Moves the player to the map's spawn and points the flow field and camera there, before

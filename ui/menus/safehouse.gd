@@ -1,7 +1,7 @@
 class_name Safehouse
 extends Control
-## Greybox Safehouse hub (GDD 7.6), shown after each zone's Apex. Shows what the run carries
-## and offers the way on. The rooms (Workbench, Lab, Radio, Garden, Bunks) are placeholders
+## Safehouse hub (GDD 7.6), shown after each zone's Apex: a worn panel over the burning-city
+## backdrop (MenuStyle look). Shows what the run carries and offers the way on. The rooms (Workbench, Lab, Radio, Garden, Bunks) are placeholders
 ## until their content is designed - listed, disabled, nothing invented.
 ## Victory mode (after the Seed): the campaign is won; Endless and New Game+ are unlocked.
 
@@ -12,51 +12,71 @@ const LABEL_WIDTH: float = 400.0
 ## Rooms that are still placeholders (disabled). Workbench and Lab work.
 const ROOMS: Array[String] = ["Radio (side objectives)", "Garden (healing items)", "Bunks (rescued survivors)"]
 
+## Demo build: the unfinished rooms stay hidden (their code is kept; flip to list them again).
+const SHOW_UNFINISHED_ROOMS: bool = false
+
 var _column: VBoxContainer
 ## The Workbench / Lab screen that replaces the column while it is open.
 var _panel: VBoxContainer
 var _status_label: Label
 var _center: CenterContainer
+## The panel the column and the Workbench / Lab pages live in.
+var _stack: VBoxContainer
+var _frame: PanelContainer
 
 
 func _ready() -> void:
 	get_tree().paused = false
-	var backdrop: ColorRect = ColorRect.new()
-	backdrop.color = Color(0.12, 0.11, 0.1)
+	theme = MenuStyle.theme()
+	var victory: bool = GameState.safehouse_mode == "victory"
+	var backdrop: MenuBackdrop = MenuBackdrop.new()
 	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(backdrop)
+	var dim: ColorRect = ColorRect.new()  # the hub is a quiet room: the city further away
+	dim.color = Color(0.02, 0.03, 0.04, 0.5) if not victory else Color(0.05, 0.05, 0.03, 0.35)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(dim)
 	_center = CenterContainer.new()
 	_center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(_center)
+	_frame = PanelContainer.new()
+	_frame.theme_type_variation = &"MenuPanel"
+	_center.add_child(_frame)
+	_stack = VBoxContainer.new()
+	_frame.add_child(_stack)
 	_column = VBoxContainer.new()
 	_column.add_theme_constant_override("separation", 3)
-	_center.add_child(_column)
-	var victory: bool = GameState.safehouse_mode == "victory"
+	_stack.add_child(_column)
 	var zones: Array[ZoneConfig] = GameState.campaign().zones
 	var done: ZoneConfig = zones[GameState.current_zone - 1]
 	if victory:
-		_label("THE SEED IS DESTROYED", 14, Color(0.6, 1.0, 0.6))
-		_label("Campaign complete. New Game+ is unlocked.", FONT_SIZE, Color(0.8, 0.8, 0.8))
+		var head: VBoxContainer = MenuStyle.heading(_column, "THE SEED IS DESTROYED", &"TitleLabel", 180.0)
+		(head.get_child(0) as Label).add_theme_color_override("font_color", MenuStyle.SICK.lightened(0.25))
+		(head.get_child(1) as RuleLine).colour = MenuStyle.AMBER
+		_label("Campaign complete. New Game+ is unlocked.", FONT_SIZE, MenuStyle.BONE)
 	else:
-		_label("SAFEHOUSE", 14, Color(1.0, 0.85, 0.5))
-		_label("%s cleared." % done.title, FONT_SIZE, Color(0.8, 0.8, 0.8))
-	_status_label = _label(_resources_text(), FONT_SIZE, Color(0.6, 1.0, 0.7))
+		MenuStyle.heading(_column, "SAFEHOUSE", &"TitleLabel", 110.0)
+		_label("%s cleared." % done.title, FONT_SIZE, MenuStyle.BONE)
+	_status_label = _label(_resources_text(), FONT_SIZE, MenuStyle.SICK)
 	var best: Genome = GameState.zone_best_genome(GameState.current_zone)
 	if best != null:
-		_label("Strongest strain of the zone: " + best.describe(), FONT_SIZE, Color(0.6, 0.6, 0.6))
+		_label("Strongest strain of the zone: " + best.describe(), FONT_SIZE, MenuStyle.MUTED)
 	if not victory:
 		_button("Workbench (weapons)", _open_panel.bind("workbench"))
 		_button("Lab (research)", _open_panel.bind("lab"))
-		_label("Coming later:", FONT_SIZE, Color(0.8, 0.8, 0.8))
-		for room: String in ROOMS:
-			var b: Button = _button(room, func() -> void: pass)
-			b.disabled = true
+		if SHOW_UNFINISHED_ROOMS:
+			_label("Coming later:", FONT_SIZE, MenuStyle.MUTED)
+			for room: String in ROOMS:
+				var b: Button = _button(room, func() -> void: pass)
+				b.disabled = true
 	if victory:
 		_button("Main Menu", _on_main_menu).grab_focus()
 	else:
 		var next: ZoneConfig = zones[GameState.current_zone]
 		_button("Continue to %s" % next.title, _on_continue).grab_focus()
 		_button("Main Menu (progress saved)", _on_main_menu)
+	MenuStyle.enter(_frame, 0.0, 0.25)
 
 
 func _on_continue() -> void:
@@ -78,10 +98,11 @@ func _resources_text() -> String:
 func _open_panel(kind: String) -> void:
 	_column.visible = false
 	if _panel != null:
+		_stack.remove_child(_panel)  # out of the layout at once (freed after the click is done)
 		_panel.queue_free()
 	_panel = VBoxContainer.new()
 	_panel.add_theme_constant_override("separation", 3)
-	_center.add_child(_panel)
+	_stack.add_child(_panel)
 	if kind == "workbench":
 		_build_workbench()
 	else:
@@ -92,6 +113,7 @@ func _open_panel(kind: String) -> void:
 
 func _close_panel() -> void:
 	if _panel != null:
+		_stack.remove_child(_panel)
 		_panel.queue_free()
 		_panel = null
 	_column.visible = true
@@ -104,18 +126,19 @@ func _refresh(kind: String) -> void:
 
 
 func _build_workbench() -> void:
-	_label_in(_panel, "WORKBENCH", 12, Color(1.0, 0.85, 0.5))
-	_label_in(_panel, _resources_text(), FONT_SIZE, Color(0.6, 1.0, 0.7))
+	MenuStyle.heading(_panel, "WORKBENCH", &"HeadingLabel", 90.0)
+	_label_in(_panel, _resources_text(), FONT_SIZE, MenuStyle.SICK)
 	var l: PlayerLoadout = GameState.loadout
 	_label_in(_panel, "In hand: %s    Spare: %s    (Q swaps in a level)" % [_weapon_name(l.equipped[0]),
-			_weapon_name(l.equipped[1]) if l.equipped[1] != &"" else "-"], FONT_SIZE, Color(0.8, 0.8, 0.8))
+			_weapon_name(l.equipped[1]) if l.equipped[1] != &"" else "-"], FONT_SIZE, MenuStyle.BONE)
 	for id: StringName in WeaponLibrary.ids():
 		var w: WeaponStats = WeaponLibrary.get_weapon(id)
-		_label_in(_panel, "%s - %s" % [w.display_name, w.description], FONT_SIZE, Color(0.7, 0.7, 0.7))
+		_label_in(_panel, "%s - %s" % [w.display_name, w.description], FONT_SIZE, MenuStyle.MUTED)
 		if l.is_owned(id):
 			var row: HBoxContainer = HBoxContainer.new()
 			row.add_theme_constant_override("separation", 3)
 			_panel.add_child(row)
+			row.alignment = BoxContainer.ALIGNMENT_CENTER
 			_button_in(row, "Carry in hand", _equip.bind(id, 0)).disabled = l.equipped[0] == id
 			if id != WeaponLibrary.PISTOL or l.equipped[0] != id:
 				_button_in(row, "Carry as spare", _equip.bind(id, 1)).disabled = l.equipped[1] == id or l.equipped[0] == id and l.owned.size() < 2
@@ -125,7 +148,7 @@ func _build_workbench() -> void:
 			b.disabled = problem != ""
 			b.tooltip_text = problem
 		else:
-			_label_in(_panel, "No blueprint yet - find one on a level or earn it.", FONT_SIZE, Color(0.5, 0.5, 0.5))
+			_label_in(_panel, "No blueprint yet - find one on a level or earn it.", FONT_SIZE, MenuStyle.DIM)
 
 
 func _weapon_name(id: StringName) -> String:
@@ -147,14 +170,14 @@ func _build(id: StringName) -> void:
 
 func _build_lab() -> void:
 	var research: ResearchState = GameState.research()
-	_label_in(_panel, "LAB", 12, Color(1.0, 0.85, 0.5))
-	_label_in(_panel, _resources_text(), FONT_SIZE, Color(0.6, 1.0, 0.7))
+	MenuStyle.heading(_panel, "LAB", &"HeadingLabel", 70.0)
+	_label_in(_panel, _resources_text(), FONT_SIZE, MenuStyle.SICK)
 	var cap: float = research.tree.group_caps.get(&"health", 0.0)
 	_label_in(_panel, "Permanent extra max HP: +%d of +%d" % [roundi(research.group_total(&"health")), roundi(cap)],
-			FONT_SIZE, Color(0.8, 0.8, 0.8))
+			FONT_SIZE, MenuStyle.BONE)
 	for node: ResearchNode in research.tree.nodes:
 		var status: ResearchState.Status = research.status(node.id, GameState.scrap, GameState.samples, GameState.current_zone)
-		_label_in(_panel, "%s - %s" % [node.display_name, node.description], FONT_SIZE, Color(0.7, 0.7, 0.7))
+		_label_in(_panel, "%s - %s" % [node.display_name, node.description], FONT_SIZE, MenuStyle.MUTED)
 		var text: String = "Done" if status == ResearchState.Status.OWNED 				else "Research (%d samples, %d scrap)" % [node.cost_samples, node.cost_scrap]
 		var b: Button = _button_in(_panel, text, _research_node.bind(node.id))
 		b.disabled = status != ResearchState.Status.OK
@@ -180,13 +203,8 @@ func _label_in(parent: Control, text: String, size: int, color: Color) -> Label:
 
 
 func _button_in(parent: Control, text: String, action: Callable) -> Button:
-	var b: Button = Button.new()
-	b.text = text
-	b.custom_minimum_size = Vector2(120 if parent is HBoxContainer else 180, 14)
+	var b: Button = MenuStyle.button(parent, text, action, 120.0 if parent is HBoxContainer else 180.0)
 	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	b.add_theme_font_size_override("font_size", FONT_SIZE)
-	b.pressed.connect(action)
-	parent.add_child(b)
 	return b
 
 
@@ -204,11 +222,6 @@ func _label(text: String, size: int, color: Color) -> Label:
 
 
 func _button(text: String, action: Callable) -> Button:
-	var b: Button = Button.new()
-	b.text = text
-	b.custom_minimum_size = Vector2(180, 15)
+	var b: Button = MenuStyle.button(_column, text, action, 180.0)
 	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	b.add_theme_font_size_override("font_size", FONT_SIZE)
-	b.pressed.connect(action)
-	_column.add_child(b)
 	return b

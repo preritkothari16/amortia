@@ -18,6 +18,19 @@ extends Resource
 @export var light_radius: float = 128.0
 @export var light_color: Color = Color(1.0, 0.8, 0.58)
 @export var vignette: float = 0.6
+## What the screen edges darken to: near-black with a dried-blood red cast.
+@export var vignette_color: Color = Color(0.1, 0.02, 0.03)
+
+@export_group("Ambience")
+## Drifting motes over the screen (ash, mist, spores): colour and share of 24 px cells with one.
+@export var zone_mote_color: Array[Color] = []
+@export var zone_mote_amount: Array[float] = []
+## Broken lamps / emergency lights: at most this many per area, at least lamp_spacing px apart.
+@export var lamp_count: int = 6
+@export var lamp_spacing: float = 96.0
+@export var lamp_radius: int = 36
+@export var lamp_strength: float = 0.2
+@export var zone_lamp_color: Array[Color] = []
 
 @export_group("Decals")
 ## Chance per walkable cell of a decal (cracks, debris, stains, leaves).

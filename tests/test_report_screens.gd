@@ -262,8 +262,8 @@ func test_theme_type_scale_and_contrast() -> void:
 	for bg: String in ["panel", "card"]:
 		assert_gte(_contrast(muted, t.get_color(bg, "Palette")), 4.5, "muted on " + bg)
 		assert_gte(_contrast(t.get_color("text", "Palette"), t.get_color(bg, "Palette")), 4.5, "text on " + bg)
-	assert_eq(t.get_color("panel", "Palette"), Color("#16181d"))
-	assert_eq(t.get_color("accent", "Palette"), Color("#e8b84a"))
+	assert_eq(t.get_color("panel", "Palette"), MenuStyle.CHARCOAL, "the menus' palette (MenuStyle)")
+	assert_eq(t.get_color("accent", "Palette"), MenuStyle.EMBER)
 
 
 static func _contrast(a: Color, b: Color) -> float:

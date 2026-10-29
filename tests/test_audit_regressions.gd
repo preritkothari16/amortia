@@ -172,7 +172,7 @@ func test_safehouse_text_fits_the_480_px_viewport() -> void:
 	for label: Node in screen.find_children("*", "Label", true, false):
 		assert_lte((label as Label).get_combined_minimum_size().x, 480.0, "label too wide: " + (label as Label).text)
 		checked += 1
-	assert_gt(checked, 4)
+	assert_gte(checked, 4)
 
 
 # --- Main menu: New Game is the campaign, Endless lives in Test Scenarios ----------------------
@@ -190,7 +190,7 @@ func test_main_menu_new_game_is_the_campaign_and_endless_is_a_test_scenario() ->
 	add_child_autofree(menu)
 	var top: PackedStringArray = _button_texts(menu._menu)
 	assert_true(top.has("New Game"))
-	assert_true(top.has("Test Scenarios"))
+	assert_true(top.has("Level Select"))
 	assert_false(top.has("Campaign"), "no separate Campaign submenu any more")
 	for t: String in top:
 		assert_false(t.begins_with("Endless"), "Endless is not a top-level button")

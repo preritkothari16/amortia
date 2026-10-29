@@ -7,7 +7,9 @@ extends Control
 ##
 ## The node tree is built ONCE in _ready; every wave only refills it (set_* calls, pages shown
 ## or hidden), so nothing piles up between waves. Look: ui/theme/ui_theme.tres
-## (tools/build_ui_theme.gd). Sizes are viewport px (x2 at 720p, x4 at 1080p).
+## (tools/build_ui_theme.gd, MenuStyle's palette) with MenuStyle's crisp fonts, over a
+## MenuOverlay (vignette, smoke; Downed adds a heartbeat). Sizes are viewport px (x2 at 720p,
+## x3 at 810p, x4 at 1080p).
 
 const THEME_PATH: String = "res://ui/theme/ui_theme.tres"
 const SLIDE_PX: float = 8.0
@@ -16,6 +18,8 @@ const BAR_SECONDS: float = 0.6
 const CHIP_STAGGER: float = 0.06
 
 var _backdrop: ColorRect
+## Vignette and smoke over the darkened game (Downed sets its pulse).
+var overlay: MenuOverlay
 var _frame: MarginContainer
 var _panel: PanelContainer
 ## Pages by name; exactly one is visible.
@@ -29,15 +33,18 @@ var _tweens: Array[Tween] = []
 func _ready() -> void:
 	visible = false
 	process_mode = Node.PROCESS_MODE_ALWAYS  # works while the game is paused
-	theme = load(THEME_PATH)
+	theme = MenuStyle.with_fonts(load(THEME_PATH))
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_backdrop = ColorRect.new()
 	_backdrop.name = "Backdrop"
-	_backdrop.color = Color(get_theme_color(&"panel", &"Palette"), 0.88)
+	_backdrop.color = Color(get_theme_color(&"panel", &"Palette"), 0.6)
 	_backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_backdrop.mouse_filter = Control.MOUSE_FILTER_STOP  # the HUD and the game don't get clicks
 	add_child(_backdrop)
+	overlay = MenuOverlay.new()
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_backdrop.add_child(overlay)
 	_frame = MarginContainer.new()
 	_frame.name = "Frame"
 	_frame.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -58,6 +65,8 @@ func _ready() -> void:
 	root.add_child(_page_box)
 	_build_pages()
 	_build_footer(root)
+	for b: Node in find_children("*", "BaseButton", true, false):
+		MenuStyle.decorate(b as BaseButton)
 
 
 ## Keeps the frame the size of the screen. An anchored control grows when its content asks
